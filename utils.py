@@ -1,4 +1,5 @@
-﻿import datetime
+﻿# utils.py (дополненный)
+import datetime
 import glob
 import os
 import time
@@ -50,7 +51,6 @@ def add_subscription_days(user_id: int, days: int, check_referral: bool = False)
     cursor.execute("UPDATE users SET subscription_active = 1, subscription_end = ? WHERE user_id=?", (new_end.isoformat(), user_id))
     conn.commit()
     conn.close()
-    # Реферальный бонус при первой активации подписки
     if check_referral:
         add_referral_bonus(user_id)
 
@@ -61,6 +61,14 @@ def get_user_subscription_status(user_id: int) -> bool:
     row = cursor.fetchone()
     conn.close()
     return row[0] if row else False
+
+def get_subscription_end(user_id: int) -> str:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT subscription_end FROM users WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else None
 
 # ---------- Реферальная система ----------
 def generate_referral_link(user_id: int, bot_username: str = "NumerologArkadiy_bot") -> str:
@@ -162,6 +170,7 @@ def get_cached_response(user_id: int, request_type: str):
     row = cursor.fetchone()
     conn.close()
     if row:
+        # Опционально: проверять дату кэша (старше 30 дней – не использовать)
         return row[0]
     return None
 
@@ -214,17 +223,41 @@ def complete_challenge_day(user_id: int, day: int):
     if incomplete == 0:
         add_subscription_days(user_id, 3, check_referral=False)
         conn.close()
-        return True
+        return True  # челлендж завершён, бонус начислен
     conn.close()
     return False
 
 def get_challenge_progress(user_id: int):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT day, completed FROM challenges WHERE user_id=? ORDER BY day", (user_id,))
+    cursor.execute("SELECT day, completed, start_date FROM challenges WHERE user_id=? ORDER BY day", (user_id,))
     rows = cursor.fetchall()
     conn.close()
-    return [(row[0], row[1]) for row in rows]
+    return [(row[0], row[1], row[2]) for row in rows]  # добавляем start_date для расчёта текущего дня
+
+def get_current_challenge_day(user_id: int) -> int:
+    """Возвращает номер дня, который должен выполняться сейчас (от 1 до 7), или 0 если челлендж не активен"""
+    progress = get_challenge_progress(user_id)
+    if not progress:
+        return 0
+    start_date = datetime.datetime.fromisoformat(progress[0][2]).date()
+    today = datetime.date.today()
+    day_num = (today - start_date).days + 1
+    if day_num < 1:
+        return 1
+    if day_num > 7:
+        return 0  # челлендж закончился (все дни должны быть выполнены)
+    # Проверяем, не выполнен ли уже этот день
+    for day, completed, _ in progress:
+        if day == day_num and completed:
+            # этот день уже выполнен, ищем следующий невыполненный
+            for d, c, _ in progress:
+                if not c:
+                    return d
+            return 0
+        if day == day_num and not completed:
+            return day_num
+    return 0
 
 # ---------- Дневник эмоций ----------
 def log_mood(user_id: int, mood: int):

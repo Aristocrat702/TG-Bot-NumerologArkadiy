@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from keyboards import (
     main_menu, profile_menu, quick_topics_menu, share_button,
     menu_button, challenge_menu
@@ -18,7 +18,8 @@ from utils import (
     save_dialog_history, get_dialog_history, grant_achievement,
     get_achievements, start_challenge, complete_challenge_day,
     get_challenge_progress, get_bot_config, get_cached_response,
-    save_cached_response, log_mood, get_week_moods
+    save_cached_response, log_mood, get_week_moods,
+    set_bot_config
 )
 
 class UserStates(StatesGroup):
@@ -29,15 +30,13 @@ class UserStates(StatesGroup):
     waiting_full_name = State()
     waiting_birth_date_from_poll = State()
     waiting_challenge_day = State()
-    # Психологический тест
-    waiting_psycho_test_q1 = State()
-    waiting_psycho_test_q2 = State()
-    waiting_psycho_test_q3 = State()
-    # Дневник эмоций
-    waiting_mood = State()
+    waiting_psycho_test_answer = State()
+    waiting_mood_value = State()
+    waiting_new_name = State()
+    waiting_new_birth = State()
 
-# Временное хранилище для ответов теста
-psycho_answers = {}
+# Временное хранение последнего ответа для кнопки «Поделиться»
+last_answer = {}
 
 def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
@@ -131,6 +130,14 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                 parse_mode=None
             )
             grant_achievement(user_id, "first_calculation")
+            # Предложить психологический тест
+            await message.answer(
+                "🧠 Хотите пройти короткий психологический тест и узнать, как ваше число судьбы влияет на эмоции?",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="✅ Да, пройти тест", callback_data="psycho_test_start")],
+                    [InlineKeyboardButton(text="🔙 Позже", callback_data="back_to_menu")]
+                ])
+            )
             await state.clear()
         except Exception:
             await message.answer("Неверный формат. Введите дату в формате ДД.ММ.ГГГГ")
@@ -163,9 +170,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             conn.commit()
             conn.close()
 
-            # Кэш
-            cache_key = f"birth_{destiny}"
-            cached = get_cached_response(user_id, cache_key)
+            cached = get_cached_response(user_id, f"birth_{destiny}")
             if cached:
                 response = cached
             else:
@@ -173,7 +178,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                 prompt = f"Число судьбы {destiny}. Дай краткую характеристику (2-3 предложения), назови слабость и дай совет."
                 response = await get_yandex_gpt_response(prompt, user_id)
                 await status_msg.delete()
-                save_cached_response(user_id, cache_key, response)
+                save_cached_response(user_id, f"birth_{destiny}", response)
 
             await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}",
                                  reply_markup=quick_topics_menu, parse_mode=None)
@@ -183,7 +188,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     # ---------- БЫСТРЫЕ ТЕМЫ ----------
     @dp.callback_query(F.data.startswith("quick_topic_"))
-    async def handle_quick_topic(callback: CallbackQuery, state: FSMContext):
+    async def handle_quick_topic(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         user_id = callback.from_user.id
         topic = callback.data.split("_")[-1]
@@ -207,13 +212,14 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             "career": "карьере, профессиональном росте, призвании",
             "family": "семье, домашнем очаге, отношениях с родными",
             "creativity": "творчестве, самовыражении, хобби",
-            "psychology": "психологии, внутренних состояниях, личностном росте"
+            "psychology": "психологических аспектах, эмоциях, привычках"
         }
         query = topics_map.get(topic, "интересующей теме")
         prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о {query}. Дай развёрнутый ответ (5-7 предложений) с конкретными советами."
         status_msg = await callback.message.answer("🧐 Аркадий Викторович размышляет...")
         response = await get_yandex_gpt_response(prompt, user_id)
         await status_msg.delete()
+        last_answer[user_id] = response
         await callback.message.answer(f"✨ *{topic.capitalize()}*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
 
     # ---------- МОЯ МАТРИЦА (с кэшем) ----------
@@ -236,13 +242,13 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         cached = get_cached_response(user_id, cache_key)
         if cached:
             response = cached
-            await message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
-            return
-        status_msg = await message.answer("📜 Аркадий Викторович составляет вашу матрицу... Это может занять до 10 секунд.")
-        prompt = f"Составь полную матрицу судьбы для числа {destiny}. Дай развёрнутую характеристику (10-15 предложений) по арканам."
-        response = await get_yandex_gpt_response(prompt, user_id)
-        await status_msg.delete()
-        save_cached_response(user_id, cache_key, response)
+        else:
+            status_msg = await message.answer("📜 Аркадий Викторович составляет вашу матрицу... Это может занять до 10 секунд.")
+            prompt = f"Составь полную матрицу судьбы для числа {destiny}. Дай развёрнутую характеристику (10-15 предложений) по арканам."
+            response = await get_yandex_gpt_response(prompt, user_id)
+            await status_msg.delete()
+            save_cached_response(user_id, cache_key, response)
+        last_answer[user_id] = response
         await message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
 
     # ---------- СОВМЕСТИМОСТЬ ----------
@@ -273,6 +279,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             prompt = f"Число судьбы пользователя {my_destiny}, число партнёра {partner_destiny}. Опиши совместимость (5-7 предложений) с советами."
             response = await get_yandex_gpt_response(prompt, user_id)
             await status_msg.delete()
+            last_answer[user_id] = response
             await message.answer(f"❤️ *Совместимость*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
             await state.clear()
         except Exception:
@@ -289,12 +296,13 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         conn.close()
         destiny = row[0] if row else "?"
         status_msg = await message.answer("🌙 Аркадий Викторович заглядывает в будущее...")
-        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (3-5 предложений)."
+        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (3-5 предложений) с практическим действием. Также добавь одну психологическую практику."
         response = await get_yandex_gpt_response(prompt, user_id)
         await status_msg.delete()
+        last_answer[user_id] = response
         await message.answer(f"🎁 *Карта дня*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
 
-    # ---------- ЗАДАТЬ ВОПРОС (с лимитами) ----------
+    # ---------- ЗАДАТЬ ВОПРОС (с лимитами и анимацией) ----------
     @dp.message(F.text == "💬 ЗАДАТЬ ВОПРОС")
     async def ask_question(message: types.Message, state: FSMContext):
         user_id = message.from_user.id
@@ -328,6 +336,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает: {question}. Ответь развёрнуто, как психолог и нумеролог, с советами."
             response = await get_yandex_gpt_response(prompt, user_id)
             await status_msg.delete()
+            last_answer[user_id] = response
             await message.answer(response, parse_mode=None, reply_markup=share_button)
             await state.clear()
             return
@@ -346,7 +355,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await message.answer(f"🔮 {short_response}\n\nУ вас осталось *{remaining-1}* бесплатных вопросов на сегодня. Хотите безлимит? Оформите подписку в профиле.", parse_mode="Markdown", reply_markup=menu_button)
         await state.clear()
 
-    # ---------- ПРОФИЛЬ И РЕФЕРАЛКА ----------
+    # ---------- ПРОФИЛЬ (расширенный, с остатком вопросов и кнопками смены данных) ----------
     @dp.message(F.text == "👤 МОЙ ПРОФИЛЬ")
     async def show_profile(message: types.Message):
         user_id = message.from_user.id
@@ -363,17 +372,83 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         destiny = row[2] or "?"
         sub_status = "Активна" if row[3] else "Неактивна"
         sub_end = row[4] if row[4] else "—"
+        remaining = get_free_questions_remaining(user_id)
         text = (f"┌─────────────────────┐\n"
                 f"│ 👤 Имя: {name}\n"
                 f"│ 🎂 Дата: {birth}\n"
                 f"│ 🔢 Число: {destiny}\n"
                 f"│ 💳 Подписка: {sub_status}\n"
                 f"│ 📅 До: {sub_end}\n"
+                f"│ 🎁 Бесплатных вопросов: {remaining}/5\n"
                 f"└─────────────────────┘")
-        await message.answer(text, reply_markup=profile_menu)
+        # Добавляем inline-кнопки для смены данных
+        profile_buttons = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✏️ Сменить имя", callback_data="change_name"),
+             InlineKeyboardButton(text="📅 Сменить дату", callback_data="change_birth")],
+            [InlineKeyboardButton(text="🎁 БЕСПЛАТНЫЕ ДНИ", callback_data="referral_info"),
+             InlineKeyboardButton(text="🏆 ДОСТИЖЕНИЯ", callback_data="achievements")],
+            [InlineKeyboardButton(text="🧠 ПСИХОЛОГИЧЕСКИЙ ТЕСТ", callback_data="psycho_test_start")],
+            [InlineKeyboardButton(text="😊 ДНЕВНИК НАСТРОЕНИЯ", callback_data="mood_diary")],
+            [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings")],
+            [InlineKeyboardButton(text="❌ ОТМЕНИТЬ ПОДПИСКУ", callback_data="cancel_sub")],
+            [InlineKeyboardButton(text="✖️ ЗАКРЫТЬ", callback_data="close")]
+        ])
+        await message.answer(text, reply_markup=profile_buttons)
 
+    @dp.callback_query(F.data == "change_name")
+    async def change_name_start(callback: types.CallbackQuery, state: FSMContext):
+        await callback.message.answer("Введите новое имя (не менее 2 символов):")
+        await state.set_state(UserStates.waiting_new_name)
+        await callback.answer()
+
+    @dp.message(UserStates.waiting_new_name)
+    async def change_name_save(message: types.Message, state: FSMContext):
+        user_id = message.from_user.id
+        new_name = message.text.strip()
+        if len(new_name) < 2:
+            await message.answer("Имя должно быть не короче 2 символов.")
+            return
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET name = ? WHERE user_id = ?", (new_name, user_id))
+        conn.commit()
+        conn.close()
+        await message.answer(f"Имя изменено на {new_name}.")
+        await state.clear()
+
+    @dp.callback_query(F.data == "change_birth")
+    async def change_birth_start(callback: types.CallbackQuery, state: FSMContext):
+        await callback.message.answer("Введите новую дату рождения в формате ДД.ММ.ГГГГ:")
+        await state.set_state(UserStates.waiting_new_birth)
+        await callback.answer()
+
+    @dp.message(UserStates.waiting_new_birth)
+    async def change_birth_save(message: types.Message, state: FSMContext):
+        user_id = message.from_user.id
+        text = message.text.strip()
+        try:
+            day, month, year = map(int, text.split('.'))
+            birth_date = f"{day:02d}.{month:02d}.{year:04d}"
+            today = datetime.date.today()
+            birth = datetime.date(year, month, day)
+            age = today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
+            if age < 18:
+                await message.answer("Работаю только с совершеннолетними.")
+                return
+            destiny = calculate_destiny_number(birth_date)
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET birth_date = ?, destiny_number = ? WHERE user_id = ?", (birth_date, destiny, user_id))
+            conn.commit()
+            conn.close()
+            await message.answer(f"Дата рождения изменена. Ваше новое число судьбы: {destiny}")
+        except:
+            await message.answer("Неверный формат. Введите ДД.ММ.ГГГГ")
+        await state.clear()
+
+    # ---------- РЕФЕРАЛЬНАЯ ИНФОРМАЦИЯ ----------
     @dp.callback_query(F.data == "referral_info")
-    async def referral_info(callback: CallbackQuery):
+    async def referral_info(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         link = generate_referral_link(user_id)
         stats = get_referral_stats(user_id)
@@ -390,7 +465,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     # ---------- ДОСТИЖЕНИЯ ----------
     @dp.callback_query(F.data == "achievements")
-    async def show_achievements(callback: CallbackQuery):
+    async def show_achievements(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         achievements = get_achievements(user_id)
         if not achievements:
@@ -402,74 +477,101 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await callback.message.answer(text, reply_markup=menu_button)
         await callback.answer()
 
-    # ---------- ПСИХОЛОГИЧЕСКИЙ ТЕСТ ----------
-    @dp.callback_query(F.data == "psycho_test")
-    async def start_psycho_test(callback: CallbackQuery, state: FSMContext):
-        await callback.message.answer("Психологический тест: Как вы чаще всего реагируете на стресс?\n1) Паникую и теряюсь\n2) Анализирую и ищу решение\n3) Отвлекаюсь на другие дела")
-        await state.set_state(UserStates.waiting_psycho_test_q1)
-        await callback.answer()
-
-    @dp.message(UserStates.waiting_psycho_test_q1)
-    async def psycho_test_q2(message: types.Message, state: FSMContext):
-        answer = message.text.strip()
-        await state.update_data(q1=answer)
-        await message.answer("Вопрос 2: Как вы относитесь к своим ошибкам?\n1) Сильно переживаю\n2) Анализирую и делаю выводы\n3) Быстро забываю")
-        await state.set_state(UserStates.waiting_psycho_test_q2)
-
-    @dp.message(UserStates.waiting_psycho_test_q2)
-    async def psycho_test_q3(message: types.Message, state: FSMContext):
-        answer = message.text.strip()
-        await state.update_data(q2=answer)
-        await message.answer("Вопрос 3: Что для вас важнее в отношениях?\n1) Безопасность и стабильность\n2) Понимание и поддержка\n3) Свобода и независимость")
-        await state.set_state(UserStates.waiting_psycho_test_q3)
-
-    @dp.message(UserStates.waiting_psycho_test_q3)
-    async def psycho_test_result(message: types.Message, state: FSMContext):
-        data = await state.get_data()
-        q1 = data.get("q1")
-        q2 = data.get("q2")
-        q3 = message.text.strip()
-        # Простая интерпретация (можно расширить)
-        result = "Вы склонны к тревожности, но обладаете аналитическим складом ума. Рекомендую практиковать осознанность."
-        await message.answer(f"🧠 *Результат теста*\n\n{result}\n\nЭто предварительная оценка. Полный психологический разбор – по подписке.", parse_mode="Markdown", reply_markup=menu_button)
-        await state.clear()
-
     # ---------- ДНЕВНИК НАСТРОЕНИЯ ----------
     @dp.callback_query(F.data == "mood_diary")
-    async def mood_diary_start(callback: CallbackQuery, state: FSMContext):
-        await callback.message.answer("Оцените своё настроение сегодня (от 1 до 5, где 1 – ужасно, 5 – отлично):")
-        await state.set_state(UserStates.waiting_mood)
+    async def mood_diary_menu(callback: types.CallbackQuery):
+        await callback.message.answer(
+            "😊 Дневник настроения\n\n"
+            "Оцените, как прошёл ваш день, по шкале от 1 до 5:\n"
+            "1 – очень плохо\n"
+            "2 – плохо\n"
+            "3 – нормально\n"
+            "4 – хорошо\n"
+            "5 – отлично\n\n"
+            "Напишите число от 1 до 5.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="1️⃣", callback_data="mood_1"),
+                 InlineKeyboardButton(text="2️⃣", callback_data="mood_2"),
+                 InlineKeyboardButton(text="3️⃣", callback_data="mood_3"),
+                 InlineKeyboardButton(text="4️⃣", callback_data="mood_4"),
+                 InlineKeyboardButton(text="5️⃣", callback_data="mood_5")]
+            ])
+        )
         await callback.answer()
 
-    @dp.message(UserStates.waiting_mood)
-    async def save_mood(message: types.Message, state: FSMContext):
-        try:
-            mood = int(message.text.strip())
-            if mood < 1 or mood > 5:
-                raise ValueError
-            log_mood(message.from_user.id, mood)
-            await message.answer("😊 Настроение сохранено! Через неделю я покажу график вашего эмоционального фона.")
-        except:
-            await message.answer("Пожалуйста, введите число от 1 до 5.")
-            return
-        await state.clear()
-
-    @dp.callback_query(F.data == "mood_stats")
-    async def show_mood_stats(callback: CallbackQuery):
+    @dp.callback_query(F.data.startswith("mood_"))
+    async def save_mood(callback: types.CallbackQuery):
         user_id = callback.from_user.id
+        mood = int(callback.data.split("_")[1])
+        log_mood(user_id, mood)
+        await callback.message.answer(f"Ваше настроение ({mood}) сохранено. Спасибо! Через неделю я пришлю вам график.")
+        # Проверка, есть ли уже 7 записей
         moods = get_week_moods(user_id)
-        if not moods:
-            await callback.message.answer("Нет данных о настроении за последнюю неделю. Начните вести дневник через кнопку «Дневник настроения».")
-        else:
-            text = "📊 Ваше настроение за неделю:\n"
-            for date, mood in moods:
-                text += f"{date[:10]}: {'😊' * mood}{'😐' * (5-mood)} ({mood}/5)\n"
+        if len(moods) >= 7:
+            # сформировать отчёт
+            avg = sum(m for _, m in moods) / len(moods)
+            text = f"📊 Ваш недельный график настроения:\n\nСредний балл: {avg:.1f}\n\n"
+            if avg < 2.5:
+                text += "Вам стоит уделить внимание отдыху и эмоциональной разгрузке. Попробуйте дыхательные упражнения."
+            elif avg < 4:
+                text += "Нормальное состояние, но есть куда расти. Обратите внимание на свои источники радости."
+            else:
+                text += "Отличная неделя! Так держать."
             await callback.message.answer(text)
+        await callback.answer()
+
+    # ---------- ПСИХОЛОГИЧЕСКИЙ ТЕСТ ----------
+    test_questions = [
+        ("Часто ли вы чувствуете тревогу без причины?", ["Да", "Нет", "Иногда"]),
+        ("Как вы реагируете на критику?", ["Остро", "Спокойно", "Замыкаюсь"]),
+        ("Склонны ли вы брать на себя чужую ответственность?", ["Да", "Нет", "Только для близких"])
+    ]
+
+    @dp.callback_query(F.data == "psycho_test_start")
+    async def psycho_test_start(callback: types.CallbackQuery, state: FSMContext):
+        await state.update_data(test_step=0, answers=[])
+        q, opts = test_questions[0]
+        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=opt, callback_data=f"test_ans_{i}") for i, opt in enumerate(opts)]])
+        await callback.message.answer(f"🧠 Психологический тест (вопрос 1 из {len(test_questions)}):\n\n{q}", reply_markup=kb)
+        await callback.answer()
+        await state.set_state(UserStates.waiting_psycho_test_answer)
+
+    @dp.callback_query(F.data.startswith("test_ans_"), UserStates.waiting_psycho_test_answer)
+    async def psycho_test_answer(callback: types.CallbackQuery, state: FSMContext):
+        data = await state.get_data()
+        step = data.get("test_step", 0)
+        answers = data.get("answers", [])
+        ans_index = int(callback.data.split("_")[-1])
+        answers.append(ans_index)
+        await state.update_data(answers=answers)
+        step += 1
+        if step < len(test_questions):
+            await state.update_data(test_step=step)
+            q, opts = test_questions[step]
+            kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=opt, callback_data=f"test_ans_{i}") for i, opt in enumerate(opts)]])
+            await callback.message.answer(f"Вопрос {step+1} из {len(test_questions)}:\n\n{q}", reply_markup=kb)
+        else:
+            # Анализ результатов
+            result = "По результатам теста: "
+            if answers[0] == 0:
+                result += "вы склонны к тревожности. "
+            else:
+                result += "у вас стабильный эмоциональный фон. "
+            if answers[1] == 0:
+                result += "Критику воспринимаете остро, но это можно трансформировать в рост. "
+            else:
+                result += "Вы спокойно относитесь к критике. "
+            if answers[2] == 0:
+                result += "Вы часто берёте на себя чужую ответственность – это ваш дар и слабость."
+            else:
+                result += "Вы умеете держать границы."
+            await callback.message.answer(f"🧠 Результаты теста:\n\n{result}")
+            await state.clear()
         await callback.answer()
 
     # ---------- ЧЕЛЛЕНДЖ 7 ДНЕЙ ----------
     @dp.callback_query(F.data == "start_challenge")
-    async def start_challenge_callback(callback: CallbackQuery):
+    async def start_challenge_callback(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         progress = get_challenge_progress(user_id)
         if progress and any(not comp for _, comp in progress):
@@ -490,7 +592,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await callback.answer()
 
     @dp.callback_query(F.data.startswith("challenge_day_"))
-    async def complete_challenge_day_callback(callback: CallbackQuery):
+    async def complete_challenge_day_callback(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         day = int(callback.data.split("_")[-1])
         completed = complete_challenge_day(user_id, day)
@@ -515,7 +617,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await callback.answer()
 
     @dp.callback_query(F.data == "challenge_progress")
-    async def show_challenge_progress(callback: CallbackQuery):
+    async def show_challenge_progress(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         progress = get_challenge_progress(user_id)
         if not progress:
@@ -530,7 +632,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     # ---------- ПРОМОКОДЫ ----------
     @dp.callback_query(F.data == "enter_promo")
-    async def promo_callback(callback: CallbackQuery, state: FSMContext):
+    async def promo_callback(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.answer("Введите промокод:")
         await state.set_state(UserStates.waiting_promocode)
         await callback.answer()
@@ -573,50 +675,77 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await message.answer(f"🎉 Поздравляем! Вы активировали промокод +{action_days} дней подписки.", reply_markup=menu_button)
         await state.clear()
 
-    # ---------- ИСТОРИЯ ЗАПРОСОВ ----------
-    @dp.callback_query(F.data == "history")
-    async def show_history(callback: CallbackQuery):
-        user_id = callback.from_user.id
-        history = get_dialog_history(user_id, 10)
-        if not history:
-            text = "История запросов пуста."
-        else:
-            text = "📜 Последние запросы:\n"
-            for role, msg in history[:5]:
-                if role == "user":
-                    text += f"👤 Вы: {msg[:50]}...\n"
-                else:
-                    text += f"🤖 Аркадий: {msg[:50]}...\n"
-        await callback.message.answer(text, reply_markup=menu_button)
-        await callback.answer()
-
     # ---------- ОБЩИЕ CALLBACK ----------
     @dp.callback_query(F.data == "close")
-    async def close_profile(callback: CallbackQuery):
+    async def close_profile(callback: types.CallbackQuery):
         await callback.message.delete()
         await callback.answer()
 
     @dp.callback_query(F.data == "back_to_menu")
-    async def back_to_menu_callback(callback: CallbackQuery):
+    async def back_to_menu_callback(callback: types.CallbackQuery):
         await callback.message.answer("Главное меню", reply_markup=main_menu)
         await callback.message.delete()
         await callback.answer()
 
     @dp.callback_query(F.data == "share_result")
-    async def share_result(callback: CallbackQuery):
-        text = "🔮 Мой нумерологический разбор от Аркадия Викторовича был очень интересным! Присоединяйтесь -> https://t.me/NumerologArkadiy_bot"
-        await callback.message.answer(text)
+    async def share_result(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        last = last_answer.get(user_id, "результат вашего обращения")
+        text = f"🔮 Мой нумерологический разбор от Аркадия Викторовича:\n\n«{last[:200]}»\n\nУзнайте свою судьбу -> https://t.me/NumerologArkadiy_bot"
+        await callback.message.answer(text, reply_markup=menu_button)
         await callback.answer()
 
-    @dp.callback_query(F.data == "back_to_profile")
-    async def back_to_profile(callback: CallbackQuery):
-        await callback.message.delete()
+    @dp.callback_query(F.data == "settings")
+    async def settings_menu(callback: types.CallbackQuery):
+        await callback.message.answer(
+            "⚙️ Настройки:\n\n"
+            "• Отписаться от ежедневной рассылки – /unsubscribe_daily\n"
+            "• Подписаться на рассылку – /subscribe_daily\n"
+            "• Изменить данные – через кнопки в профиле"
+        )
+        await callback.answer()
+
+    @dp.callback_query(F.data == "cancel_sub")
+    async def cancel_subscription(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET subscription_active = 0 WHERE user_id = ?", (user_id,))
+        conn.commit()
+        conn.close()
+        await callback.message.answer("Подписка отменена. Вы сохраните доступ до окончания оплаченного периода.")
+        await callback.answer()
+
+    @dp.callback_query(F.data == "gift")
+    async def gift_subscription(callback: types.CallbackQuery):
+        # Заглушка
+        await callback.message.answer("Функция «Подарить подписку» в разработке. Скоро появится.")
         await callback.answer()
 
     @dp.callback_query()
-    async def other_callbacks(callback: CallbackQuery):
+    async def other_callbacks(callback: types.CallbackQuery):
         await callback.answer("В разработке", show_alert=True)
 
     @dp.message(Command("menu"))
     async def menu_command(message: types.Message):
         await message.answer("Главное меню", reply_markup=main_menu)
+
+    @dp.message(Command("unsubscribe_daily"))
+    async def unsubscribe_daily(message: types.Message):
+        user_id = message.from_user.id
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET send_daily = 0 WHERE user_id = ?", (user_id,))
+        conn.commit()
+        conn.close()
+        await message.answer("Вы отписались от ежедневной карты дня.")
+
+    @dp.message(Command("subscribe_daily"))
+    async def subscribe_daily(message: types.Message):
+        user_id = message.from_user.id
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET send_daily = 1 WHERE user_id = ?", (user_id,))
+        conn.commit()
+        conn.close()
+        await message.answer("Вы подписались на ежедневную карту дня. Она будет приходить в 12:00.")
