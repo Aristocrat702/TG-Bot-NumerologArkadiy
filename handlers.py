@@ -17,13 +17,19 @@ class UserStates(StatesGroup):
     waiting_question = State()
     waiting_promocode = State()
 
+# Создаём Inline-кнопку для возврата в меню
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+menu_button = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
+])
+
 def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.message(Command("start"))
     async def cmd_start(message: types.Message, state: FSMContext):
         user_id = message.from_user.id
         if is_blacklisted(user_id):
-            await message.answer("ы заблокированы.")
+            await message.answer("Вы заблокированы.")
             return
         conn = get_connection()
         cursor = conn.cursor()
@@ -32,17 +38,17 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         conn.commit()
         conn.close()
         await message.answer(
-            "🔮 ркадий икторович приветствует вас!\n\n"
-            "ажмите С Я, чтобы начать.\n"
-            "одписка даёт полную матрицу и безлимитные вопросы.",
+            "🔮 Аркадий Викторович приветствует вас!\n\n"
+            "Нажмите ЧИСЛО РОЖДЕНИЯ, чтобы начать.\n"
+            "Подписка даёт полную матрицу и безлимитные вопросы.",
             reply_markup=main_menu,
             parse_mode=None
         )
         await state.clear()
 
-    @dp.message(F.text == "📅 С Я")
+    @dp.message(F.text == "📅 ЧИСЛО РОЖДЕНИЯ")
     async def ask_birth_date(message: types.Message, state: FSMContext):
-        await message.answer("ведите дату рождения в формате .. (например, 15.06.1985)")
+        await message.answer("Введите дату рождения в формате ДД.ММ.ГГГГ (например, 15.06.1985)")
         await state.set_state(UserStates.waiting_birth_date)
 
     @dp.message(UserStates.waiting_birth_date)
@@ -56,7 +62,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             birth = datetime.date(year, month, day)
             age = today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
             if age < 18:
-                await message.answer("аботаю только с совершеннолетними.")
+                await message.answer("Работаю только с совершеннолетними.")
                 await state.clear()
                 return
             destiny = calculate_destiny_number(birth_date)
@@ -66,18 +72,20 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                            (birth_date, destiny, datetime.datetime.now().isoformat(), user_id))
             conn.commit()
             conn.close()
-            prompt = f"исло судьбы {destiny}. ай краткую характеристику (2-3 предложения), назови слабость и дай совет."
+            prompt = f"Число судьбы {destiny}. Дай краткую характеристику (2-3 предложения), назови слабость и дай совет."
             response = await get_yandex_gpt_response(prompt, user_id)
-            await message.answer(f"🔢 аше число судьбы: {destiny}\n\n{response}", parse_mode=None)
+            await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}", 
+                                 reply_markup=menu_button, parse_mode=None)
             await state.clear()
         except Exception:
-            await message.answer("еверный формат. ведите ..")
+            await message.answer("Неверный формат. Введите ДД.ММ.ГГГГ")
 
-    @dp.message(F.text == "🔮 Я Т")
+    @dp.message(F.text == "🔮 МОЯ МАТРИЦА")
     async def matrix_prompt(message: types.Message):
         user_id = message.from_user.id
         if not get_user_subscription_status(user_id):
-            await message.answer("олная матрица судьбы доступна только по подписке. формите подписку в профиле.")
+            await message.answer("Полная матрица судьбы доступна только по подписке. Оформите подписку в профиле.", 
+                                 reply_markup=menu_button)
             return
         conn = get_connection()
         cursor = conn.cursor()
@@ -85,19 +93,17 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         row = cursor.fetchone()
         conn.close()
         if not row or not row[0]:
-            await message.answer("Сначала укажите дату рождения через кнопку С Я.")
+            await message.answer("Сначала укажите дату рождения через кнопку ЧИСЛО РОЖДЕНИЯ.", reply_markup=menu_button)
             return
-        birth = row[0]
         destiny = row[1]
-        prompt = f"Составь полную матрицу судьбы для числа {destiny}. ай развёрнутую характеристику (10-15 предложений) по арканам."
+        prompt = f"Составь полную матрицу судьбы для числа {destiny}. Дай развёрнутую характеристику (10-15 предложений) по арканам."
         response = await get_yandex_gpt_response(prompt, user_id)
-        await message.answer(f"🔮 *атрица судьбы*\n\n{response}", parse_mode="Markdown")
+        await message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
 
-    @dp.message(F.text == "❤️ ССТСТЬ")
+    @dp.message(F.text == "❤️ СОВМЕСТИМОСТЬ")
     async def ask_partner_birth(message: types.Message, state: FSMContext):
-        await message.answer("ведите дату рождения партнёра в формате ..")
+        await message.answer("Введите дату рождения партнёра в формате ДД.ММ.ГГГГ")
         await state.set_state(UserStates.waiting_partner_birth_date)
-        await state.update_data(my_birth=message.from_user.id)
 
     @dp.message(UserStates.waiting_partner_birth_date)
     async def process_compatibility(message: types.Message, state: FSMContext):
@@ -113,18 +119,18 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             row = cursor.fetchone()
             conn.close()
             if not row or not row[0]:
-                await message.answer("Сначала укажите свою дату рождения через кнопку С Я.")
+                await message.answer("Сначала укажите свою дату рождения через кнопку ЧИСЛО РОЖДЕНИЯ.", reply_markup=menu_button)
                 await state.clear()
                 return
             my_destiny = row[0]
-            prompt = f"исло судьбы пользователя {my_destiny}, число партнёра {partner_destiny}. пиши совместимость (5-7 предложений) с советами."
+            prompt = f"Число судьбы пользователя {my_destiny}, число партнёра {partner_destiny}. Опиши совместимость (5-7 предложений) с советами."
             response = await get_yandex_gpt_response(prompt, user_id)
-            await message.answer(f"❤️ *Совместимость*\n\n{response}", parse_mode="Markdown")
+            await message.answer(f"❤️ *Совместимость*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
             await state.clear()
         except Exception:
-            await message.answer("еверный формат даты. ведите ..")
+            await message.answer("Неверный формат даты. Введите ДД.ММ.ГГГГ", reply_markup=menu_button)
 
-    @dp.message(F.text == "🎁 Т Я")
+    @dp.message(F.text == "🎁 КАРТА ДНЯ")
     async def daily_card(message: types.Message):
         user_id = message.from_user.id
         conn = get_connection()
@@ -133,17 +139,17 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         row = cursor.fetchone()
         conn.close()
         destiny = row[0] if row else "?"
-        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. ай короткий прогноз (3-5 предложений)."
+        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (3-5 предложений)."
         response = await get_yandex_gpt_response(prompt, user_id)
-        await message.answer(f"🎁 *арта дня*\n\n{response}", parse_mode="Markdown")
+        await message.answer(f"🎁 *Карта дня*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
 
-    @dp.message(F.text == "💬 ТЬ С")
+    @dp.message(F.text == "💬 ЗАДАТЬ ВОПРОС")
     async def ask_question(message: types.Message, state: FSMContext):
         user_id = message.from_user.id
         if not get_user_subscription_status(user_id):
-            await message.answer("адавать вопросы могут только подписчики. формите подписку в профиле.")
+            await message.answer("Задавать вопросы могут только подписчики. Оформите подписку в профиле.", reply_markup=menu_button)
             return
-        await message.answer("апишите ваш вопрос (по нумерологии или психологии). Я отвечу максимально честно.")
+        await message.answer("Напишите ваш вопрос (по нумерологии или психологии). Я отвечу максимально честно.")
         await state.set_state(UserStates.waiting_question)
 
     @dp.message(UserStates.waiting_question)
@@ -156,12 +162,12 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         row = cursor.fetchone()
         conn.close()
         destiny = row[0] if row else "?"
-        prompt = f"еловек с числом судьбы {destiny} спрашивает: {question}. тветь как психолог и нумеролог, прямо, без сюсюканий."
+        prompt = f"Человек с числом судьбы {destiny} спрашивает: {question}. Ответь как психолог и нумеролог, прямо, без сюсюканий."
         response = await get_yandex_gpt_response(prompt, user_id)
-        await message.answer(response, parse_mode=None)
+        await message.answer(response, parse_mode=None, reply_markup=menu_button)
         await state.clear()
 
-    @dp.message(F.text == "👤  Ь")
+    @dp.message(F.text == "👤 МОЙ ПРОФИЛЬ")
     async def show_profile(message: types.Message):
         user_id = message.from_user.id
         conn = get_connection()
@@ -170,25 +176,25 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         row = cursor.fetchone()
         conn.close()
         if not row:
-            await message.answer("ажмите /start")
+            await message.answer("Нажмите /start", reply_markup=menu_button)
             return
         name = row[0] or "—"
         birth = row[1] or "—"
         destiny = row[2] or "?"
-        sub_status = "ктивна" if row[3] else "еактивна"
+        sub_status = "Активна" if row[3] else "Неактивна"
         sub_end = row[4] if row[4] else "—"
         text = (f"┌─────────────────────┐\n"
-                f"│ 👤 мя: {name}\n"
-                f"│ 🎂 ата: {birth}\n"
-                f"│ 🔢 исло: {destiny}\n"
-                f"│ 💳 одписка: {sub_status}\n"
-                f"│ 📅 о: {sub_end}\n"
+                f"│ 👤 Имя: {name}\n"
+                f"│ 🎂 Дата: {birth}\n"
+                f"│ 🔢 Число: {destiny}\n"
+                f"│ 💳 Подписка: {sub_status}\n"
+                f"│ 📅 До: {sub_end}\n"
                 f"└─────────────────────┘")
         await message.answer(text, reply_markup=profile_menu)
 
     @dp.callback_query(F.data == "enter_promo")
     async def promo_callback(callback: types.CallbackQuery, state: FSMContext):
-        await callback.message.answer("ведите промокод:")
+        await callback.message.answer("Введите промокод:")
         await state.set_state(UserStates.waiting_promocode)
         await callback.answer()
 
@@ -201,7 +207,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         cursor.execute("SELECT action_value, max_uses, used_count, expires_at FROM promocodes WHERE code=?", (code,))
         promo = cursor.fetchone()
         if not promo:
-            await message.answer("еверный код.")
+            await message.answer("Неверный код.", reply_markup=menu_button)
             await state.clear()
             return
         action_days = promo[0]
@@ -209,16 +215,16 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         used_count = promo[2]
         expires_at = promo[3]
         if expires_at and expires_at < datetime.datetime.now().isoformat():
-            await message.answer("од просрочен.")
+            await message.answer("Код просрочен.", reply_markup=menu_button)
             await state.clear()
             return
         if max_uses > 0 and used_count >= max_uses:
-            await message.answer("од уже использован.")
+            await message.answer("Код уже использован.", reply_markup=menu_button)
             await state.clear()
             return
         cursor.execute("SELECT 1 FROM promocode_activations WHERE user_id=? AND code=?", (user_id, code))
         if cursor.fetchone():
-            await message.answer("ы уже активировали этот код.")
+            await message.answer("Вы уже активировали этот код.", reply_markup=menu_button)
             await state.clear()
             return
         add_subscription_days(user_id, action_days)
@@ -227,7 +233,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                        (user_id, code, datetime.datetime.now().isoformat(), f"+{action_days} дней"))
         conn.commit()
         conn.close()
-        await message.answer(f"🎉 оздравляем! ы активировали промокод +{action_days} дней подписки.")
+        await message.answer(f"🎉 Поздравляем! Вы активировали промокод +{action_days} дней подписки.", reply_markup=menu_button)
         await state.clear()
 
     @dp.callback_query(F.data == "close")
@@ -235,6 +241,17 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await callback.message.delete()
         await callback.answer()
 
+    @dp.callback_query(F.data == "back_to_menu")
+    async def back_to_menu(callback: types.CallbackQuery):
+        await callback.message.answer("Главное меню", reply_markup=main_menu)
+        await callback.message.delete()
+        await callback.answer()
+
     @dp.callback_query()
     async def other_callbacks(callback: types.CallbackQuery):
-        await callback.answer(" разработке", show_alert=True)
+        await callback.answer("В разработке", show_alert=True)
+
+    # Команда /menu
+    @dp.message(Command("menu"))
+    async def menu_command(message: types.Message):
+        await message.answer("Главное меню", reply_markup=main_menu)
