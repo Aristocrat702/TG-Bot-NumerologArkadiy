@@ -5,10 +5,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from keyboards import (
-    main_menu, profile_menu, quick_topics_menu, share_button,
-    menu_button, challenge_menu
-)
+from keyboards import main_menu, profile_menu, quick_topics_menu, share_button, menu_button, challenge_menu
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
 from utils import (
@@ -18,7 +15,7 @@ from utils import (
     save_dialog_history, get_dialog_history, grant_achievement,
     get_achievements, start_challenge, complete_challenge_day,
     get_challenge_progress, get_bot_config, get_cached_response,
-    save_cached_response, log_mood, get_week_moods,
+    save_cached_response, delete_user_cache, log_mood, get_week_moods,
     set_bot_config
 )
 
@@ -30,13 +27,17 @@ class UserStates(StatesGroup):
     waiting_full_name = State()
     waiting_birth_date_from_poll = State()
     waiting_challenge_day = State()
-    waiting_psycho_test_answer = State()
+    waiting_psycho_test = State()      # для теста
+    waiting_psycho_question = State()
     waiting_mood_value = State()
+    waiting_mood_comment = State()
     waiting_new_name = State()
     waiting_new_birth = State()
 
 # Временное хранение последнего ответа для кнопки «Поделиться»
 last_answer = {}
+# Временное хранение ответов на тест
+psycho_test_data = {}
 
 def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
@@ -130,14 +131,6 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                 parse_mode=None
             )
             grant_achievement(user_id, "first_calculation")
-            # Предложить психологический тест
-            await message.answer(
-                "🧠 Хотите пройти короткий психологический тест и узнать, как ваше число судьбы влияет на эмоции?",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="✅ Да, пройти тест", callback_data="psycho_test_start")],
-                    [InlineKeyboardButton(text="🔙 Позже", callback_data="back_to_menu")]
-                ])
-            )
             await state.clear()
         except Exception:
             await message.answer("Неверный формат. Введите дату в формате ДД.ММ.ГГГГ")
@@ -302,7 +295,119 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         last_answer[user_id] = response
         await message.answer(f"🎁 *Карта дня*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
 
-    # ---------- ЗАДАТЬ ВОПРОС (с лимитами и анимацией) ----------
+    # ---------- ПСИХОЛОГИЧЕСКИЙ ТЕСТ (через YandexGPT) ----------
+    @dp.message(F.text == "🧠 ПСИХОЛОГИЧЕСКИЙ ТЕСТ")
+    async def start_psycho_test(message: types.Message, state: FSMContext):
+        user_id = message.from_user.id
+        # Готовим вопросы (фиксированные, но можно потом заменить на более глубокие)
+        questions = [
+            "Как вы обычно реагируете на стресс? (коротко)",
+            "Что вас мотивирует больше всего?",
+            "Как вы принимаете важные решения?",
+            "Что вас чаще всего раздражает в других?",
+            "Опишите своё отношение к критике."
+        ]
+        await state.update_data(questions=questions, answers=[], step=0)
+        await message.answer(f"🧠 *Психологический тест*\n\nЯ задам {len(questions)} вопросов. Отвечайте честно и коротко.\n\nВопрос 1: {questions[0]}", parse_mode="Markdown")
+        await state.set_state(UserStates.waiting_psycho_question)
+
+    @dp.message(UserStates.waiting_psycho_question)
+    async def process_psycho_question(message: types.Message, state: FSMContext):
+        user_id = message.from_user.id
+        data = await state.get_data()
+        step = data.get("step", 0)
+        answers = data.get("answers", [])
+        answers.append(message.text.strip())
+        step += 1
+        questions = data.get("questions", [])
+        if step < len(questions):
+            await state.update_data(step=step, answers=answers)
+            await message.answer(f"Вопрос {step+1}: {questions[step]}")
+        else:
+            # Все вопросы заданы, отправляем в YandexGPT
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT destiny_number, name FROM users WHERE user_id=?", (user_id,))
+            row = cursor.fetchone()
+            conn.close()
+            destiny = row[0] if row else "неизвестно"
+            name = row[1] if row else "пользователь"
+            prompt = (
+                f"Пользователь {name} с числом судьбы {destiny} ответил на вопросы психологического теста: {answers}. "
+                "Дай развёрнутую характеристику личности (5-7 предложений), укажи сильные стороны, слабости и дай практический совет. "
+                "Будь прямолинеен, но не груб. Используй стиль Аркадия Викторовича."
+            )
+            status_msg = await message.answer("🧠 Анализирую ваши ответы...")
+            response = await get_yandex_gpt_response(prompt, user_id)
+            await status_msg.delete()
+            await message.answer(f"🧠 *Результат теста*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
+            await state.clear()
+
+    # ---------- ДНЕВНИК НАСТРОЕНИЯ ----------
+    @dp.message(F.text == "😊 ДНЕВНИК НАСТРОЕНИЯ")
+    async def mood_diary_menu(message: types.Message):
+        user_id = message.from_user.id
+        # Кнопки для дневника
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📝 Записать настроение", callback_data="mood_log")],
+            [InlineKeyboardButton(text="📊 Мой график", callback_data="mood_graph")],
+            [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
+        ])
+        await message.answer("😊 *Дневник настроения*\n\nЗдесь вы можете записать своё настроение и посмотреть динамику за неделю.", parse_mode="Markdown", reply_markup=kb)
+
+    @dp.callback_query(F.data == "mood_log")
+    async def mood_log_start(callback: types.CallbackQuery, state: FSMContext):
+        await callback.message.answer("Оцените ваше настроение по шкале от 1 до 5 (1 – ужасно, 5 – отлично):")
+        await state.set_state(UserStates.waiting_mood_value)
+        await callback.answer()
+
+    @dp.message(UserStates.waiting_mood_value)
+    async def mood_log_value(message: types.Message, state: FSMContext):
+        try:
+            mood = int(message.text.strip())
+            if mood < 1 or mood > 5:
+                raise ValueError
+            await state.update_data(mood=mood)
+            await message.answer("Напишите короткий комментарий (необязательно, можно пропустить, отправив '-'):")
+            await state.set_state(UserStates.waiting_mood_comment)
+        except:
+            await message.answer("Пожалуйста, введите число от 1 до 5.")
+
+    @dp.message(UserStates.waiting_mood_comment)
+    async def mood_log_comment(message: types.Message, state: FSMContext):
+        data = await state.get_data()
+        mood = data.get("mood")
+        comment = message.text.strip()
+        if comment == "-":
+            comment = ""
+        user_id = message.from_user.id
+        log_mood(user_id, mood, comment)
+        await message.answer("✅ Ваше настроение сохранено. Спасибо!", reply_markup=main_menu)
+        await state.clear()
+
+    @dp.callback_query(F.data == "mood_graph")
+    async def mood_graph(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        moods = get_week_moods(user_id)
+        if not moods:
+            await callback.message.answer("Нет данных за последнюю неделю. Записывайте настроение, чтобы увидеть график.")
+            await callback.answer()
+            return
+        text = "📊 *Ваше настроение за последние 7 дней:*\n\n"
+        for date, mood, comment in moods:
+            emoji = "😞" if mood <= 2 else "😐" if mood == 3 else "😊"
+            text += f"📅 {date}: {emoji} {mood}/5"
+            if comment:
+                text += f" – {comment}"
+            text += "\n"
+        # Анализ через YandexGPT
+        prompt = f"Настроение пользователя за последнюю неделю: {[(date, mood, comment) for date, mood, comment in moods]}. Дай короткий психологический анализ и совет (2-3 предложения)."
+        response = await get_yandex_gpt_response(prompt, user_id)
+        text += f"\n🧠 *Анализ:*\n{response}"
+        await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
+        await callback.answer()
+
+    # ---------- ЗАДАТЬ ВОПРОС ----------
     @dp.message(F.text == "💬 ЗАДАТЬ ВОПРОС")
     async def ask_question(message: types.Message, state: FSMContext):
         user_id = message.from_user.id
@@ -355,7 +460,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await message.answer(f"🔮 {short_response}\n\nУ вас осталось *{remaining-1}* бесплатных вопросов на сегодня. Хотите безлимит? Оформите подписку в профиле.", parse_mode="Markdown", reply_markup=menu_button)
         await state.clear()
 
-    # ---------- ПРОФИЛЬ (расширенный, с остатком вопросов и кнопками смены данных) ----------
+    # ---------- ПРОФИЛЬ ----------
     @dp.message(F.text == "👤 МОЙ ПРОФИЛЬ")
     async def show_profile(message: types.Message):
         user_id = message.from_user.id
@@ -381,19 +486,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                 f"│ 📅 До: {sub_end}\n"
                 f"│ 🎁 Бесплатных вопросов: {remaining}/5\n"
                 f"└─────────────────────┘")
-        # Добавляем inline-кнопки для смены данных
-        profile_buttons = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✏️ Сменить имя", callback_data="change_name"),
-             InlineKeyboardButton(text="📅 Сменить дату", callback_data="change_birth")],
-            [InlineKeyboardButton(text="🎁 БЕСПЛАТНЫЕ ДНИ", callback_data="referral_info"),
-             InlineKeyboardButton(text="🏆 ДОСТИЖЕНИЯ", callback_data="achievements")],
-            [InlineKeyboardButton(text="🧠 ПСИХОЛОГИЧЕСКИЙ ТЕСТ", callback_data="psycho_test_start")],
-            [InlineKeyboardButton(text="😊 ДНЕВНИК НАСТРОЕНИЯ", callback_data="mood_diary")],
-            [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings")],
-            [InlineKeyboardButton(text="❌ ОТМЕНИТЬ ПОДПИСКУ", callback_data="cancel_sub")],
-            [InlineKeyboardButton(text="✖️ ЗАКРЫТЬ", callback_data="close")]
-        ])
-        await message.answer(text, reply_markup=profile_buttons)
+        await message.answer(text, reply_markup=profile_menu)
 
     @dp.callback_query(F.data == "change_name")
     async def change_name_start(callback: types.CallbackQuery, state: FSMContext):
@@ -441,12 +534,12 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             cursor.execute("UPDATE users SET birth_date = ?, destiny_number = ? WHERE user_id = ?", (birth_date, destiny, user_id))
             conn.commit()
             conn.close()
+            delete_user_cache(user_id)  # очищаем кэш
             await message.answer(f"Дата рождения изменена. Ваше новое число судьбы: {destiny}")
         except:
             await message.answer("Неверный формат. Введите ДД.ММ.ГГГГ")
         await state.clear()
 
-    # ---------- РЕФЕРАЛЬНАЯ ИНФОРМАЦИЯ ----------
     @dp.callback_query(F.data == "referral_info")
     async def referral_info(callback: types.CallbackQuery):
         user_id = callback.from_user.id
@@ -463,7 +556,6 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
         await callback.answer()
 
-    # ---------- ДОСТИЖЕНИЯ ----------
     @dp.callback_query(F.data == "achievements")
     async def show_achievements(callback: types.CallbackQuery):
         user_id = callback.from_user.id
@@ -477,99 +569,87 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await callback.message.answer(text, reply_markup=menu_button)
         await callback.answer()
 
-    # ---------- ДНЕВНИК НАСТРОЕНИЯ ----------
-    @dp.callback_query(F.data == "mood_diary")
-    async def mood_diary_menu(callback: types.CallbackQuery):
+    @dp.callback_query(F.data == "settings")
+    async def settings_menu(callback: types.CallbackQuery):
         await callback.message.answer(
-            "😊 Дневник настроения\n\n"
-            "Оцените, как прошёл ваш день, по шкале от 1 до 5:\n"
-            "1 – очень плохо\n"
-            "2 – плохо\n"
-            "3 – нормально\n"
-            "4 – хорошо\n"
-            "5 – отлично\n\n"
-            "Напишите число от 1 до 5.",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="1️⃣", callback_data="mood_1"),
-                 InlineKeyboardButton(text="2️⃣", callback_data="mood_2"),
-                 InlineKeyboardButton(text="3️⃣", callback_data="mood_3"),
-                 InlineKeyboardButton(text="4️⃣", callback_data="mood_4"),
-                 InlineKeyboardButton(text="5️⃣", callback_data="mood_5")]
-            ])
+            "⚙️ *Настройки*\n\n"
+            "• Отписаться от ежедневной рассылки – /unsubscribe_daily\n"
+            "• Подписаться на рассылку – /subscribe_daily\n"
+            "• Сменить имя или дату рождения – кнопки в профиле",
+            parse_mode="Markdown", reply_markup=menu_button
         )
         await callback.answer()
 
-    @dp.callback_query(F.data.startswith("mood_"))
-    async def save_mood(callback: types.CallbackQuery):
+    @dp.callback_query(F.data == "cancel_sub")
+    async def cancel_subscription(callback: types.CallbackQuery):
         user_id = callback.from_user.id
-        mood = int(callback.data.split("_")[1])
-        log_mood(user_id, mood)
-        await callback.message.answer(f"Ваше настроение ({mood}) сохранено. Спасибо! Через неделю я пришлю вам график.")
-        # Проверка, есть ли уже 7 записей
-        moods = get_week_moods(user_id)
-        if len(moods) >= 7:
-            # сформировать отчёт
-            avg = sum(m for _, m in moods) / len(moods)
-            text = f"📊 Ваш недельный график настроения:\n\nСредний балл: {avg:.1f}\n\n"
-            if avg < 2.5:
-                text += "Вам стоит уделить внимание отдыху и эмоциональной разгрузке. Попробуйте дыхательные упражнения."
-            elif avg < 4:
-                text += "Нормальное состояние, но есть куда расти. Обратите внимание на свои источники радости."
-            else:
-                text += "Отличная неделя! Так держать."
-            await callback.message.answer(text)
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET subscription_active = 0 WHERE user_id = ?", (user_id,))
+        conn.commit()
+        conn.close()
+        await callback.message.answer("Подписка отменена. Вы сохраните доступ до окончания оплаченного периода.")
         await callback.answer()
 
-    # ---------- ПСИХОЛОГИЧЕСКИЙ ТЕСТ ----------
-    test_questions = [
-        ("Часто ли вы чувствуете тревогу без причины?", ["Да", "Нет", "Иногда"]),
-        ("Как вы реагируете на критику?", ["Остро", "Спокойно", "Замыкаюсь"]),
-        ("Склонны ли вы брать на себя чужую ответственность?", ["Да", "Нет", "Только для близких"])
-    ]
-
-    @dp.callback_query(F.data == "psycho_test_start")
-    async def psycho_test_start(callback: types.CallbackQuery, state: FSMContext):
-        await state.update_data(test_step=0, answers=[])
-        q, opts = test_questions[0]
-        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=opt, callback_data=f"test_ans_{i}") for i, opt in enumerate(opts)]])
-        await callback.message.answer(f"🧠 Психологический тест (вопрос 1 из {len(test_questions)}):\n\n{q}", reply_markup=kb)
-        await callback.answer()
-        await state.set_state(UserStates.waiting_psycho_test_answer)
-
-    @dp.callback_query(F.data.startswith("test_ans_"), UserStates.waiting_psycho_test_answer)
-    async def psycho_test_answer(callback: types.CallbackQuery, state: FSMContext):
-        data = await state.get_data()
-        step = data.get("test_step", 0)
-        answers = data.get("answers", [])
-        ans_index = int(callback.data.split("_")[-1])
-        answers.append(ans_index)
-        await state.update_data(answers=answers)
-        step += 1
-        if step < len(test_questions):
-            await state.update_data(test_step=step)
-            q, opts = test_questions[step]
-            kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=opt, callback_data=f"test_ans_{i}") for i, opt in enumerate(opts)]])
-            await callback.message.answer(f"Вопрос {step+1} из {len(test_questions)}:\n\n{q}", reply_markup=kb)
+    @dp.callback_query(F.data == "history")
+    async def show_history(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        history = get_dialog_history(user_id, 10)
+        if not history:
+            text = "История пуста."
         else:
-            # Анализ результатов
-            result = "По результатам теста: "
-            if answers[0] == 0:
-                result += "вы склонны к тревожности. "
-            else:
-                result += "у вас стабильный эмоциональный фон. "
-            if answers[1] == 0:
-                result += "Критику воспринимаете остро, но это можно трансформировать в рост. "
-            else:
-                result += "Вы спокойно относитесь к критике. "
-            if answers[2] == 0:
-                result += "Вы часто берёте на себя чужую ответственность – это ваш дар и слабость."
-            else:
-                result += "Вы умеете держать границы."
-            await callback.message.answer(f"🧠 Результаты теста:\n\n{result}")
-            await state.clear()
+            text = "📜 *Последние 10 сообщений:*\n\n"
+            for role, msg, ts in history:
+                emoji = "👤" if role == "user" else "🤖"
+                text += f"{ts[:16]} {emoji} {msg[:80]}\n"
+        await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
         await callback.answer()
 
-    # ---------- ЧЕЛЛЕНДЖ 7 ДНЕЙ ----------
+    @dp.callback_query(F.data == "enter_promo")
+    async def promo_callback(callback: types.CallbackQuery, state: FSMContext):
+        await callback.message.answer("Введите промокод:")
+        await state.set_state(UserStates.waiting_promocode)
+        await callback.answer()
+
+    @dp.message(UserStates.waiting_promocode)
+    async def process_promocode(message: types.Message, state: FSMContext):
+        code = message.text.strip()
+        user_id = message.from_user.id
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT action_value, max_uses, used_count, expires_at FROM promocodes WHERE code=?", (code,))
+        promo = cursor.fetchone()
+        if not promo:
+            await message.answer("Неверный код.", reply_markup=menu_button)
+            await state.clear()
+            return
+        action_days = promo[0]
+        max_uses = promo[1]
+        used_count = promo[2]
+        expires_at = promo[3]
+        if expires_at and expires_at < datetime.datetime.now().isoformat():
+            await message.answer("Код просрочен.", reply_markup=menu_button)
+            await state.clear()
+            return
+        if max_uses > 0 and used_count >= max_uses:
+            await message.answer("Код уже использован.", reply_markup=menu_button)
+            await state.clear()
+            return
+        cursor.execute("SELECT 1 FROM promocode_activations WHERE user_id=? AND code=?", (user_id, code))
+        if cursor.fetchone():
+            await message.answer("Вы уже активировали этот код.", reply_markup=menu_button)
+            await state.clear()
+            return
+        add_subscription_days(user_id, action_days, check_referral=True, admin_id=0)
+        cursor.execute("UPDATE promocodes SET used_count = used_count + 1 WHERE code=?", (code,))
+        cursor.execute("INSERT INTO promocode_activations (user_id, code, activated_at, result_text) VALUES (?, ?, ?, ?)",
+                       (user_id, code, datetime.datetime.now().isoformat(), f"+{action_days} дней"))
+        conn.commit()
+        conn.close()
+        await message.answer(f"🎉 Поздравляем! Вы активировали промокод +{action_days} дней подписки.", reply_markup=menu_button)
+        await state.clear()
+
+    # ---------- ЧЕЛЛЕНДЖ ----------
     @dp.callback_query(F.data == "start_challenge")
     async def start_challenge_callback(callback: types.CallbackQuery):
         user_id = callback.from_user.id
@@ -630,51 +710,6 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await callback.message.answer(text, reply_markup=challenge_menu)
         await callback.answer()
 
-    # ---------- ПРОМОКОДЫ ----------
-    @dp.callback_query(F.data == "enter_promo")
-    async def promo_callback(callback: types.CallbackQuery, state: FSMContext):
-        await callback.message.answer("Введите промокод:")
-        await state.set_state(UserStates.waiting_promocode)
-        await callback.answer()
-
-    @dp.message(UserStates.waiting_promocode)
-    async def process_promocode(message: types.Message, state: FSMContext):
-        code = message.text.strip()
-        user_id = message.from_user.id
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT action_value, max_uses, used_count, expires_at FROM promocodes WHERE code=?", (code,))
-        promo = cursor.fetchone()
-        if not promo:
-            await message.answer("Неверный код.", reply_markup=menu_button)
-            await state.clear()
-            return
-        action_days = promo[0]
-        max_uses = promo[1]
-        used_count = promo[2]
-        expires_at = promo[3]
-        if expires_at and expires_at < datetime.datetime.now().isoformat():
-            await message.answer("Код просрочен.", reply_markup=menu_button)
-            await state.clear()
-            return
-        if max_uses > 0 and used_count >= max_uses:
-            await message.answer("Код уже использован.", reply_markup=menu_button)
-            await state.clear()
-            return
-        cursor.execute("SELECT 1 FROM promocode_activations WHERE user_id=? AND code=?", (user_id, code))
-        if cursor.fetchone():
-            await message.answer("Вы уже активировали этот код.", reply_markup=menu_button)
-            await state.clear()
-            return
-        add_subscription_days(user_id, action_days, check_referral=True)
-        cursor.execute("UPDATE promocodes SET used_count = used_count + 1 WHERE code=?", (code,))
-        cursor.execute("INSERT INTO promocode_activations (user_id, code, activated_at, result_text) VALUES (?, ?, ?, ?)",
-                       (user_id, code, datetime.datetime.now().isoformat(), f"+{action_days} дней"))
-        conn.commit()
-        conn.close()
-        await message.answer(f"🎉 Поздравляем! Вы активировали промокод +{action_days} дней подписки.", reply_markup=menu_button)
-        await state.clear()
-
     # ---------- ОБЩИЕ CALLBACK ----------
     @dp.callback_query(F.data == "close")
     async def close_profile(callback: types.CallbackQuery):
@@ -695,30 +730,8 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await callback.message.answer(text, reply_markup=menu_button)
         await callback.answer()
 
-    @dp.callback_query(F.data == "settings")
-    async def settings_menu(callback: types.CallbackQuery):
-        await callback.message.answer(
-            "⚙️ Настройки:\n\n"
-            "• Отписаться от ежедневной рассылки – /unsubscribe_daily\n"
-            "• Подписаться на рассылку – /subscribe_daily\n"
-            "• Изменить данные – через кнопки в профиле"
-        )
-        await callback.answer()
-
-    @dp.callback_query(F.data == "cancel_sub")
-    async def cancel_subscription(callback: types.CallbackQuery):
-        user_id = callback.from_user.id
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE users SET subscription_active = 0 WHERE user_id = ?", (user_id,))
-        conn.commit()
-        conn.close()
-        await callback.message.answer("Подписка отменена. Вы сохраните доступ до окончания оплаченного периода.")
-        await callback.answer()
-
     @dp.callback_query(F.data == "gift")
     async def gift_subscription(callback: types.CallbackQuery):
-        # Заглушка
         await callback.message.answer("Функция «Подарить подписку» в разработке. Скоро появится.")
         await callback.answer()
 
@@ -729,6 +742,11 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.message(Command("menu"))
     async def menu_command(message: types.Message):
         await message.answer("Главное меню", reply_markup=main_menu)
+
+    @dp.message(Command("cancel"))
+    async def cancel_handler(message: types.Message, state: FSMContext):
+        await state.clear()
+        await message.answer("Действие отменено.", reply_markup=main_menu)
 
     @dp.message(Command("unsubscribe_daily"))
     async def unsubscribe_daily(message: types.Message):

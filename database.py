@@ -101,10 +101,21 @@ def init_db():
         CREATE TABLE IF NOT EXISTS mood_log (
             user_id INTEGER,
             mood INTEGER,
+            comment TEXT,
             log_date TEXT,
             PRIMARY KEY (user_id, log_date)
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS admin_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER,
+            action TEXT,
+            details TEXT,
+            created_at TEXT
+        )
+    ''')
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('system_prompt', 'Вы — Аркадий Викторович...')")
+    cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('subscription_price', '249')")
     conn.commit()
     conn.close()

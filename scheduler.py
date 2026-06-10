@@ -49,7 +49,7 @@ async def weekly_leaderboard(bot: Bot, admin_id: int):
         conn2.close()
         name = name_row[0] if name_row else str(uid)
         text += f"{i}. {name} — {cnt} сообщений\n"
-        add_subscription_days(uid, 3, check_referral=False)
+        add_subscription_days(uid, 3, check_referral=False, admin_id=0)
     await bot.send_message(admin_id, text)
 
 async def daily_backup():
@@ -75,7 +75,6 @@ async def send_challenge_reminders(bot: Bot):
         progress = get_challenge_progress(uid)
         if not progress:
             continue
-        # Найти первый невыполненный день
         for day, completed in progress:
             if not completed:
                 await bot.send_message(uid, f"🔥 Напоминание по челленджу: задание дня {day}: {tasks.get(day, 'Выполните любой шаг')}\n\nНажмите кнопку «Выполнил» в профиле, когда сделаете.")

@@ -1,5 +1,4 @@
-﻿# utils.py (дополненный)
-import datetime
+﻿import datetime
 import glob
 import os
 import time
@@ -23,6 +22,7 @@ def add_to_blacklist(user_id: int, reason: str = ""):
                    (user_id, reason, datetime.datetime.now().isoformat()))
     conn.commit()
     conn.close()
+    admin_log(0, "add_blacklist", f"user_id={user_id}, reason={reason}")
 
 def remove_from_blacklist(user_id: int):
     conn = get_connection()
@@ -30,6 +30,7 @@ def remove_from_blacklist(user_id: int):
     cursor.execute("DELETE FROM blacklist WHERE user_id=?", (user_id,))
     conn.commit()
     conn.close()
+    admin_log(0, "remove_blacklist", f"user_id={user_id}")
 
 def calculate_destiny_number(birth_date: str) -> int:
     s = birth_date.replace('.', '')
@@ -38,7 +39,7 @@ def calculate_destiny_number(birth_date: str) -> int:
         total = sum(int(d) for d in str(total))
     return total
 
-def add_subscription_days(user_id: int, days: int, check_referral: bool = False):
+def add_subscription_days(user_id: int, days: int, check_referral: bool = False, admin_id: int = 0):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT subscription_end FROM users WHERE user_id=?", (user_id,))
@@ -51,6 +52,7 @@ def add_subscription_days(user_id: int, days: int, check_referral: bool = False)
     cursor.execute("UPDATE users SET subscription_active = 1, subscription_end = ? WHERE user_id=?", (new_end.isoformat(), user_id))
     conn.commit()
     conn.close()
+    admin_log(admin_id, "add_subscription", f"user_id={user_id}, days={days}, new_end={new_end.isoformat()}")
     if check_referral:
         add_referral_bonus(user_id)
 
@@ -62,15 +64,6 @@ def get_user_subscription_status(user_id: int) -> bool:
     conn.close()
     return row[0] if row else False
 
-def get_subscription_end(user_id: int) -> str:
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT subscription_end FROM users WHERE user_id=?", (user_id,))
-    row = cursor.fetchone()
-    conn.close()
-    return row[0] if row else None
-
-# ---------- Реферальная система ----------
 def generate_referral_link(user_id: int, bot_username: str = "NumerologArkadiy_bot") -> str:
     return f"https://t.me/{bot_username}?start=ref_{user_id}"
 
@@ -83,7 +76,7 @@ def add_referral_bonus(referred_user_id: int):
         conn.close()
         return
     referrer_id = row[0]
-    add_subscription_days(referrer_id, 7, check_referral=False)
+    add_subscription_days(referrer_id, 7, check_referral=False, admin_id=0)
     conn.close()
 
 def get_referral_stats(user_id: int) -> dict:
@@ -96,7 +89,6 @@ def get_referral_stats(user_id: int) -> dict:
     conn.close()
     return {"total": total_count, "paid": paid_count}
 
-# ---------- Лимиты бесплатных вопросов ----------
 def get_free_questions_remaining(user_id: int) -> int:
     conn = get_connection()
     cursor = conn.cursor()
@@ -144,7 +136,6 @@ def increment_free_query(user_id: int) -> bool:
     conn.close()
     return True
 
-# ---------- История диалогов ----------
 def save_dialog_history(user_id: int, role: str, message_text: str):
     conn = get_connection()
     cursor = conn.cursor()
@@ -157,22 +148,18 @@ def save_dialog_history(user_id: int, role: str, message_text: str):
 def get_dialog_history(user_id: int, limit: int = 10):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT role, message FROM dialog_history WHERE user_id=? ORDER BY timestamp DESC LIMIT ?", (user_id, limit))
+    cursor.execute("SELECT role, message, timestamp FROM dialog_history WHERE user_id=? ORDER BY timestamp DESC LIMIT ?", (user_id, limit))
     rows = cursor.fetchall()
     conn.close()
-    return [(row[0], row[1]) for row in rows]
+    return [(row[0], row[1], row[2]) for row in rows]
 
-# ---------- Кэширование ответов ----------
 def get_cached_response(user_id: int, request_type: str):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT response_text, cache_date FROM messages_cache WHERE user_id=? AND request_type=?", (user_id, request_type))
+    cursor.execute("SELECT response_text FROM messages_cache WHERE user_id=? AND request_type=?", (user_id, request_type))
     row = cursor.fetchone()
     conn.close()
-    if row:
-        # Опционально: проверять дату кэша (старше 30 дней – не использовать)
-        return row[0]
-    return None
+    return row[0] if row else None
 
 def save_cached_response(user_id: int, request_type: str, response: str):
     conn = get_connection()
@@ -182,7 +169,13 @@ def save_cached_response(user_id: int, request_type: str, response: str):
     conn.commit()
     conn.close()
 
-# ---------- Достижения ----------
+def delete_user_cache(user_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM messages_cache WHERE user_id=?", (user_id,))
+    conn.commit()
+    conn.close()
+
 def grant_achievement(user_id: int, achievement: str):
     conn = get_connection()
     cursor = conn.cursor()
@@ -199,7 +192,6 @@ def get_achievements(user_id: int):
     conn.close()
     return [(row[0], row[1]) for row in rows]
 
-# ---------- Челлендж 7 дней ----------
 def start_challenge(user_id: int):
     conn = get_connection()
     cursor = conn.cursor()
@@ -221,50 +213,26 @@ def complete_challenge_day(user_id: int, day: int):
     cursor.execute("SELECT COUNT(*) FROM challenges WHERE user_id=? AND completed=0", (user_id,))
     incomplete = cursor.fetchone()[0]
     if incomplete == 0:
-        add_subscription_days(user_id, 3, check_referral=False)
+        add_subscription_days(user_id, 3, check_referral=False, admin_id=0)
         conn.close()
-        return True  # челлендж завершён, бонус начислен
+        return True
     conn.close()
     return False
 
 def get_challenge_progress(user_id: int):
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT day, completed, start_date FROM challenges WHERE user_id=? ORDER BY day", (user_id,))
+    cursor.execute("SELECT day, completed FROM challenges WHERE user_id=? ORDER BY day", (user_id,))
     rows = cursor.fetchall()
     conn.close()
-    return [(row[0], row[1], row[2]) for row in rows]  # добавляем start_date для расчёта текущего дня
+    return [(row[0], row[1]) for row in rows]
 
-def get_current_challenge_day(user_id: int) -> int:
-    """Возвращает номер дня, который должен выполняться сейчас (от 1 до 7), или 0 если челлендж не активен"""
-    progress = get_challenge_progress(user_id)
-    if not progress:
-        return 0
-    start_date = datetime.datetime.fromisoformat(progress[0][2]).date()
-    today = datetime.date.today()
-    day_num = (today - start_date).days + 1
-    if day_num < 1:
-        return 1
-    if day_num > 7:
-        return 0  # челлендж закончился (все дни должны быть выполнены)
-    # Проверяем, не выполнен ли уже этот день
-    for day, completed, _ in progress:
-        if day == day_num and completed:
-            # этот день уже выполнен, ищем следующий невыполненный
-            for d, c, _ in progress:
-                if not c:
-                    return d
-            return 0
-        if day == day_num and not completed:
-            return day_num
-    return 0
-
-# ---------- Дневник эмоций ----------
-def log_mood(user_id: int, mood: int):
+def log_mood(user_id: int, mood: int, comment: str = ""):
     conn = get_connection()
     cursor = conn.cursor()
     today = datetime.date.today().isoformat()
-    cursor.execute("INSERT OR REPLACE INTO mood_log (user_id, mood, log_date) VALUES (?, ?, ?)", (user_id, mood, today))
+    cursor.execute("INSERT OR REPLACE INTO mood_log (user_id, mood, comment, log_date) VALUES (?, ?, ?, ?)",
+                   (user_id, mood, comment, today))
     conn.commit()
     conn.close()
 
@@ -272,12 +240,11 @@ def get_week_moods(user_id: int):
     conn = get_connection()
     cursor = conn.cursor()
     week_ago = (datetime.date.today() - datetime.timedelta(days=7)).isoformat()
-    cursor.execute("SELECT log_date, mood FROM mood_log WHERE user_id=? AND log_date >= ? ORDER BY log_date", (user_id, week_ago))
+    cursor.execute("SELECT log_date, mood, comment FROM mood_log WHERE user_id=? AND log_date >= ? ORDER BY log_date", (user_id, week_ago))
     rows = cursor.fetchall()
     conn.close()
-    return [(row[0], row[1]) for row in rows]
+    return [(row[0], row[1], row[2]) for row in rows]
 
-# ---------- Бэкап базы данных ----------
 def backup_database():
     import shutil
     src = "arkadiy_bot.db"
@@ -292,7 +259,6 @@ def backup_database():
             os.remove(f)
     return dst
 
-# ---------- Управление настройками ----------
 def set_bot_config(key: str, value: str):
     conn = get_connection()
     cursor = conn.cursor()
@@ -307,3 +273,11 @@ def get_bot_config(key: str, default=None):
     row = cursor.fetchone()
     conn.close()
     return row[0] if row else default
+
+def admin_log(admin_id: int, action: str, details: str = ""):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO admin_logs (admin_id, action, details, created_at) VALUES (?, ?, ?, ?)",
+                   (admin_id, action, details, datetime.datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
