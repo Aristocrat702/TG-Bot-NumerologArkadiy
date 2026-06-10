@@ -1,4 +1,7 @@
 ﻿import datetime
+import glob
+import os
+import time
 from database import get_connection
 
 def is_admin(user_id: int, admin_ids: list) -> bool:
@@ -11,6 +14,21 @@ def is_blacklisted(user_id: int) -> bool:
     res = cursor.fetchone() is not None
     conn.close()
     return res
+
+def add_to_blacklist(user_id: int, reason: str = ""):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO blacklist (user_id, reason, blocked_at) VALUES (?, ?, ?)",
+                   (user_id, reason, datetime.datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
+def remove_from_blacklist(user_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM blacklist WHERE user_id=?", (user_id,))
+    conn.commit()
+    conn.close()
 
 def calculate_destiny_number(birth_date: str) -> int:
     s = birth_date.replace('.', '')
@@ -46,7 +64,6 @@ def generate_referral_link(user_id: int, bot_username: str = "NumerologArkadiy_b
     return f"https://t.me/{bot_username}?start=ref_{user_id}"
 
 def add_referral_bonus(referred_user_id: int):
-    """Начисляет +7 дней подписки пригласившему, если приглашённый оформил платную подписку"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT referred_by FROM users WHERE user_id=?", (referred_user_id,))
@@ -59,7 +76,6 @@ def add_referral_bonus(referred_user_id: int):
     conn.close()
 
 def get_referral_stats(user_id: int) -> dict:
-    """Возвращает количество приведённых друзей с активной подпиской"""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(*) FROM users WHERE referred_by=? AND subscription_active=1", (user_id,))
@@ -134,3 +150,90 @@ def get_dialog_history(user_id: int, limit: int = 10):
     rows = cursor.fetchall()
     conn.close()
     return [(row[0], row[1]) for row in rows]
+
+# ---------- Достижения ----------
+def grant_achievement(user_id: int, achievement: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO achievements (user_id, achievement, earned_at) VALUES (?, ?, ?)",
+                   (user_id, achievement, datetime.datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
+def get_achievements(user_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT achievement, earned_at FROM achievements WHERE user_id=?", (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [(row[0], row[1]) for row in rows]
+
+# ---------- Челлендж 7 дней ----------
+def start_challenge(user_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM challenges WHERE user_id=?", (user_id,))
+    start = datetime.datetime.now().isoformat()
+    for day in range(1, 8):
+        cursor.execute("INSERT INTO challenges (user_id, day, completed, start_date) VALUES (?, ?, 0, ?)",
+                       (user_id, day, start))
+    conn.commit()
+    conn.close()
+    return True
+
+def complete_challenge_day(user_id: int, day: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE challenges SET completed=1, completed_at=? WHERE user_id=? AND day=?", 
+                   (datetime.datetime.now().isoformat(), user_id, day))
+    conn.commit()
+    conn.close()
+    # Проверяем, все ли дни выполнены
+    cursor.execute("SELECT COUNT(*) FROM challenges WHERE user_id=? AND completed=0", (user_id,))
+    incomplete = cursor.fetchone()[0]
+    if incomplete == 0:
+        add_subscription_days(user_id, 3)
+        conn.close()
+        return True  # челлендж завершён, бонус начислен
+    conn.close()
+    return False
+
+def get_challenge_progress(user_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT day, completed FROM challenges WHERE user_id=? ORDER BY day", (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [(row[0], row[1]) for row in rows]
+
+# ---------- Бэкап базы данных ----------
+def backup_database():
+    import shutil
+    src = "arkadiy_bot.db"
+    backup_dir = "backups"
+    if not os.path.exists(backup_dir):
+        os.makedirs(backup_dir)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    dst = f"{backup_dir}/arkadiy_bot_{timestamp}.db"
+    shutil.copy2(src, dst)
+    # удалить старые копии (старше 7 дней)
+    for f in glob.glob(f"{backup_dir}/arkadiy_bot_*.db"):
+        if os.path.getmtime(f) < time.time() - 7*86400:
+            os.remove(f)
+    return dst
+
+# ---------- Управление настройками ----------
+def set_bot_config(key: str, value: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO bot_config (key, value) VALUES (?, ?)", (key, value))
+    conn.commit()
+    conn.close()
+
+def get_bot_config(key: str, default=None):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT value FROM bot_config WHERE key=?", (key,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else default

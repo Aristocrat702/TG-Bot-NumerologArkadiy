@@ -1,17 +1,23 @@
 ﻿import datetime
+import asyncio
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from keyboards import main_menu, profile_menu, quick_topics_menu, menu_button
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from keyboards import (
+    main_menu, profile_menu, quick_topics_menu, share_button,
+    menu_button, challenge_menu
+)
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
 from utils import (
     is_blacklisted, calculate_destiny_number, add_subscription_days,
     get_user_subscription_status, generate_referral_link, add_referral_bonus,
     get_referral_stats, get_free_questions_remaining, increment_free_query,
-    save_dialog_history
+    save_dialog_history, get_dialog_history, grant_achievement,
+    get_achievements, start_challenge, complete_challenge_day,
+    get_challenge_progress, get_bot_config
 )
 
 class UserStates(StatesGroup):
@@ -21,10 +27,14 @@ class UserStates(StatesGroup):
     waiting_promocode = State()
     waiting_full_name = State()
     waiting_birth_date_from_poll = State()
+    waiting_challenge_day = State()
+
+# Кэш для ответов (простой in-memory)
+response_cache = {}
 
 def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
-    # -------------------- СТАРТ И ОПРОС --------------------
+    # ---------- СТАРТ И ОПРОС ----------
     @dp.message(Command("start"))
     async def cmd_start(message: types.Message, state: FSMContext):
         user_id = message.from_user.id
@@ -32,7 +42,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await message.answer("Вы заблокированы.")
             return
 
-        # Обработка реферальной ссылки: ?start=ref_123456789
+        # Реферальная ссылка
         args = message.text.split()
         if len(args) > 1 and args[1].startswith("ref_"):
             referrer_id = int(args[1][4:])
@@ -114,11 +124,13 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                 reply_markup=quick_topics_menu,
                 parse_mode=None
             )
+            # Выдадим достижение за первый расчёт
+            grant_achievement(user_id, "first_calculation")
             await state.clear()
         except Exception:
             await message.answer("Неверный формат. Введите дату в формате ДД.ММ.ГГГГ")
 
-    # -------------------- КНОПКА «ЧИСЛО РОЖДЕНИЯ» (альтернативный ввод) --------------------
+    # ---------- КНОПКА «ЧИСЛО РОЖДЕНИЯ» (с кэшем) ----------
     @dp.message(F.text == "📅 ЧИСЛО РОЖДЕНИЯ")
     async def ask_birth_date(message: types.Message, state: FSMContext):
         await message.answer("Введите дату рождения в формате ДД.ММ.ГГГГ (например, 15.06.1985)")
@@ -145,20 +157,31 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                            (birth_date, destiny, datetime.datetime.now().isoformat(), user_id))
             conn.commit()
             conn.close()
-            prompt = f"Число судьбы {destiny}. Дай краткую характеристику (2-3 предложения), назови слабость и дай совет."
-            response = await get_yandex_gpt_response(prompt, user_id)
+
+            # Кэш: проверим, есть ли уже ответ для этого числа
+            cache_key = f"birth_{destiny}"
+            if cache_key in response_cache:
+                response = response_cache[cache_key]
+            else:
+                # Анимация
+                status_msg = await message.answer("🧐 Аркадий Викторович изучает ваш гороскоп...")
+                prompt = f"Число судьбы {destiny}. Дай краткую характеристику (2-3 предложения), назови слабость и дай совет."
+                response = await get_yandex_gpt_response(prompt, user_id)
+                await status_msg.delete()
+                response_cache[cache_key] = response
+
             await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}",
                                  reply_markup=quick_topics_menu, parse_mode=None)
             await state.clear()
         except Exception:
             await message.answer("Неверный формат. Введите ДД.ММ.ГГГГ")
 
-    # -------------------- БЫСТРЫЕ ТЕМЫ --------------------
+    # ---------- БЫСТРЫЕ ТЕМЫ ----------
     @dp.callback_query(F.data.startswith("quick_topic_"))
-    async def handle_quick_topic(callback: types.CallbackQuery, state: FSMContext):
+    async def handle_quick_topic(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         user_id = callback.from_user.id
-        topic = callback.data.split("_")[-1]  # money, love, health, career, family, creativity
+        topic = callback.data.split("_")[-1]
 
         conn = get_connection()
         cursor = conn.cursor()
@@ -182,10 +205,12 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         }
         query = topics_map.get(topic, "интересующей теме")
         prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о {query}. Дай развёрнутый ответ (5-7 предложений) с конкретными советами."
+        status_msg = await callback.message.answer("🧐 Аркадий Викторович размышляет...")
         response = await get_yandex_gpt_response(prompt, user_id)
-        await callback.message.answer(f"✨ *{topic.capitalize()}*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
+        await status_msg.delete()
+        await callback.message.answer(f"✨ *{topic.capitalize()}*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
 
-    # -------------------- ОСНОВНЫЕ КНОПКИ МЕНЮ --------------------
+    # ---------- МОЯ МАТРИЦА (с кэшем) ----------
     @dp.message(F.text == "🔮 МОЯ МАТРИЦА")
     async def matrix_prompt(message: types.Message):
         user_id = message.from_user.id
@@ -201,10 +226,19 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await message.answer("Сначала укажите дату рождения через кнопку ЧИСЛО РОЖДЕНИЯ.", reply_markup=menu_button)
             return
         destiny = row[0]
+        cache_key = f"matrix_{destiny}"
+        if cache_key in response_cache:
+            response = response_cache[cache_key]
+            await message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
+            return
+        status_msg = await message.answer("📜 Аркадий Викторович составляет вашу матрицу... Это может занять до 10 секунд.")
         prompt = f"Составь полную матрицу судьбы для числа {destiny}. Дай развёрнутую характеристику (10-15 предложений) по арканам."
         response = await get_yandex_gpt_response(prompt, user_id)
-        await message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
+        await status_msg.delete()
+        response_cache[cache_key] = response
+        await message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
 
+    # ---------- СОВМЕСТИМОСТЬ ----------
     @dp.message(F.text == "❤️ СОВМЕСТИМОСТЬ")
     async def ask_partner_birth(message: types.Message, state: FSMContext):
         await message.answer("Введите дату рождения партнёра в формате ДД.ММ.ГГГГ")
@@ -228,13 +262,16 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                 await state.clear()
                 return
             my_destiny = row[0]
+            status_msg = await message.answer("🔍 Анализирую совместимость...")
             prompt = f"Число судьбы пользователя {my_destiny}, число партнёра {partner_destiny}. Опиши совместимость (5-7 предложений) с советами."
             response = await get_yandex_gpt_response(prompt, user_id)
-            await message.answer(f"❤️ *Совместимость*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
+            await status_msg.delete()
+            await message.answer(f"❤️ *Совместимость*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
             await state.clear()
         except Exception:
             await message.answer("Неверный формат даты. Введите ДД.ММ.ГГГГ", reply_markup=menu_button)
 
+    # ---------- КАРТА ДНЯ ----------
     @dp.message(F.text == "🎁 КАРТА ДНЯ")
     async def daily_card(message: types.Message):
         user_id = message.from_user.id
@@ -244,10 +281,13 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         row = cursor.fetchone()
         conn.close()
         destiny = row[0] if row else "?"
+        status_msg = await message.answer("🌙 Аркадий Викторович заглядывает в будущее...")
         prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (3-5 предложений)."
         response = await get_yandex_gpt_response(prompt, user_id)
-        await message.answer(f"🎁 *Карта дня*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
+        await status_msg.delete()
+        await message.answer(f"🎁 *Карта дня*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
 
+    # ---------- ЗАДАТЬ ВОПРОС (с лимитами и анимацией) ----------
     @dp.message(F.text == "💬 ЗАДАТЬ ВОПРОС")
     async def ask_question(message: types.Message, state: FSMContext):
         user_id = message.from_user.id
@@ -276,28 +316,31 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         name = row[1] if row else "друг"
 
         is_subscriber = get_user_subscription_status(user_id)
+        status_msg = await message.answer("🧐 Изучаю вопрос...")
         if is_subscriber:
             prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает: {question}. Ответь развёрнуто, как психолог и нумеролог, с советами."
             response = await get_yandex_gpt_response(prompt, user_id)
-            await message.answer(response, parse_mode=None, reply_markup=menu_button)
+            await status_msg.delete()
+            await message.answer(response, parse_mode=None, reply_markup=share_button)
             await state.clear()
             return
 
-        # Бесплатный режим: короткий ответ + намёк на подписку
+        # Бесплатный режим: короткий ответ
         remaining = get_free_questions_remaining(user_id)
         if remaining <= 0:
+            await status_msg.delete()
             await message.answer("Лимит бесплатных вопросов на сегодня исчерпан. Оформите подписку в профиле.", reply_markup=menu_button)
             await state.clear()
             return
 
-        # Отвечаем кратко
         prompt = f"Человек с числом судьбы {destiny} спрашивает: {question}. Дай очень короткий ответ (1-2 предложения), интригующий, но не раскрывай всех деталей. В конце добавь фразу: «Полный разбор и советы – по подписке»."
         short_response = await get_yandex_gpt_response(prompt, user_id)
         increment_free_query(user_id)
+        await status_msg.delete()
         await message.answer(f"🔮 {short_response}\n\nУ вас осталось *{remaining-1}* бесплатных вопросов на сегодня. Хотите безлимит? Оформите подписку в профиле.", parse_mode="Markdown", reply_markup=menu_button)
         await state.clear()
 
-    # -------------------- ПРОФИЛЬ И РЕФЕРАЛЬНАЯ СИСТЕМА --------------------
+    # ---------- ПРОФИЛЬ И РЕФЕРАЛКА ----------
     @dp.message(F.text == "👤 МОЙ ПРОФИЛЬ")
     async def show_profile(message: types.Message):
         user_id = message.from_user.id
@@ -324,7 +367,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await message.answer(text, reply_markup=profile_menu)
 
     @dp.callback_query(F.data == "referral_info")
-    async def referral_info(callback: types.CallbackQuery):
+    async def referral_info(callback: CallbackQuery):
         user_id = callback.from_user.id
         link = generate_referral_link(user_id)
         stats = get_referral_stats(user_id)
@@ -339,9 +382,86 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
         await callback.answer()
 
-    # -------------------- ПРОМОКОДЫ --------------------
+    # ---------- ДОСТИЖЕНИЯ ----------
+    @dp.callback_query(F.data == "achievements")
+    async def show_achievements(callback: CallbackQuery):
+        user_id = callback.from_user.id
+        achievements = get_achievements(user_id)
+        if not achievements:
+            text = "Пока нет достижений. Начните с расчёта числа судьбы!"
+        else:
+            text = "🏆 Ваши достижения:\n"
+            for ach, date in achievements:
+                text += f"• {ach} ({date[:10]})\n"
+        await callback.message.answer(text, reply_markup=menu_button)
+        await callback.answer()
+
+    # ---------- ЧЕЛЛЕНДЖ 7 ДНЕЙ ----------
+    @dp.callback_query(F.data == "start_challenge")
+    async def start_challenge_callback(callback: CallbackQuery):
+        user_id = callback.from_user.id
+        # Проверим, есть ли уже активный челлендж
+        progress = get_challenge_progress(user_id)
+        if progress and any(not comp for _, comp in progress):
+            await callback.message.answer("У вас уже есть активный челлендж. Выполняйте задания каждый день.", reply_markup=challenge_menu)
+            await callback.answer()
+            return
+        start_challenge(user_id)
+        await callback.message.answer(
+            "🔥 Вы начали челлендж «7 дней до силы»!\n"
+            "Каждый день я буду давать небольшое задание. Выполняйте его и нажимайте «Выполнил».\n"
+            "За успешное прохождение всех 7 дней вы получите +3 дня подписки.\n\n"
+            "Задание дня 1: Скажите «нет» человеку, который вас напрягает (мысленно или вслух).\n"
+            "Как выполните – нажмите кнопку ниже.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✅ Выполнил день 1", callback_data="challenge_day_1")]
+            ])
+        )
+        await callback.answer()
+
+    @dp.callback_query(F.data.startswith("challenge_day_"))
+    async def complete_challenge_day_callback(callback: CallbackQuery):
+        user_id = callback.from_user.id
+        day = int(callback.data.split("_")[-1])
+        completed = complete_challenge_day(user_id, day)
+        if completed:
+            await callback.message.answer("🎉 Поздравляю! Вы прошли весь челлендж и получили +3 дня подписки. Продолжайте изучать нумерологию!")
+        else:
+            # Показать следующее задание
+            next_day = day + 1
+            tasks = {
+                2: "Сделайте спонтанный поступок (поменяйте маршрут, купите необычный продукт).",
+                3: "Напишите себе письмо «Что я изменю через месяц».",
+                4: "Сделайте зарядку 5 минут.",
+                5: "Поблагодарите себя за что-то вслух.",
+                6: "Отдайте ненужную вещь.",
+                7: "Запланируйте конкретную цель на неделю."
+            }
+            if next_day <= 7:
+                task_text = tasks.get(next_day, "Продолжайте челлендж!")
+                await callback.message.answer(f"✅ День {day} выполнен!\n\nЗадание дня {next_day}: {task_text}\n\nНажмите «Выполнил», когда сделаете.",
+                                               reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                                                   [InlineKeyboardButton(text=f"✅ Выполнил день {next_day}", callback_data=f"challenge_day_{next_day}")]
+                                               ]))
+        await callback.answer()
+
+    @dp.callback_query(F.data == "challenge_progress")
+    async def show_challenge_progress(callback: CallbackQuery):
+        user_id = callback.from_user.id
+        progress = get_challenge_progress(user_id)
+        if not progress:
+            await callback.message.answer("Вы ещё не начинали челлендж. Нажмите «Начать челлендж 7 дней» в профиле.", reply_markup=menu_button)
+        else:
+            text = "📊 Прогресс челленджа:\n"
+            for day, completed in progress:
+                status = "✅" if completed else "❌"
+                text += f"День {day}: {status}\n"
+            await callback.message.answer(text, reply_markup=challenge_menu)
+        await callback.answer()
+
+    # ---------- ПРОМОКОДЫ (пользовательская часть) ----------
     @dp.callback_query(F.data == "enter_promo")
-    async def promo_callback(callback: types.CallbackQuery, state: FSMContext):
+    async def promo_callback(callback: CallbackQuery, state: FSMContext):
         await callback.message.answer("Введите промокод:")
         await state.set_state(UserStates.waiting_promocode)
         await callback.answer()
@@ -384,20 +504,27 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await message.answer(f"🎉 Поздравляем! Вы активировали промокод +{action_days} дней подписки.", reply_markup=menu_button)
         await state.clear()
 
-    # -------------------- ОБЩИЕ CALLBACK --------------------
+    # ---------- ОБЩИЕ CALLBACK ----------
     @dp.callback_query(F.data == "close")
-    async def close_profile(callback: types.CallbackQuery):
+    async def close_profile(callback: CallbackQuery):
         await callback.message.delete()
         await callback.answer()
 
     @dp.callback_query(F.data == "back_to_menu")
-    async def back_to_menu_callback(callback: types.CallbackQuery):
+    async def back_to_menu_callback(callback: CallbackQuery):
         await callback.message.answer("Главное меню", reply_markup=main_menu)
         await callback.message.delete()
         await callback.answer()
 
+    @dp.callback_query(F.data == "share_result")
+    async def share_result(callback: CallbackQuery):
+        # Отправляем сообщение с текстом для шаринга
+        text = "🔮 Мой нумерологический разбор от Аркадия Викторовича был очень интересным! Присоединяйтесь -> https://t.me/NumerologArkadiy_bot"
+        await callback.message.answer(text)
+        await callback.answer()
+
     @dp.callback_query()
-    async def other_callbacks(callback: types.CallbackQuery):
+    async def other_callbacks(callback: CallbackQuery):
         await callback.answer("В разработке", show_alert=True)
 
     @dp.message(Command("menu"))

@@ -1,5 +1,6 @@
 ﻿import aiohttp
 import os
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -7,9 +8,17 @@ load_dotenv()
 YANDEX_API_KEY = os.getenv("YANDEX_API_KEY")
 YANDEX_FOLDER_ID = os.getenv("YANDEX_FOLDER_ID")
 
+_failure_count = 0
+_last_failure_time = 0
+
 async def get_yandex_gpt_response(prompt: str, user_id: int) -> str:
+    global _failure_count, _last_failure_time
     if not YANDEX_API_KEY or not YANDEX_FOLDER_ID:
-        return "Ошибка: не настроен YandexGPT."
+        return "⚠️ Ошибка: не настроен YandexGPT. Администратор уже в курсе."
+    # Если было 3 ошибки за последние 5 минут – выдаём юмористический ответ
+    if _failure_count >= 3 and (time.time() - _last_failure_time) < 300:
+        return "🧙‍♂️ Аркадий Викторович временно занят – разгребает числа, целую гору. Задайте вопрос через пару минут, и я отвечу во всеоружии!"
+    
     url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
     headers = {
         "Authorization": f"Api-Key {YANDEX_API_KEY}",
@@ -48,9 +57,17 @@ async def get_yandex_gpt_response(prompt: str, user_id: int) -> str:
         ]
     }
     async with aiohttp.ClientSession() as session:
-        async with session.post(url, headers=headers, json=data) as resp:
-            if resp.status == 200:
-                result = await resp.json()
-                return result["result"]["alternatives"][0]["message"]["text"]
-            else:
-                return f"Ошибка YandexGPT: {resp.status}"
+        try:
+            async with session.post(url, headers=headers, json=data, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+                if resp.status == 200:
+                    result = await resp.json()
+                    _failure_count = 0
+                    return result["result"]["alternatives"][0]["message"]["text"]
+                else:
+                    _failure_count += 1
+                    _last_failure_time = time.time()
+                    return f"⚠️ Ошибка YandexGPT: {resp.status}. Пожалуйста, попробуйте позже."
+        except Exception as e:
+            _failure_count += 1
+            _last_failure_time = time.time()
+            return f"⚠️ Не удалось связаться с нейросетью. Аркадий Викторович уже чинит. А пока расскажите, что вас беспокоит?"

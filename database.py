@@ -23,7 +23,8 @@ def init_db():
             last_active TEXT,
             free_queries_today INTEGER DEFAULT 0,
             send_daily BOOLEAN DEFAULT 1,
-            is_sleeping BOOLEAN DEFAULT 0
+            is_sleeping BOOLEAN DEFAULT 0,
+            referred_by INTEGER
         )
     ''')
     cursor.execute('''
@@ -78,6 +79,26 @@ def init_db():
             value TEXT
         )
     ''')
-    cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('system_prompt', 'ы — ркадий икторович...')")
+    # Таблица для достижений
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS achievements (
+            user_id INTEGER,
+            achievement TEXT,
+            earned_at TEXT,
+            PRIMARY KEY (user_id, achievement)
+        )
+    ''')
+    # Таблица для челленджа 7 дней
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS challenges (
+            user_id INTEGER,
+            day INTEGER,
+            completed BOOLEAN DEFAULT 0,
+            completed_at TEXT,
+            start_date TEXT,
+            PRIMARY KEY (user_id, day)
+        )
+    ''')
+    cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('system_prompt', 'Вы — Аркадий Викторович...')")
     conn.commit()
     conn.close()

@@ -31,7 +31,8 @@ async def on_startup():
     await set_main_menu(bot)
     register_handlers(dp, bot, ADMIN_IDS)
     register_admin_handlers(dp, bot, ADMIN_IDS)
-    start_scheduler(bot)   # запуск ежедневной рассылки карты дня
+    # Передаём admin_id для лидерборда и других задач
+    start_scheduler(bot, ADMIN_IDS[0] if ADMIN_IDS else None)
     logging.info("Бот Аркадий Викторович запущен")
 
 async def main():
