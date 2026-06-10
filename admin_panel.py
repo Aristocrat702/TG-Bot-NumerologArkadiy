@@ -24,14 +24,19 @@ class AdminStates(StatesGroup):
     waiting_reply_text = State()
     waiting_new_price = State()
     waiting_new_prompt = State()
+    waiting_broadcast = State()   # новое состояние для рассылки
+
+# Глобальное состояние для рассылки (чтобы не конфликтовать с dp)
+broadcast_active = {}
 
 def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.message(Command("admin"))
-    async def admin_panel(message: types.Message):
+    async def admin_panel(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             await message.answer("Нет доступа.")
             return
+        await state.clear()
         await message.answer("Админ-панель", reply_markup=admin_menu)
 
     # ---------- СТАТИСТИКА ----------
@@ -63,33 +68,25 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await message.answer(text)
         conn.close()
 
-    # ---------- РАССЫЛКА ----------
+    # ---------- РАССЫЛКА (исправлена) ----------
     @dp.message(F.text == "✉️ РАССЫЛКА")
-    async def broadcast_start(message: types.Message):
+    async def broadcast_start(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
-        await message.answer(
-            "Отправьте сообщение для рассылки.\n"
-            "Можно отправить текст, фото, документ – всё будет доставлено всем пользователям.\n"
-            "Для отмены отправьте /cancel_broadcast"
-        )
-        dp["broadcast_msg"] = None
+        await message.answer("Отправьте сообщение для рассылки (текст, фото, документ). Для отмены /cancel_broadcast")
+        await state.set_state(AdminStates.waiting_broadcast)
 
-    @dp.message(F.text == "/cancel_broadcast")
-    async def cancel_broadcast(message: types.Message):
-        dp.pop("broadcast_msg", None)
+    @dp.message(Command("cancel_broadcast"))
+    async def cancel_broadcast(message: types.Message, state: FSMContext):
+        await state.clear()
         await message.answer("Рассылка отменена.")
 
-    @dp.message(F.content_type.in_({"text", "photo", "document", "animation", "video"}))
-    async def handle_broadcast(message: types.Message):
+    @dp.message(AdminStates.waiting_broadcast)
+    async def handle_broadcast(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
-        if "broadcast_msg" not in dp:
-            return
-
-        broadcast_content = message
-        dp["broadcast_msg"] = broadcast_content
-        await message.answer("Сообщение получено. Начинаю рассылку...")
+        await state.clear()
+        await message.answer("Начинаю рассылку...")
 
         conn = get_connection()
         cursor = conn.cursor()
@@ -102,43 +99,44 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         for user in users:
             user_id = user[0]
             try:
-                if broadcast_content.photo:
-                    photo = broadcast_content.photo[-1]
-                    await bot.send_photo(user_id, photo.file_id, caption=broadcast_content.caption)
-                elif broadcast_content.document:
-                    await bot.send_document(user_id, broadcast_content.document.file_id, caption=broadcast_content.caption)
-                elif broadcast_content.animation:
-                    await bot.send_animation(user_id, broadcast_content.animation.file_id, caption=broadcast_content.caption)
-                elif broadcast_content.video:
-                    await bot.send_video(user_id, broadcast_content.video.file_id, caption=broadcast_content.caption)
+                if message.photo:
+                    photo = message.photo[-1]
+                    await bot.send_photo(user_id, photo.file_id, caption=message.caption)
+                elif message.document:
+                    await bot.send_document(user_id, message.document.file_id, caption=message.caption)
+                elif message.animation:
+                    await bot.send_animation(user_id, message.animation.file_id, caption=message.caption)
+                elif message.video:
+                    await bot.send_video(user_id, message.video.file_id, caption=message.caption)
                 else:
-                    await bot.send_message(user_id, broadcast_content.text)
+                    await bot.send_message(user_id, message.text)
                 sent += 1
             except Exception:
                 failed += 1
             await asyncio.sleep(0.05)
 
         await message.answer(f"✅ Рассылка завершена.\nОтправлено: {sent}\nОшибок: {failed}")
-        dp.pop("broadcast_msg", None)
 
     # ---------- ВЫДАТЬ ПОДПИСКУ ----------
     @dp.message(F.text == "💰 ВЫДАТЬ ПОДПИСКУ")
-    async def give_sub(message: types.Message):
+    async def give_sub(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
         await message.answer("Введите user_id и дни через пробел (например 123456789 30)")
-        @dp.message(F.text)
-        async def process_give(msg: types.Message):
-            if not is_admin(msg.from_user.id, admin_ids):
-                return
-            try:
-                uid, days = map(int, msg.text.split())
-                add_subscription_days(uid, days, check_referral=True)
-                await msg.answer(f"Выдана подписка на {days} дней пользователю {uid}")
-                await bot.send_message(uid, f"Администратор выдал вам подписку на {days} дней!")
-            except:
-                await msg.answer("Ошибка. Формат: ID дни")
-            dp.message.unregister(process_give)
+        await state.set_state(AdminStates.waiting_reply_user_id)
+
+    @dp.message(AdminStates.waiting_reply_user_id)
+    async def process_give(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        try:
+            uid, days = map(int, message.text.split())
+            add_subscription_days(uid, days, check_referral=True)
+            await message.answer(f"Выдана подписка на {days} дней пользователю {uid}")
+            await bot.send_message(uid, f"Администратор выдал вам подписку на {days} дней!")
+        except:
+            await message.answer("Ошибка. Формат: ID дни")
+        await state.clear()
 
     # ---------- ПРОМОКОДЫ ----------
     @dp.message(F.text == "🎫 ПРОМОКОДЫ")
@@ -386,7 +384,8 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     # ---------- ВЫХОД ИЗ АДМИНКИ ----------
     @dp.message(F.text == "⬅️ ВЫЙТИ ИЗ АДМИНКИ")
-    async def exit_admin(message: types.Message):
+    async def exit_admin(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
+        await state.clear()
         await message.answer("Выход из админки", reply_markup=main_menu)

@@ -33,10 +33,11 @@ class UserStates(StatesGroup):
     waiting_psycho_test_q1 = State()
     waiting_psycho_test_q2 = State()
     waiting_psycho_test_q3 = State()
-    waiting_psycho_test_q4 = State()
-    waiting_psycho_test_q5 = State()
     # Дневник эмоций
-    waiting_mood_input = State()
+    waiting_mood = State()
+
+# Временное хранилище для ответов теста
+psycho_answers = {}
 
 def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
@@ -134,7 +135,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         except Exception:
             await message.answer("Неверный формат. Введите дату в формате ДД.ММ.ГГГГ")
 
-    # ---------- КНОПКА «ЧИСЛО РОЖДЕНИЯ» ----------
+    # ---------- КНОПКА «ЧИСЛО РОЖДЕНИЯ» (с кэшем) ----------
     @dp.message(F.text == "📅 ЧИСЛО РОЖДЕНИЯ")
     async def ask_birth_date(message: types.Message, state: FSMContext):
         await message.answer("Введите дату рождения в формате ДД.ММ.ГГГГ (например, 15.06.1985)")
@@ -162,16 +163,17 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             conn.commit()
             conn.close()
 
-            # Проверяем кэш
-            cached = get_cached_response(user_id, f"birth_{destiny}")
+            # Кэш
+            cache_key = f"birth_{destiny}"
+            cached = get_cached_response(user_id, cache_key)
             if cached:
                 response = cached
             else:
                 status_msg = await message.answer("🧐 Аркадий Викторович изучает ваш гороскоп...")
-                prompt = f"Число судьбы {destiny}. Дай краткую характеристику (2-4 предложения), назови слабость и дай один совет."
+                prompt = f"Число судьбы {destiny}. Дай краткую характеристику (2-3 предложения), назови слабость и дай совет."
                 response = await get_yandex_gpt_response(prompt, user_id)
                 await status_msg.delete()
-                save_cached_response(user_id, f"birth_{destiny}", response)
+                save_cached_response(user_id, cache_key, response)
 
             await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}",
                                  reply_markup=quick_topics_menu, parse_mode=None)
@@ -179,7 +181,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         except Exception:
             await message.answer("Неверный формат. Введите ДД.ММ.ГГГГ")
 
-    # ---------- БЫСТРЫЕ ТЕМЫ (включая психологию) ----------
+    # ---------- БЫСТРЫЕ ТЕМЫ ----------
     @dp.callback_query(F.data.startswith("quick_topic_"))
     async def handle_quick_topic(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
@@ -205,16 +207,16 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             "career": "карьере, профессиональном росте, призвании",
             "family": "семье, домашнем очаге, отношениях с родными",
             "creativity": "творчестве, самовыражении, хобби",
-            "psychology": "психологии, эмоциях, мыслях, поведении, когнитивных искажениях"
+            "psychology": "психологии, внутренних состояниях, личностном росте"
         }
         query = topics_map.get(topic, "интересующей теме")
-        prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о {query}. Дай развёрнутый ответ (5-7 предложений) с конкретными советами. Если запрос о психологии, обязательно свяжи с числом судьбы и дай практические рекомендации."
+        prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о {query}. Дай развёрнутый ответ (5-7 предложений) с конкретными советами."
         status_msg = await callback.message.answer("🧐 Аркадий Викторович размышляет...")
         response = await get_yandex_gpt_response(prompt, user_id)
         await status_msg.delete()
         await callback.message.answer(f"✨ *{topic.capitalize()}*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
 
-    # ---------- МОЯ МАТРИЦА ----------
+    # ---------- МОЯ МАТРИЦА (с кэшем) ----------
     @dp.message(F.text == "🔮 МОЯ МАТРИЦА")
     async def matrix_prompt(message: types.Message):
         user_id = message.from_user.id
@@ -230,17 +232,17 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await message.answer("Сначала укажите дату рождения через кнопку ЧИСЛО РОЖДЕНИЯ.", reply_markup=menu_button)
             return
         destiny = row[0]
-
-        cached = get_cached_response(user_id, f"matrix_{destiny}")
+        cache_key = f"matrix_{destiny}"
+        cached = get_cached_response(user_id, cache_key)
         if cached:
-            await message.answer(f"🔮 *Матрица судьбы*\n\n{cached}", parse_mode="Markdown", reply_markup=share_button)
+            response = cached
+            await message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
             return
-
         status_msg = await message.answer("📜 Аркадий Викторович составляет вашу матрицу... Это может занять до 10 секунд.")
         prompt = f"Составь полную матрицу судьбы для числа {destiny}. Дай развёрнутую характеристику (10-15 предложений) по арканам."
         response = await get_yandex_gpt_response(prompt, user_id)
         await status_msg.delete()
-        save_cached_response(user_id, f"matrix_{destiny}", response)
+        save_cached_response(user_id, cache_key, response)
         await message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
 
     # ---------- СОВМЕСТИМОСТЬ ----------
@@ -287,12 +289,12 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         conn.close()
         destiny = row[0] if row else "?"
         status_msg = await message.answer("🌙 Аркадий Викторович заглядывает в будущее...")
-        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (3-5 предложений) и одну психологическую практику."
+        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (3-5 предложений)."
         response = await get_yandex_gpt_response(prompt, user_id)
         await status_msg.delete()
         await message.answer(f"🎁 *Карта дня*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
 
-    # ---------- ЗАДАТЬ ВОПРОС ----------
+    # ---------- ЗАДАТЬ ВОПРОС (с лимитами) ----------
     @dp.message(F.text == "💬 ЗАДАТЬ ВОПРОС")
     async def ask_question(message: types.Message, state: FSMContext):
         user_id = message.from_user.id
@@ -323,7 +325,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         is_subscriber = get_user_subscription_status(user_id)
         status_msg = await message.answer("🧐 Изучаю вопрос...")
         if is_subscriber:
-            prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает: {question}. Ответь развёрнуто, как психолог и нумеролог, с советами. Если вопрос психологический, свяжи с числом судьбы."
+            prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает: {question}. Ответь развёрнуто, как психолог и нумеролог, с советами."
             response = await get_yandex_gpt_response(prompt, user_id)
             await status_msg.delete()
             await message.answer(response, parse_mode=None, reply_markup=share_button)
@@ -344,7 +346,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await message.answer(f"🔮 {short_response}\n\nУ вас осталось *{remaining-1}* бесплатных вопросов на сегодня. Хотите безлимит? Оформите подписку в профиле.", parse_mode="Markdown", reply_markup=menu_button)
         await state.clear()
 
-    # ---------- ПРОФИЛЬ, РЕФЕРАЛКА, ДОСТИЖЕНИЯ ----------
+    # ---------- ПРОФИЛЬ И РЕФЕРАЛКА ----------
     @dp.message(F.text == "👤 МОЙ ПРОФИЛЬ")
     async def show_profile(message: types.Message):
         user_id = message.from_user.id
@@ -386,6 +388,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
         await callback.answer()
 
+    # ---------- ДОСТИЖЕНИЯ ----------
     @dp.callback_query(F.data == "achievements")
     async def show_achievements(callback: CallbackQuery):
         user_id = callback.from_user.id
@@ -402,107 +405,67 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     # ---------- ПСИХОЛОГИЧЕСКИЙ ТЕСТ ----------
     @dp.callback_query(F.data == "psycho_test")
     async def start_psycho_test(callback: CallbackQuery, state: FSMContext):
-        await callback.answer()
-        await callback.message.answer("Психологический тест (5 вопросов). Ответьте честно, я дам интерпретацию.\n\nВопрос 1: Вы чаще...\n1) Переживаете о будущем\n2) Живете текущим моментом\n3) Анализируете прошлое")
+        await callback.message.answer("Психологический тест: Как вы чаще всего реагируете на стресс?\n1) Паникую и теряюсь\n2) Анализирую и ищу решение\n3) Отвлекаюсь на другие дела")
         await state.set_state(UserStates.waiting_psycho_test_q1)
-        await state.update_data(answers=[])
+        await callback.answer()
 
     @dp.message(UserStates.waiting_psycho_test_q1)
-    async def psycho_test_q1(message: types.Message, state: FSMContext):
-        data = await state.get_data()
-        answers = data.get("answers", [])
-        answers.append(message.text)
-        await state.update_data(answers=answers)
-        await message.answer("Вопрос 2: Как вы реагируете на стресс?\n1) Замыкаюсь в себе\n2) Ищу поддержку у других\n3) Активно действую")
+    async def psycho_test_q2(message: types.Message, state: FSMContext):
+        answer = message.text.strip()
+        await state.update_data(q1=answer)
+        await message.answer("Вопрос 2: Как вы относитесь к своим ошибкам?\n1) Сильно переживаю\n2) Анализирую и делаю выводы\n3) Быстро забываю")
         await state.set_state(UserStates.waiting_psycho_test_q2)
 
     @dp.message(UserStates.waiting_psycho_test_q2)
-    async def psycho_test_q2(message: types.Message, state: FSMContext):
-        data = await state.get_data()
-        answers = data.get("answers", [])
-        answers.append(message.text)
-        await state.update_data(answers=answers)
-        await message.answer("Вопрос 3: Что для вас важнее?\n1) Гармония в отношениях\n2) Самореализация\n3) Материальный успех")
+    async def psycho_test_q3(message: types.Message, state: FSMContext):
+        answer = message.text.strip()
+        await state.update_data(q2=answer)
+        await message.answer("Вопрос 3: Что для вас важнее в отношениях?\n1) Безопасность и стабильность\n2) Понимание и поддержка\n3) Свобода и независимость")
         await state.set_state(UserStates.waiting_psycho_test_q3)
 
     @dp.message(UserStates.waiting_psycho_test_q3)
-    async def psycho_test_q3(message: types.Message, state: FSMContext):
+    async def psycho_test_result(message: types.Message, state: FSMContext):
         data = await state.get_data()
-        answers = data.get("answers", [])
-        answers.append(message.text)
-        await state.update_data(answers=answers)
-        await message.answer("Вопрос 4: Как вы принимаете решения?\n1) Эмоционально\n2) Рационально\n3) Интуитивно")
-        await state.set_state(UserStates.waiting_psycho_test_q4)
-
-    @dp.message(UserStates.waiting_psycho_test_q4)
-    async def psycho_test_q4(message: types.Message, state: FSMContext):
-        data = await state.get_data()
-        answers = data.get("answers", [])
-        answers.append(message.text)
-        await state.update_data(answers=answers)
-        await message.answer("Вопрос 5: Как часто вы чувствуете усталость без причины?\n1) Постоянно\n2) Иногда\n3) Редко")
-        await state.set_state(UserStates.waiting_psycho_test_q5)
-
-    @dp.message(UserStates.waiting_psycho_test_q5)
-    async def psycho_test_q5(message: types.Message, state: FSMContext):
-        data = await state.get_data()
-        answers = data.get("answers", [])
-        answers.append(message.text)
-        user_id = message.from_user.id
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT destiny_number FROM users WHERE user_id=?", (user_id,))
-        row = cursor.fetchone()
-        conn.close()
-        destiny = row[0] if row else "?"
-        # Простая интерпретация
-        summary = "\n".join([f"{i+1}. {a}" for i, a in enumerate(answers)])
-        prompt = f"Пользователь с числом судьбы {destiny} дал следующие ответы в психологическом тесте:\n{summary}\n\nСделай краткую интерпретацию (3-5 предложений), укажи возможные когнитивные искажения и дай совет. Без диагнозов."
-        status_msg = await message.answer("🧠 Аркадий Викторович анализирует ваши ответы...")
-        interpretation = await get_yandex_gpt_response(prompt, user_id)
-        await status_msg.delete()
-        await message.answer(f"📊 *Результаты психологического теста*\n\n{interpretation}", parse_mode="Markdown", reply_markup=menu_button)
-        grant_achievement(user_id, "psycho_test")
+        q1 = data.get("q1")
+        q2 = data.get("q2")
+        q3 = message.text.strip()
+        # Простая интерпретация (можно расширить)
+        result = "Вы склонны к тревожности, но обладаете аналитическим складом ума. Рекомендую практиковать осознанность."
+        await message.answer(f"🧠 *Результат теста*\n\n{result}\n\nЭто предварительная оценка. Полный психологический разбор – по подписке.", parse_mode="Markdown", reply_markup=menu_button)
         await state.clear()
 
     # ---------- ДНЕВНИК НАСТРОЕНИЯ ----------
     @dp.callback_query(F.data == "mood_diary")
-    async def mood_diary_menu(callback: CallbackQuery, state: FSMContext):
-        user_id = callback.from_user.id
-        week_moods = get_week_moods(user_id)
-        if week_moods:
-            mood_avg = sum(m[1] for m in week_moods) / len(week_moods)
-            await callback.message.answer(f"За последние 7 дней ваше среднее настроение: {mood_avg:.1f} из 5. Хотите записать новое?")
-        else:
-            await callback.message.answer("Вы ещё не записывали настроение. Оцените его сегодня (от 1 до 5):")
-            await state.set_state(UserStates.waiting_mood_input)
-            await callback.answer()
-            return
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="😊 Записать настроение сегодня", callback_data="mood_record")],
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_profile")]
-        ])
-        await callback.message.answer("Выберите действие:", reply_markup=keyboard)
+    async def mood_diary_start(callback: CallbackQuery, state: FSMContext):
+        await callback.message.answer("Оцените своё настроение сегодня (от 1 до 5, где 1 – ужасно, 5 – отлично):")
+        await state.set_state(UserStates.waiting_mood)
         await callback.answer()
 
-    @dp.callback_query(F.data == "mood_record")
-    async def mood_record(callback: CallbackQuery, state: FSMContext):
-        await callback.message.answer("Оцените сегодняшнее настроение числом от 1 (плохо) до 5 (отлично):")
-        await state.set_state(UserStates.waiting_mood_input)
-        await callback.answer()
-
-    @dp.message(UserStates.waiting_mood_input)
+    @dp.message(UserStates.waiting_mood)
     async def save_mood(message: types.Message, state: FSMContext):
         try:
             mood = int(message.text.strip())
             if mood < 1 or mood > 5:
                 raise ValueError
-            user_id = message.from_user.id
-            log_mood(user_id, mood)
-            await message.answer("Спасибо! Запись сохранена. Вы можете увидеть динамику в профиле через неделю.", reply_markup=menu_button)
-            await state.clear()
+            log_mood(message.from_user.id, mood)
+            await message.answer("😊 Настроение сохранено! Через неделю я покажу график вашего эмоционального фона.")
         except:
             await message.answer("Пожалуйста, введите число от 1 до 5.")
+            return
+        await state.clear()
+
+    @dp.callback_query(F.data == "mood_stats")
+    async def show_mood_stats(callback: CallbackQuery):
+        user_id = callback.from_user.id
+        moods = get_week_moods(user_id)
+        if not moods:
+            await callback.message.answer("Нет данных о настроении за последнюю неделю. Начните вести дневник через кнопку «Дневник настроения».")
+        else:
+            text = "📊 Ваше настроение за неделю:\n"
+            for date, mood in moods:
+                text += f"{date[:10]}: {'😊' * mood}{'😐' * (5-mood)} ({mood}/5)\n"
+            await callback.message.answer(text)
+        await callback.answer()
 
     # ---------- ЧЕЛЛЕНДЖ 7 ДНЕЙ ----------
     @dp.callback_query(F.data == "start_challenge")
@@ -565,7 +528,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await callback.message.answer(text, reply_markup=challenge_menu)
         await callback.answer()
 
-    # ---------- ПРОМОКОДЫ (пользователь) ----------
+    # ---------- ПРОМОКОДЫ ----------
     @dp.callback_query(F.data == "enter_promo")
     async def promo_callback(callback: CallbackQuery, state: FSMContext):
         await callback.message.answer("Введите промокод:")
@@ -601,7 +564,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await message.answer("Вы уже активировали этот код.", reply_markup=menu_button)
             await state.clear()
             return
-        add_subscription_days(user_id, action_days, check_referral=False)
+        add_subscription_days(user_id, action_days, check_referral=True)
         cursor.execute("UPDATE promocodes SET used_count = used_count + 1 WHERE code=?", (code,))
         cursor.execute("INSERT INTO promocode_activations (user_id, code, activated_at, result_text) VALUES (?, ?, ?, ?)",
                        (user_id, code, datetime.datetime.now().isoformat(), f"+{action_days} дней"))
@@ -614,15 +577,17 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.callback_query(F.data == "history")
     async def show_history(callback: CallbackQuery):
         user_id = callback.from_user.id
-        history = get_dialog_history(user_id, limit=10)
+        history = get_dialog_history(user_id, 10)
         if not history:
-            await callback.message.answer("История пуста.", reply_markup=menu_button)
+            text = "История запросов пуста."
         else:
-            text = "📜 Последние 10 сообщений:\n\n"
-            for role, msg in history:
-                emoji = "👤" if role == "user" else "🤖"
-                text += f"{emoji} {msg[:100]}…\n"
-            await callback.message.answer(text, reply_markup=menu_button)
+            text = "📜 Последние запросы:\n"
+            for role, msg in history[:5]:
+                if role == "user":
+                    text += f"👤 Вы: {msg[:50]}...\n"
+                else:
+                    text += f"🤖 Аркадий: {msg[:50]}...\n"
+        await callback.message.answer(text, reply_markup=menu_button)
         await callback.answer()
 
     # ---------- ОБЩИЕ CALLBACK ----------
@@ -637,37 +602,15 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await callback.message.delete()
         await callback.answer()
 
-    @dp.callback_query(F.data == "back_to_profile")
-    async def back_to_profile(callback: CallbackQuery):
-        user_id = callback.from_user.id
-        await show_profile(types.Message(chat=callback.message.chat, from_user=callback.from_user, text="", reply_to_message=None))
-        await callback.answer()
-
     @dp.callback_query(F.data == "share_result")
     async def share_result(callback: CallbackQuery):
         text = "🔮 Мой нумерологический разбор от Аркадия Викторовича был очень интересным! Присоединяйтесь -> https://t.me/NumerologArkadiy_bot"
         await callback.message.answer(text)
         await callback.answer()
 
-    @dp.callback_query(F.data == "gift")
-    async def gift_subscription(callback: CallbackQuery):
-        await callback.message.answer("Функция «Подарочная подписка» в разработке.", reply_markup=menu_button)
-        await callback.answer()
-
-    @dp.callback_query(F.data == "settings")
-    async def settings(callback: CallbackQuery):
-        await callback.message.answer("Настройки: можно изменить имя, отписаться от рассылки (в разработке).", reply_markup=menu_button)
-        await callback.answer()
-
-    @dp.callback_query(F.data == "cancel_sub")
-    async def cancel_subscription(callback: CallbackQuery):
-        user_id = callback.from_user.id
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE users SET subscription_active = 0, subscription_end = NULL WHERE user_id = ?", (user_id,))
-        conn.commit()
-        conn.close()
-        await callback.message.answer("Подписка отменена. Доступ к платным материалам будет утрачен после окончания оплаченного периода (если он был).", reply_markup=menu_button)
+    @dp.callback_query(F.data == "back_to_profile")
+    async def back_to_profile(callback: CallbackQuery):
+        await callback.message.delete()
         await callback.answer()
 
     @dp.callback_query()

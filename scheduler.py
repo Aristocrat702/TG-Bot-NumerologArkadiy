@@ -59,34 +59,27 @@ async def daily_backup():
 async def send_challenge_reminders(bot: Bot):
     conn = get_connection()
     cursor = conn.cursor()
-    # Пользователи, у которых есть незавершённый челлендж и которые не выполнили задание сегодня
-    cursor.execute('''
-        SELECT DISTINCT user_id FROM challenges 
-        WHERE completed=0 AND start_date IS NOT NULL
-    ''')
+    cursor.execute("SELECT DISTINCT user_id FROM challenges WHERE completed=0")
     users = cursor.fetchall()
     conn.close()
+    tasks = {
+        1: "Скажите «нет» человеку, который вас напрягает.",
+        2: "Сделайте спонтанный поступок (поменяйте маршрут, купите необычный продукт).",
+        3: "Напишите себе письмо «Что я изменю через месяц».",
+        4: "Сделайте зарядку 5 минут.",
+        5: "Поблагодарите себя за что-то вслух.",
+        6: "Отдайте ненужную вещь.",
+        7: "Запланируйте конкретную цель на неделю."
+    }
     for (uid,) in users:
         progress = get_challenge_progress(uid)
         if not progress:
             continue
-        today_num = datetime.date.today().day  # упрощённо, но лучше по дням с даты старта
-        # Более точная логика: посчитать, какой по счёту день челленджа
-        try:
-            tasks = {1: "Скажите «нет» человеку, который вас напрягает.",
-                     2: "Сделайте спонтанный поступок (поменяйте маршрут, купите необычный продукт).",
-                     3: "Напишите себе письмо «Что я изменю через месяц».",
-                     4: "Сделайте зарядку 5 минут.",
-                     5: "Поблагодарите себя за что-то вслух.",
-                     6: "Отдайте ненужную вещь.",
-                     7: "Запланируйте конкретную цель на неделю."}
-            # Найти первый невыполненный день
-            for day, comp in progress:
-                if not comp:
-                    await bot.send_message(uid, f"🔥 Напоминание по челленджу: задание дня {day}: {tasks.get(day, 'Выполните любой шаг')}\n\nНажмите кнопку «Выполнил» в профиле, когда сделаете.")
-                    break
-        except Exception as e:
-            logging.error(f"Ошибка напоминания челленджа для {uid}: {e}")
+        # Найти первый невыполненный день
+        for day, completed in progress:
+            if not completed:
+                await bot.send_message(uid, f"🔥 Напоминание по челленджу: задание дня {day}: {tasks.get(day, 'Выполните любой шаг')}\n\nНажмите кнопку «Выполнил» в профиле, когда сделаете.")
+                break
 
 def start_scheduler(bot: Bot, admin_id: int):
     if admin_id is None:
