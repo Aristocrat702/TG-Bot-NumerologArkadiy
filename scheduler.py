@@ -5,7 +5,7 @@ from yandex_gpt import get_yandex_gpt_response
 import datetime
 import asyncio
 import logging
-from utils import backup_database, add_subscription_days
+from utils import backup_database, add_subscription_days, get_challenge_progress
 
 scheduler = AsyncIOScheduler()
 
@@ -18,7 +18,7 @@ async def send_daily_card(bot: Bot):
     for user in users:
         user_id = user[0]
         destiny = user[1] if user[1] else "?"
-        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (3-5 предложений) с практическим действием."
+        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (3-5 предложений) с практическим действием. Также добавь одну психологическую практику (например, дыхательное упражнение или совет по саморегуляции)."
         response = await get_yandex_gpt_response(prompt, user_id)
         try:
             await bot.send_message(user_id, f"🎁 *Карта дня*\n\n{response}", parse_mode="Markdown")
@@ -27,7 +27,6 @@ async def send_daily_card(bot: Bot):
         await asyncio.sleep(0.1)
 
 async def weekly_leaderboard(bot: Bot, admin_id: int):
-    """Раз в неделю (воскресенье 20:00) отправляет топ-5 подписчиков и начисляет +3 дня"""
     week_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
     conn = get_connection()
     cursor = conn.cursor()
@@ -43,7 +42,6 @@ async def weekly_leaderboard(bot: Bot, admin_id: int):
         return
     text = "🏆 *Топ активных подписчиков за неделю:*\n\n"
     for i, (uid, cnt) in enumerate(top, 1):
-        # Получим имя пользователя из БД
         conn2 = get_connection()
         cursor2 = conn2.cursor()
         cursor2.execute("SELECT name FROM users WHERE user_id=?", (uid,))
@@ -51,20 +49,52 @@ async def weekly_leaderboard(bot: Bot, admin_id: int):
         conn2.close()
         name = name_row[0] if name_row else str(uid)
         text += f"{i}. {name} — {cnt} сообщений\n"
-        # Начисляем бонус
-        add_subscription_days(uid, 3)
+        add_subscription_days(uid, 3, check_referral=False)
     await bot.send_message(admin_id, text)
 
 async def daily_backup():
     backup_database()
     logging.info("Резервное копирование базы данных выполнено")
 
+async def send_challenge_reminders(bot: Bot):
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Пользователи, у которых есть незавершённый челлендж и которые не выполнили задание сегодня
+    cursor.execute('''
+        SELECT DISTINCT user_id FROM challenges 
+        WHERE completed=0 AND start_date IS NOT NULL
+    ''')
+    users = cursor.fetchall()
+    conn.close()
+    for (uid,) in users:
+        progress = get_challenge_progress(uid)
+        if not progress:
+            continue
+        today_num = datetime.date.today().day  # упрощённо, но лучше по дням с даты старта
+        # Более точная логика: посчитать, какой по счёту день челленджа
+        try:
+            tasks = {1: "Скажите «нет» человеку, который вас напрягает.",
+                     2: "Сделайте спонтанный поступок (поменяйте маршрут, купите необычный продукт).",
+                     3: "Напишите себе письмо «Что я изменю через месяц».",
+                     4: "Сделайте зарядку 5 минут.",
+                     5: "Поблагодарите себя за что-то вслух.",
+                     6: "Отдайте ненужную вещь.",
+                     7: "Запланируйте конкретную цель на неделю."}
+            # Найти первый невыполненный день
+            for day, comp in progress:
+                if not comp:
+                    await bot.send_message(uid, f"🔥 Напоминание по челленджу: задание дня {day}: {tasks.get(day, 'Выполните любой шаг')}\n\nНажмите кнопку «Выполнил» в профиле, когда сделаете.")
+                    break
+        except Exception as e:
+            logging.error(f"Ошибка напоминания челленджа для {uid}: {e}")
+
 def start_scheduler(bot: Bot, admin_id: int):
-    # Ежедневная карта дня в 12:00
+    if admin_id is None:
+        logging.warning("admin_id не передан, лидерборд работать не будет")
     scheduler.add_job(send_daily_card, 'cron', hour=12, minute=0, args=[bot], timezone='Europe/Moscow')
-    # Еженедельный лидерборд по воскресеньям в 20:00
-    scheduler.add_job(weekly_leaderboard, 'cron', day_of_week='sun', hour=20, minute=0, args=[bot, admin_id], timezone='Europe/Moscow')
-    # Ежедневный бэкап БД в 3:00
+    if admin_id:
+        scheduler.add_job(weekly_leaderboard, 'cron', day_of_week='sun', hour=20, minute=0, args=[bot, admin_id], timezone='Europe/Moscow')
     scheduler.add_job(daily_backup, 'cron', hour=3, minute=0, timezone='Europe/Moscow')
+    scheduler.add_job(send_challenge_reminders, 'cron', hour=10, minute=0, args=[bot], timezone='Europe/Moscow')
     scheduler.start()
     logging.info("Планировщик заданий запущен")

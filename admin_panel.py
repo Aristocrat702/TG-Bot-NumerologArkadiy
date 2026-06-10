@@ -1,9 +1,12 @@
 ﻿import asyncio
 import csv
 import io
+import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import FSInputFile
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
 from keyboards import admin_menu, main_menu
 from database import get_connection
 from utils import (
@@ -11,6 +14,16 @@ from utils import (
     remove_from_blacklist, backup_database, get_bot_config,
     set_bot_config
 )
+
+class AdminStates(StatesGroup):
+    waiting_promo_code = State()
+    waiting_promo_days = State()
+    waiting_promo_max_uses = State()
+    waiting_promo_expiry = State()
+    waiting_reply_user_id = State()
+    waiting_reply_text = State()
+    waiting_new_price = State()
+    waiting_new_prompt = State()
 
 def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
@@ -50,7 +63,7 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await message.answer(text)
         conn.close()
 
-    # ---------- РАССЫЛКА (текст, фото, документы) ----------
+    # ---------- РАССЫЛКА ----------
     @dp.message(F.text == "✉️ РАССЫЛКА")
     async def broadcast_start(message: types.Message):
         if not is_admin(message.from_user.id, admin_ids):
@@ -120,14 +133,14 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                 return
             try:
                 uid, days = map(int, msg.text.split())
-                add_subscription_days(uid, days)
+                add_subscription_days(uid, days, check_referral=True)
                 await msg.answer(f"Выдана подписка на {days} дней пользователю {uid}")
                 await bot.send_message(uid, f"Администратор выдал вам подписку на {days} дней!")
             except:
                 await msg.answer("Ошибка. Формат: ID дни")
             dp.message.unregister(process_give)
 
-    # ---------- ПРОМОКОДЫ (полноценное управление) ----------
+    # ---------- ПРОМОКОДЫ ----------
     @dp.message(F.text == "🎫 ПРОМОКОДЫ")
     async def promocodes_menu(message: types.Message):
         if not is_admin(message.from_user.id, admin_ids):
@@ -142,37 +155,37 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.callback_query(F.data == "admin_create_promo")
     async def create_promo_start(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.answer("Введите код (латиница/цифры, без пробелов):")
-        await state.set_state("waiting_promo_code")
+        await state.set_state(AdminStates.waiting_promo_code)
         await callback.answer()
 
-    @dp.message(StateFilter("waiting_promo_code"))
+    @dp.message(AdminStates.waiting_promo_code)
     async def get_promo_code(message: types.Message, state: FSMContext):
         code = message.text.strip()
         await state.update_data(code=code)
         await message.answer("Введите количество дней (целое число):")
-        await state.set_state("waiting_promo_days")
+        await state.set_state(AdminStates.waiting_promo_days)
 
-    @dp.message(StateFilter("waiting_promo_days"))
+    @dp.message(AdminStates.waiting_promo_days)
     async def get_promo_days(message: types.Message, state: FSMContext):
         try:
             days = int(message.text.strip())
             await state.update_data(days=days)
             await message.answer("Введите максимальное количество использований (0 = безлимит):")
-            await state.set_state("waiting_promo_max_uses")
+            await state.set_state(AdminStates.waiting_promo_max_uses)
         except:
             await message.answer("Ошибка. Введите целое число.")
 
-    @dp.message(StateFilter("waiting_promo_max_uses"))
+    @dp.message(AdminStates.waiting_promo_max_uses)
     async def get_promo_max_uses(message: types.Message, state: FSMContext):
         try:
             max_uses = int(message.text.strip())
             await state.update_data(max_uses=max_uses)
             await message.answer("Введите срок действия в формате ГГГГ-ММ-ДД (или 'never' для бессрочного):")
-            await state.set_state("waiting_promo_expiry")
+            await state.set_state(AdminStates.waiting_promo_expiry)
         except:
             await message.answer("Ошибка. Введите целое число.")
 
-    @dp.message(StateFilter("waiting_promo_expiry"))
+    @dp.message(AdminStates.waiting_promo_expiry)
     async def get_promo_expiry(message: types.Message, state: FSMContext):
         expiry = message.text.strip()
         data = await state.get_data()
@@ -210,6 +223,11 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             for row in rows:
                 text += f"Код: {row[0]}, дней: {row[1]}, использовано: {row[3]}/{row[2]}, действует до: {row[4] or 'бессрочно'}\n"
             await callback.message.answer(text)
+        await callback.answer()
+
+    @dp.callback_query(F.data == "admin_back")
+    async def admin_back(callback: types.CallbackQuery):
+        await callback.message.delete()
         await callback.answer()
 
     # ---------- ЧЁРНЫЙ СПИСОК ----------
@@ -284,7 +302,7 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         backup_path = backup_database()
         await message.answer_document(FSInputFile(backup_path))
 
-    # ---------- ЛИДЕРБОРД (ручной запуск) ----------
+    # ---------- ЛИДЕРБОРД ----------
     @dp.message(F.text == "🏆 ЛИДЕРБОРД")
     async def leaderboard_now(message: types.Message):
         if not is_admin(message.from_user.id, admin_ids):
@@ -293,49 +311,78 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await weekly_leaderboard(bot, message.from_user.id)
         await message.answer("Лидерборд отправлен.")
 
-    # ---------- ИЗМЕНЕНИЕ ЦЕНЫ ПОДПИСКИ ----------
+    # ---------- ЦЕНА ПОДПИСКИ ----------
     @dp.message(F.text == "💰 ЦЕНА ПОДПИСКИ")
-    async def change_price(message: types.Message):
+    async def change_price(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
         await message.answer("Введите новую цену подписки в рублях (только число):")
-        @dp.message(F.text)
-        async def set_price(msg: types.Message):
-            if not is_admin(msg.from_user.id, admin_ids):
-                return
-            try:
-                price = int(msg.text.strip())
-                set_bot_config("subscription_price", str(price))
-                await msg.answer(f"Цена подписки изменена на {price} ₽")
-            except:
-                await msg.answer("Ошибка. Введите число.")
-            dp.message.unregister(set_price)
+        await state.set_state(AdminStates.waiting_new_price)
+
+    @dp.message(AdminStates.waiting_new_price)
+    async def set_price(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        try:
+            price = int(message.text.strip())
+            set_bot_config("subscription_price", str(price))
+            await message.answer(f"Цена подписки изменена на {price} ₽")
+        except:
+            await message.answer("Ошибка. Введите число.")
+        await state.clear()
 
     # ---------- РЕДАКТИРОВАНИЕ ПРОМПТА ----------
     @dp.message(F.text == "🔧 ПРОМПТ")
-    async def edit_prompt(message: types.Message):
+    async def edit_prompt(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
         current = get_bot_config("system_prompt", "Промпт не задан")
         await message.answer(f"Текущий промпт:\n\n{current}\n\nОтправьте новый промпт (или /cancel_prompt)")
-        dp["waiting_for_prompt"] = True
+        await state.set_state(AdminStates.waiting_new_prompt)
 
-    @dp.message(F.text == "/cancel_prompt")
-    async def cancel_prompt(message: types.Message):
-        dp.pop("waiting_for_prompt", None)
+    @dp.message(Command("cancel_prompt"))
+    async def cancel_prompt(message: types.Message, state: FSMContext):
+        await state.clear()
         await message.answer("Редактирование отменено.")
 
-    @dp.message(F.text)
-    async def save_new_prompt(message: types.Message):
-        if not dp.get("waiting_for_prompt"):
-            return
+    @dp.message(AdminStates.waiting_new_prompt)
+    async def save_new_prompt(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
         new_prompt = message.text
         set_bot_config("system_prompt", new_prompt)
-        dp.pop("waiting_for_prompt", None)
         await message.answer("Промпт обновлён. Изменения вступят в силу после перезапуска бота.")
-        # Можно перезагрузить без перезапуска, но проще рестарт через systemctl
+        await state.clear()
+
+    # ---------- ОТВЕТИТЬ ПОЛЬЗОВАТЕЛЮ ----------
+    @dp.message(F.text == "💬 ОТВЕТИТЬ")
+    async def reply_to_user_start(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        await message.answer("Введите user_id пользователя, которому хотите ответить:")
+        await state.set_state(AdminStates.waiting_reply_user_id)
+
+    @dp.message(AdminStates.waiting_reply_user_id)
+    async def reply_get_user_id(message: types.Message, state: FSMContext):
+        try:
+            user_id = int(message.text.strip())
+            await state.update_data(reply_user_id=user_id)
+            await message.answer("Введите текст ответа (можно с форматированием):")
+            await state.set_state(AdminStates.waiting_reply_text)
+        except:
+            await message.answer("Ошибка. Введите числовой user_id.")
+
+    @dp.message(AdminStates.waiting_reply_text)
+    async def reply_send_message(message: types.Message, state: FSMContext):
+        data = await state.get_data()
+        user_id = data.get("reply_user_id")
+        text = message.text
+        try:
+            await bot.send_message(user_id, f"✉️ Сообщение от администратора:\n\n{text}")
+            await message.answer(f"Сообщение отправлено пользователю {user_id}.")
+        except Exception as e:
+            await message.answer(f"Ошибка при отправке: {e}")
+        await state.clear()
 
     # ---------- ВЫХОД ИЗ АДМИНКИ ----------
     @dp.message(F.text == "⬅️ ВЫЙТИ ИЗ АДМИНКИ")

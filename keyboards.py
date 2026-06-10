@@ -1,7 +1,6 @@
 ﻿from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram import Bot
 
-# Главное меню
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🔮 МОЯ МАТРИЦА"), KeyboardButton(text="📅 ЧИСЛО РОЖДЕНИЯ")],
@@ -11,26 +10,19 @@ main_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Меню профиля (расширенное)
 profile_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🎟️ ВВЕСТИ ПРОМОКОД", callback_data="enter_promo")],
     [InlineKeyboardButton(text="🎁 БЕСПЛАТНЫЕ ДНИ", callback_data="referral_info")],
     [InlineKeyboardButton(text="🏆 ДОСТИЖЕНИЯ", callback_data="achievements")],
     [InlineKeyboardButton(text="📜 ИСТОРИЯ ЗАПРОСОВ", callback_data="history")],
+    [InlineKeyboardButton(text="🧠 ПСИХОЛОГИЧЕСКИЙ ТЕСТ", callback_data="psycho_test")],
+    [InlineKeyboardButton(text="😊 ДНЕВНИК НАСТРОЕНИЯ", callback_data="mood_diary")],
     [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings")],
     [InlineKeyboardButton(text="🎁 ПОДАРИТЬ ПОДПИСКУ", callback_data="gift")],
     [InlineKeyboardButton(text="❌ ОТМЕНИТЬ ПОДПИСКУ", callback_data="cancel_sub")],
     [InlineKeyboardButton(text="✖️ ЗАКРЫТЬ", callback_data="close")]
 ])
 
-# Меню челленджа
-challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🔥 Начать челлендж 7 дней", callback_data="start_challenge")],
-    [InlineKeyboardButton(text="📊 Мой прогресс", callback_data="challenge_progress")],
-    [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_profile")]
-])
-
-# Быстрые темы
 quick_topics_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="💰 Деньги", callback_data="quick_topic_money"),
      InlineKeyboardButton(text="❤️ Любовь", callback_data="quick_topic_love")],
@@ -38,10 +30,10 @@ quick_topics_menu = InlineKeyboardMarkup(inline_keyboard=[
      InlineKeyboardButton(text="💼 Карьера", callback_data="quick_topic_career")],
     [InlineKeyboardButton(text="👨‍👩‍👧 Семья", callback_data="quick_topic_family"),
      InlineKeyboardButton(text="🎨 Творчество", callback_data="quick_topic_creativity")],
-    [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
+    [InlineKeyboardButton(text="🧠 Психология", callback_data="quick_topic_psychology"),
+     InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
 ])
 
-# Кнопка «Поделиться» и меню
 share_button = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="📤 Поделиться результатом", callback_data="share_result")],
     [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
@@ -49,6 +41,12 @@ share_button = InlineKeyboardMarkup(inline_keyboard=[
 
 menu_button = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
+])
+
+challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="🔥 Начать челлендж 7 дней", callback_data="start_challenge")],
+    [InlineKeyboardButton(text="📊 Мой прогресс", callback_data="challenge_progress")],
+    [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_profile")]
 ])
 
 admin_menu = ReplyKeyboardMarkup(

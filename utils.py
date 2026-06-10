@@ -37,7 +37,7 @@ def calculate_destiny_number(birth_date: str) -> int:
         total = sum(int(d) for d in str(total))
     return total
 
-def add_subscription_days(user_id: int, days: int):
+def add_subscription_days(user_id: int, days: int, check_referral: bool = False):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT subscription_end FROM users WHERE user_id=?", (user_id,))
@@ -50,6 +50,9 @@ def add_subscription_days(user_id: int, days: int):
     cursor.execute("UPDATE users SET subscription_active = 1, subscription_end = ? WHERE user_id=?", (new_end.isoformat(), user_id))
     conn.commit()
     conn.close()
+    # Реферальный бонус при первой активации подписки
+    if check_referral:
+        add_referral_bonus(user_id)
 
 def get_user_subscription_status(user_id: int) -> bool:
     conn = get_connection()
@@ -72,7 +75,7 @@ def add_referral_bonus(referred_user_id: int):
         conn.close()
         return
     referrer_id = row[0]
-    add_subscription_days(referrer_id, 7)
+    add_subscription_days(referrer_id, 7, check_referral=False)
     conn.close()
 
 def get_referral_stats(user_id: int) -> dict:
@@ -151,6 +154,25 @@ def get_dialog_history(user_id: int, limit: int = 10):
     conn.close()
     return [(row[0], row[1]) for row in rows]
 
+# ---------- Кэширование ответов ----------
+def get_cached_response(user_id: int, request_type: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT response_text, cache_date FROM messages_cache WHERE user_id=? AND request_type=?", (user_id, request_type))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return row[0]
+    return None
+
+def save_cached_response(user_id: int, request_type: str, response: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO messages_cache (user_id, request_type, response_text, cache_date) VALUES (?, ?, ?, ?)",
+                   (user_id, request_type, response, datetime.datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
 # ---------- Достижения ----------
 def grant_achievement(user_id: int, achievement: str):
     conn = get_connection()
@@ -187,14 +209,12 @@ def complete_challenge_day(user_id: int, day: int):
     cursor.execute("UPDATE challenges SET completed=1, completed_at=? WHERE user_id=? AND day=?", 
                    (datetime.datetime.now().isoformat(), user_id, day))
     conn.commit()
-    conn.close()
-    # Проверяем, все ли дни выполнены
     cursor.execute("SELECT COUNT(*) FROM challenges WHERE user_id=? AND completed=0", (user_id,))
     incomplete = cursor.fetchone()[0]
     if incomplete == 0:
-        add_subscription_days(user_id, 3)
+        add_subscription_days(user_id, 3, check_referral=False)
         conn.close()
-        return True  # челлендж завершён, бонус начислен
+        return True
     conn.close()
     return False
 
@@ -202,6 +222,24 @@ def get_challenge_progress(user_id: int):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT day, completed FROM challenges WHERE user_id=? ORDER BY day", (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [(row[0], row[1]) for row in rows]
+
+# ---------- Дневник эмоций ----------
+def log_mood(user_id: int, mood: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    today = datetime.date.today().isoformat()
+    cursor.execute("INSERT OR REPLACE INTO mood_log (user_id, mood, log_date) VALUES (?, ?, ?)", (user_id, mood, today))
+    conn.commit()
+    conn.close()
+
+def get_week_moods(user_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    week_ago = (datetime.date.today() - datetime.timedelta(days=7)).isoformat()
+    cursor.execute("SELECT log_date, mood FROM mood_log WHERE user_id=? AND log_date >= ? ORDER BY log_date", (user_id, week_ago))
     rows = cursor.fetchall()
     conn.close()
     return [(row[0], row[1]) for row in rows]
@@ -216,7 +254,6 @@ def backup_database():
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     dst = f"{backup_dir}/arkadiy_bot_{timestamp}.db"
     shutil.copy2(src, dst)
-    # удалить старые копии (старше 7 дней)
     for f in glob.glob(f"{backup_dir}/arkadiy_bot_*.db"):
         if os.path.getmtime(f) < time.time() - 7*86400:
             os.remove(f)

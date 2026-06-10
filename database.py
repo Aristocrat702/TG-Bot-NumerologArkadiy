@@ -79,7 +79,6 @@ def init_db():
             value TEXT
         )
     ''')
-    # Таблица для достижений
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS achievements (
             user_id INTEGER,
@@ -88,7 +87,6 @@ def init_db():
             PRIMARY KEY (user_id, achievement)
         )
     ''')
-    # Таблица для челленджа 7 дней
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS challenges (
             user_id INTEGER,
@@ -97,6 +95,14 @@ def init_db():
             completed_at TEXT,
             start_date TEXT,
             PRIMARY KEY (user_id, day)
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS mood_log (
+            user_id INTEGER,
+            mood INTEGER,
+            log_date TEXT,
+            PRIMARY KEY (user_id, log_date)
         )
     ''')
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('system_prompt', 'Вы — Аркадий Викторович...')")

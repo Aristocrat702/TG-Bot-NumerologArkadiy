@@ -15,7 +15,6 @@ async def get_yandex_gpt_response(prompt: str, user_id: int) -> str:
     global _failure_count, _last_failure_time
     if not YANDEX_API_KEY or not YANDEX_FOLDER_ID:
         return "⚠️ Ошибка: не настроен YandexGPT. Администратор уже в курсе."
-    # Если было 3 ошибки за последние 5 минут – выдаём юмористический ответ
     if _failure_count >= 3 and (time.time() - _last_failure_time) < 300:
         return "🧙‍♂️ Аркадий Викторович временно занят – разгребает числа, целую гору. Задайте вопрос через пару минут, и я отвечу во всеоружии!"
     
