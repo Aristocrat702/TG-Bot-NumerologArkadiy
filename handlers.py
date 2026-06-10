@@ -4,15 +4,16 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from keyboards import main_menu, profile_menu
+from keyboards import main_menu, profile_menu, quick_topics_menu, menu_button
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
 from utils import (
     is_blacklisted, calculate_destiny_number, add_subscription_days,
-    get_user_subscription_status, save_dialog_history
+    get_user_subscription_status, generate_referral_link, add_referral_bonus,
+    get_referral_stats, get_free_questions_remaining, increment_free_query,
+    save_dialog_history
 )
 
-# Состояния для FSM
 class UserStates(StatesGroup):
     waiting_birth_date = State()
     waiting_partner_birth_date = State()
@@ -21,35 +22,33 @@ class UserStates(StatesGroup):
     waiting_full_name = State()
     waiting_birth_date_from_poll = State()
 
-# Кнопка возврата в главное меню
-menu_button = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
-])
-
-# Кнопки быстрых тем после расчёта числа
-quick_topics = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="💰 Деньги", callback_data="quick_topic_money"),
-     InlineKeyboardButton(text="❤️ Любовь", callback_data="quick_topic_love")],
-    [InlineKeyboardButton(text="⚕️ Здоровье", callback_data="quick_topic_health"),
-     InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
-])
-
 def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
-    # ================================
-    # 1. Приветствие и опрос (динамическое)
-    # ================================
+    # -------------------- СТАРТ И ОПРОС --------------------
     @dp.message(Command("start"))
     async def cmd_start(message: types.Message, state: FSMContext):
         user_id = message.from_user.id
         if is_blacklisted(user_id):
             await message.answer("Вы заблокированы.")
             return
+
+        # Обработка реферальной ссылки: ?start=ref_123456789
+        args = message.text.split()
+        if len(args) > 1 and args[1].startswith("ref_"):
+            referrer_id = int(args[1][4:])
+            if referrer_id != user_id:
+                conn = get_connection()
+                cursor = conn.cursor()
+                cursor.execute("UPDATE users SET referred_by = ? WHERE user_id = ?", (referrer_id, user_id))
+                conn.commit()
+                conn.close()
+
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT name, birth_date FROM users WHERE user_id=?", (user_id,))
         row = cursor.fetchone()
         conn.close()
+
         if row and row[0] and row[1]:
             await message.answer(
                 f"🔮 С возвращением, {row[0]}! Аркадий Викторович ждёт ваших вопросов.",
@@ -58,6 +57,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             )
             await state.clear()
             return
+
         first_name = message.from_user.first_name
         await message.answer(
             f"✨ {first_name}, я — Аркадий Викторович, практикующий нумеролог и психолог с 20-летним стажем.\n\n"
@@ -109,75 +109,16 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             conn.close()
             await message.answer(
                 f"🔢 Ваше число судьбы: {destiny}\n\n"
-                f"Спасибо, {name}! Теперь нажмите на любую кнопку ниже, чтобы получить ответ по интересующей теме.\n"
-                "А вообще в главном меню вас ждёт полная матрица, совместимость и другие возможности.",
-                reply_markup=quick_topics,
+                f"Спасибо, {name}! Нажмите на любую кнопку ниже, чтобы получить ответ по интересующей теме.\n"
+                "А в главном меню вас ждёт полная матрица, совместимость и другие возможности.",
+                reply_markup=quick_topics_menu,
                 parse_mode=None
             )
             await state.clear()
         except Exception:
             await message.answer("Неверный формат. Введите дату в формате ДД.ММ.ГГГГ")
 
-    # ================================
-    # 2. Быстрые темы (деньги, любовь, здоровье)
-    # ================================
-    @dp.callback_query(F.data == "quick_topic_money")
-    async def quick_money(callback: types.CallbackQuery, state: FSMContext):
-        await callback.answer()
-        user_id = callback.from_user.id
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT destiny_number, name FROM users WHERE user_id=?", (user_id,))
-        row = cursor.fetchone()
-        conn.close()
-        if not row or not row[0]:
-            await callback.message.answer("Сначала укажите дату рождения через кнопку ЧИСЛО РОЖДЕНИЯ.", reply_markup=menu_button)
-            return
-        destiny = row[0]
-        name = row[1] or "друг"
-        prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о деньгах, финансах, карьере. Дай развёрнутый ответ (5-7 предложений) с конкретными советами."
-        response = await get_yandex_gpt_response(prompt, user_id)
-        await callback.message.answer(f"💰 *Деньги и карьера*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
-
-    @dp.callback_query(F.data == "quick_topic_love")
-    async def quick_love(callback: types.CallbackQuery, state: FSMContext):
-        await callback.answer()
-        user_id = callback.from_user.id
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT destiny_number, name FROM users WHERE user_id=?", (user_id,))
-        row = cursor.fetchone()
-        conn.close()
-        if not row or not row[0]:
-            await callback.message.answer("Сначала укажите дату рождения через кнопку ЧИСЛО РОЖДЕНИЯ.", reply_markup=menu_button)
-            return
-        destiny = row[0]
-        name = row[1] or "друг"
-        prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о любви, отношениях, совместимости. Дай развёрнутый ответ (5-7 предложений) с конкретными советами."
-        response = await get_yandex_gpt_response(prompt, user_id)
-        await callback.message.answer(f"❤️ *Любовь и отношения*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
-
-    @dp.callback_query(F.data == "quick_topic_health")
-    async def quick_health(callback: types.CallbackQuery, state: FSMContext):
-        await callback.answer()
-        user_id = callback.from_user.id
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT destiny_number, name FROM users WHERE user_id=?", (user_id,))
-        row = cursor.fetchone()
-        conn.close()
-        if not row or not row[0]:
-            await callback.message.answer("Сначала укажите дату рождения через кнопку ЧИСЛО РОЖДЕНИЯ.", reply_markup=menu_button)
-            return
-        destiny = row[0]
-        name = row[1] or "друг"
-        prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о здоровье, энергии, самочувствии. Дай развёрнутый ответ (5-7 предложений) с конкретными советами."
-        response = await get_yandex_gpt_response(prompt, user_id)
-        await callback.message.answer(f"⚕️ *Здоровье и энергия*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
-
-    # ================================
-    # 3. Старая кнопка «ЧИСЛО РОЖДЕНИЯ» (альтернативный способ)
-    # ================================
+    # -------------------- КНОПКА «ЧИСЛО РОЖДЕНИЯ» (альтернативный ввод) --------------------
     @dp.message(F.text == "📅 ЧИСЛО РОЖДЕНИЯ")
     async def ask_birth_date(message: types.Message, state: FSMContext):
         await message.answer("Введите дату рождения в формате ДД.ММ.ГГГГ (например, 15.06.1985)")
@@ -206,31 +147,60 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             conn.close()
             prompt = f"Число судьбы {destiny}. Дай краткую характеристику (2-3 предложения), назови слабость и дай совет."
             response = await get_yandex_gpt_response(prompt, user_id)
-            await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}", 
-                                 reply_markup=menu_button, parse_mode=None)
+            await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}",
+                                 reply_markup=quick_topics_menu, parse_mode=None)
             await state.clear()
         except Exception:
             await message.answer("Неверный формат. Введите ДД.ММ.ГГГГ")
 
-    # ================================
-    # 4. Обработчики главного меню (матрица, совместимость, карта дня, вопросы, профиль)
-    # ================================
+    # -------------------- БЫСТРЫЕ ТЕМЫ --------------------
+    @dp.callback_query(F.data.startswith("quick_topic_"))
+    async def handle_quick_topic(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        user_id = callback.from_user.id
+        topic = callback.data.split("_")[-1]  # money, love, health, career, family, creativity
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT destiny_number, name FROM users WHERE user_id=?", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row or not row[0]:
+            await callback.message.answer("Сначала укажите дату рождения через кнопку ЧИСЛО РОЖДЕНИЯ.", reply_markup=menu_button)
+            return
+
+        destiny = row[0]
+        name = row[1] or "друг"
+
+        topics_map = {
+            "money": "деньгах, финансах, карьере",
+            "love": "любви, отношениях, совместимости",
+            "health": "здоровье, энергии, самочувствии",
+            "career": "карьере, профессиональном росте, призвании",
+            "family": "семье, домашнем очаге, отношениях с родными",
+            "creativity": "творчестве, самовыражении, хобби"
+        }
+        query = topics_map.get(topic, "интересующей теме")
+        prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о {query}. Дай развёрнутый ответ (5-7 предложений) с конкретными советами."
+        response = await get_yandex_gpt_response(prompt, user_id)
+        await callback.message.answer(f"✨ *{topic.capitalize()}*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
+
+    # -------------------- ОСНОВНЫЕ КНОПКИ МЕНЮ --------------------
     @dp.message(F.text == "🔮 МОЯ МАТРИЦА")
     async def matrix_prompt(message: types.Message):
         user_id = message.from_user.id
         if not get_user_subscription_status(user_id):
-            await message.answer("Полная матрица судьбы доступна только по подписке. Оформите подписку в профиле.", 
-                                 reply_markup=menu_button)
+            await message.answer("Полная матрица судьбы доступна только по подписке. Оформите подписку в профиле.", reply_markup=menu_button)
             return
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT birth_date, destiny_number FROM users WHERE user_id=?", (user_id,))
+        cursor.execute("SELECT destiny_number FROM users WHERE user_id=?", (user_id,))
         row = cursor.fetchone()
         conn.close()
         if not row or not row[0]:
             await message.answer("Сначала укажите дату рождения через кнопку ЧИСЛО РОЖДЕНИЯ.", reply_markup=menu_button)
             return
-        destiny = row[1]
+        destiny = row[0]
         prompt = f"Составь полную матрицу судьбы для числа {destiny}. Дай развёрнутую характеристику (10-15 предложений) по арканам."
         response = await get_yandex_gpt_response(prompt, user_id)
         await message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
@@ -281,11 +251,17 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.message(F.text == "💬 ЗАДАТЬ ВОПРОС")
     async def ask_question(message: types.Message, state: FSMContext):
         user_id = message.from_user.id
-        if not get_user_subscription_status(user_id):
-            await message.answer("Задавать вопросы могут только подписчики. Оформите подписку в профиле.", reply_markup=menu_button)
+        if get_user_subscription_status(user_id):
+            await message.answer("Напишите ваш вопрос (по нумерологии или психологии). Я отвечу максимально честно.")
+            await state.set_state(UserStates.waiting_question)
             return
-        await message.answer("Напишите ваш вопрос (по нумерологии или психологии). Я отвечу максимально честно.")
-        await state.set_state(UserStates.waiting_question)
+
+        remaining = get_free_questions_remaining(user_id)
+        if remaining > 0:
+            await message.answer(f"У вас осталось *{remaining}* бесплатных вопросов на сегодня. Напишите вопрос, я дам короткий ответ. А в подписке – полная информация и развёрнутые консультации.\n\nВаш вопрос:", parse_mode="Markdown")
+            await state.set_state(UserStates.waiting_question)
+        else:
+            await message.answer("Вы исчерпали лимит бесплатных вопросов на сегодня. Оформите подписку в профиле – и получите безлимитные консультации, полную матрицу и прогнозы.", reply_markup=menu_button)
 
     @dp.message(UserStates.waiting_question)
     async def process_question(message: types.Message, state: FSMContext):
@@ -293,15 +269,35 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         question = message.text
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT destiny_number, birth_date FROM users WHERE user_id=?", (user_id,))
+        cursor.execute("SELECT destiny_number, name FROM users WHERE user_id=?", (user_id,))
         row = cursor.fetchone()
         conn.close()
         destiny = row[0] if row else "?"
-        prompt = f"Человек с числом судьбы {destiny} спрашивает: {question}. Ответь как психолог и нумеролог, прямо, без сюсюканий."
-        response = await get_yandex_gpt_response(prompt, user_id)
-        await message.answer(response, parse_mode=None, reply_markup=menu_button)
+        name = row[1] if row else "друг"
+
+        is_subscriber = get_user_subscription_status(user_id)
+        if is_subscriber:
+            prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает: {question}. Ответь развёрнуто, как психолог и нумеролог, с советами."
+            response = await get_yandex_gpt_response(prompt, user_id)
+            await message.answer(response, parse_mode=None, reply_markup=menu_button)
+            await state.clear()
+            return
+
+        # Бесплатный режим: короткий ответ + намёк на подписку
+        remaining = get_free_questions_remaining(user_id)
+        if remaining <= 0:
+            await message.answer("Лимит бесплатных вопросов на сегодня исчерпан. Оформите подписку в профиле.", reply_markup=menu_button)
+            await state.clear()
+            return
+
+        # Отвечаем кратко
+        prompt = f"Человек с числом судьбы {destiny} спрашивает: {question}. Дай очень короткий ответ (1-2 предложения), интригующий, но не раскрывай всех деталей. В конце добавь фразу: «Полный разбор и советы – по подписке»."
+        short_response = await get_yandex_gpt_response(prompt, user_id)
+        increment_free_query(user_id)
+        await message.answer(f"🔮 {short_response}\n\nУ вас осталось *{remaining-1}* бесплатных вопросов на сегодня. Хотите безлимит? Оформите подписку в профиле.", parse_mode="Markdown", reply_markup=menu_button)
         await state.clear()
 
+    # -------------------- ПРОФИЛЬ И РЕФЕРАЛЬНАЯ СИСТЕМА --------------------
     @dp.message(F.text == "👤 МОЙ ПРОФИЛЬ")
     async def show_profile(message: types.Message):
         user_id = message.from_user.id
@@ -327,9 +323,23 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                 f"└─────────────────────┘")
         await message.answer(text, reply_markup=profile_menu)
 
-    # ================================
-    # 5. Промокоды
-    # ================================
+    @dp.callback_query(F.data == "referral_info")
+    async def referral_info(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        link = generate_referral_link(user_id)
+        stats = get_referral_stats(user_id)
+        text = (
+            "🎁 *Бесплатные дни*\n\n"
+            "Отправьте другу ссылку. Как только друг оформит подписку, вы получите +7 дней полного доступа в подарок.\n\n"
+            f"Ваша ссылка: {link}\n\n"
+            f"Приведено друзей с подпиской: *{stats['paid']}*\n"
+            f"Всего переходов: *{stats['total']}*\n\n"
+            "Чем больше друзей, тем больше бонусных дней!"
+        )
+        await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
+        await callback.answer()
+
+    # -------------------- ПРОМОКОДЫ --------------------
     @dp.callback_query(F.data == "enter_promo")
     async def promo_callback(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.answer("Введите промокод:")
@@ -374,9 +384,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await message.answer(f"🎉 Поздравляем! Вы активировали промокод +{action_days} дней подписки.", reply_markup=menu_button)
         await state.clear()
 
-    # ================================
-    # 6. Остальные callback (закрыть профиль, возврат в меню)
-    # ================================
+    # -------------------- ОБЩИЕ CALLBACK --------------------
     @dp.callback_query(F.data == "close")
     async def close_profile(callback: types.CallbackQuery):
         await callback.message.delete()

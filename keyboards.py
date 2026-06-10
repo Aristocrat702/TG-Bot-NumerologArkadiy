@@ -1,6 +1,7 @@
 ﻿from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram import Bot
 
+# Главное меню
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🔮 МОЯ МАТРИЦА"), KeyboardButton(text="📅 ЧИСЛО РОЖДЕНИЯ")],
@@ -10,9 +11,10 @@ main_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+# Профиль (кнопка «Бесплатные дни» вместо старой реферальной)
 profile_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🎟️ ВВЕСТИ ПРОМОКОД", callback_data="enter_promo")],
-    [InlineKeyboardButton(text="🔗 ПРИВЕСТИ ДРУГА", callback_data="referral")],
+    [InlineKeyboardButton(text="🎁 БЕСПЛАТНЫЕ ДНИ", callback_data="referral_info")],
     [InlineKeyboardButton(text="📜 ИСТОРИЯ ЗАПРОСОВ", callback_data="history")],
     [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings")],
     [InlineKeyboardButton(text="🎁 ПОДАРИТЬ ПОДПИСКУ", callback_data="gift")],
@@ -20,6 +22,23 @@ profile_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="✖️ ЗАКРЫТЬ", callback_data="close")]
 ])
 
+# Быстрые темы после расчёта числа
+quick_topics_menu = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="💰 Деньги", callback_data="quick_topic_money"),
+     InlineKeyboardButton(text="❤️ Любовь", callback_data="quick_topic_love")],
+    [InlineKeyboardButton(text="⚕️ Здоровье", callback_data="quick_topic_health"),
+     InlineKeyboardButton(text="💼 Карьера", callback_data="quick_topic_career")],
+    [InlineKeyboardButton(text="👨‍👩‍👧 Семья", callback_data="quick_topic_family"),
+     InlineKeyboardButton(text="🎨 Творчество", callback_data="quick_topic_creativity")],
+    [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
+])
+
+# Кнопка возврата в меню (используется в разных местах)
+menu_button = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
+])
+
+# Админ-меню
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📊 СТАТИСТИКА"), KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ")],
@@ -37,4 +56,3 @@ async def set_main_menu(bot: Bot):
         BotCommand(command="start", description="Запустить бота"),
         BotCommand(command="admin", description="Админ-панель (только для админа)")
     ])
-EOF
