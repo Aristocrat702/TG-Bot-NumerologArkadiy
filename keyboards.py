@@ -1,39 +1,37 @@
-﻿from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
-from aiogram import Bot
-
-main_menu = ReplyKeyboardMarkup(
+﻿main_menu = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="🔮 Я Т"), KeyboardButton(text="📅 С Я")],
-        [KeyboardButton(text="❤️ ССТСТЬ"), KeyboardButton(text="🎁 Т Я")],
-        [KeyboardButton(text="💬 ТЬ С"), KeyboardButton(text="👤  Ь")]
+        [KeyboardButton(text="🔮 МОЯ МАТРИЦА"), KeyboardButton(text="📅 ЧИСЛО РОЖДЕНИЯ")],
+        [KeyboardButton(text="❤️ СОВМЕСТИМОСТЬ"), KeyboardButton(text="🎁 КАРТА ДНЯ")],
+        [KeyboardButton(text="💬 ЗАДАТЬ ВОПРОС"), KeyboardButton(text="👤 МОЙ ПРОФИЛЬ")]
     ],
     resize_keyboard=True
 )
 
 profile_menu = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🎟️ СТ ", callback_data="enter_promo")],
-    [InlineKeyboardButton(text="🔗 СТ ", callback_data="referral")],
-    [InlineKeyboardButton(text="📜 СТЯ С", callback_data="history")],
-    [InlineKeyboardButton(text="⚙️ СТ", callback_data="settings")],
-    [InlineKeyboardButton(text="🎁 ТЬ С", callback_data="gift")],
-    [InlineKeyboardButton(text="❌ ТТЬ С", callback_data="cancel_sub")],
-    [InlineKeyboardButton(text="✖️ ЫТЬ", callback_data="close")]
+    [InlineKeyboardButton(text="🎟️ ВВЕСТИ ПРОМОКОД", callback_data="enter_promo")],
+    [InlineKeyboardButton(text="🔗 ПРИВЕСТИ ДРУГА", callback_data="referral")],
+    [InlineKeyboardButton(text="📜 ИСТОРИЯ ЗАПРОСОВ", callback_data="history")],
+    [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings")],
+    [InlineKeyboardButton(text="🎁 ПОДАРИТЬ ПОДПИСКУ", callback_data="gift")],
+    [InlineKeyboardButton(text="❌ ОТМЕНИТЬ ПОДПИСКУ", callback_data="cancel_sub")],
+    [InlineKeyboardButton(text="✖️ ЗАКРЫТЬ", callback_data="close")]
 ])
 
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="📊 СТТСТ"), KeyboardButton(text="👥 СС ")],
-        [KeyboardButton(text="✉️ ССЫ"), KeyboardButton(text="💰 ЫТЬ С")],
-        [KeyboardButton(text="🎫 Ы"), KeyboardButton(text="🔧 Т")],
-        [KeyboardButton(text="📤 СТ Ы"), KeyboardButton(text="🚫 -СТ")],
-        [KeyboardButton(text="💬 ТТТЬ"), KeyboardButton(text="💰  С")],
-        [KeyboardButton(text="⬅️ ЫТ  ")]
+        [KeyboardButton(text="📊 СТАТИСТИКА"), KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ")],
+        [KeyboardButton(text="✉️ РАССЫЛКА"), KeyboardButton(text="💰 ВЫДАТЬ ПОДПИСКУ")],
+        [KeyboardButton(text="🎫 ПРОМОКОДЫ"), KeyboardButton(text="🔧 ПРОМПТ")],
+        [KeyboardButton(text="📤 ЭКСПОРТ БАЗЫ"), KeyboardButton(text="🚫 БЛЭК-ЛИСТ")],
+        [KeyboardButton(text="💬 ОТВЕТИТЬ"), KeyboardButton(text="💰 ЦЕНА ПОДПИСКИ")],
+        [KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
     ],
     resize_keyboard=True
 )
 
 async def set_main_menu(bot: Bot):
     await bot.set_my_commands([
-        BotCommand(command="start", description="апустить бота"),
-        BotCommand(command="admin", description="дмин-панель (только для админа)")
+        BotCommand(command="start", description="Запустить бота"),
+        BotCommand(command="admin", description="Админ-панель (только для админа)")
     ])
+EOF
