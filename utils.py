@@ -10,7 +10,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import io
 
-# ---------- Основные функции (полностью, как было) ----------
+# ---------- Основные функции ----------
 def is_admin(user_id: int, admin_ids: list) -> bool:
     return user_id in admin_ids
 
@@ -377,18 +377,15 @@ def generate_pdf_matrix(user_id: int, name: str, destiny: int, matrix_text: str)
         c.setFont("Helvetica", 12)
         c.drawString(30, height - 50, f"Число судьбы: {destiny}")
         c.drawString(30, height - 70, f"Дата формирования: {datetime.datetime.now().strftime('%d.%m.%Y')}")
-        text = matrix_text
         y = height - 100
-        for line in text.split('\n'):
+        for line in matrix_text.split('\n'):
             if y < 50:
                 c.showPage()
                 y = height - 50
                 c.setFont("Helvetica", 12)
-            # Перенос длинных строк
             if len(line) > 80:
-                parts = [line[i:i+80] for i in range(0, len(line), 80)]
-                for part in parts:
-                    c.drawString(30, y, part)
+                for i in range(0, len(line), 80):
+                    c.drawString(30, y, line[i:i+80])
                     y -= 15
             else:
                 c.drawString(30, y, line)
