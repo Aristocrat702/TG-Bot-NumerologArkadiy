@@ -49,10 +49,11 @@ def register_start_handlers(dp: Dispatcher, bot: Bot, admin_ids: list, bot_versi
             # Проверка версии бота для уведомления об обновлениях
             user_version = row[2] if row[2] else "0.0.0"
             if user_version != bot_version:
+                conn = get_connection()
                 cursor = conn.cursor()
                 cursor.execute("UPDATE users SET bot_version = ? WHERE user_id = ?", (bot_version, user_id))
                 conn.commit()
-                # Отправляем сообщение о новых функциях
+                conn.close()
                 await message.answer(
                     f"🔔 Дорогие друзья, у нас вышло обновление версии {bot_version}!\n\n"
                     "Теперь доступно:\n"
@@ -131,7 +132,6 @@ def register_start_handlers(dp: Dispatcher, bot: Bot, admin_ids: list, bot_versi
                 parse_mode=None
             )
             grant_achievement(user_id, "first_calculation")
-            # Запрос города через 2 дня активного использования будет позже
             await state.clear()
         except Exception:
             await message.answer("Неверный формат. Введите дату в формате ДД.ММ.ГГГГ")

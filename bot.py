@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 import asyncio
 import logging
 import os
@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums.parse_mode import ParseMode
-from aiogram.fsm.storage.sqlite import SQLiteStorage
+from aiogram.fsm.storage.memory import MemoryStorage
 
 load_dotenv()
 
@@ -18,7 +18,6 @@ from scheduler import start_scheduler
 from settings import BOT_VERSION, LOGS_DIR, HEALTHCHECK_PORT
 import sys
 
-# Создаём папку для логов
 os.makedirs(LOGS_DIR, exist_ok=True)
 
 logging.basicConfig(
@@ -36,8 +35,7 @@ ADMIN_IDS = eval(os.getenv("ADMIN_IDS", "[]"))
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN не найден в .env")
 
-# Хранилище для FSM (состояний) – SQLite
-storage = SQLiteStorage(database="fsm_states.db")
+storage = MemoryStorage()
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=storage)
@@ -49,8 +47,6 @@ async def on_startup():
     register_admin_handlers(dp, bot, ADMIN_IDS)
     start_scheduler(bot, ADMIN_IDS[0] if ADMIN_IDS else None, BOT_VERSION)
     logging.info(f"Бот Аркадий Викторович запущен, версия {BOT_VERSION}")
-
-    # Запуск healthcheck сервера (чтобы мониторить доступность)
     asyncio.create_task(run_healthcheck())
 
 async def run_healthcheck():

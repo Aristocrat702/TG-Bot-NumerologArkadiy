@@ -4,7 +4,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from keyboards import profile_menu, main_menu
+from keyboards import main_menu, profile_menu, psycho_submenu, share_button, quick_topics_menu, menu_button, profile_menu, main_menu
 from database import get_connection
 from utils import (
     generate_referral_link, get_referral_stats, get_free_questions_remaining,
