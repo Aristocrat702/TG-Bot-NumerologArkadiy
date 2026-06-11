@@ -1,7 +1,7 @@
 import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.state import State, StatesGroup, StateFilter
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from keyboards import main_menu, psycho_submenu
 from database import get_connection
@@ -12,6 +12,7 @@ class PsychoStates(StatesGroup):
     waiting_psycho_question = State()
     waiting_mood_value = State()
     waiting_mood_comment = State()
+    waiting_style_answer = State()
 
 # Вопросы для психологического теста (с вариантами ответов)
 PSYCHO_QUESTIONS = [
@@ -37,15 +38,40 @@ PSYCHO_QUESTIONS = [
     }
 ]
 
+# Вопросы для теста «Стиль и удача»
+STYLE_QUESTIONS = [
+    {
+        "text": "Какой стиль одежды вам ближе?",
+        "options": ["Классический", "Спортивный", "Романтичный", "Креативный/авангардный"]
+    },
+    {
+        "text": "Какой цвет вас привлекает больше всего?",
+        "options": ["Чёрный/белый", "Красный/оранжевый", "Синий/зелёный", "Розовый/фиолетовый"]
+    },
+    {
+        "text": "Какую атмосферу вы предпочитаете?",
+        "options": ["Деловая, строгая", "Активная, динамичная", "Спокойная, уютная", "Творческая, свободная"]
+    },
+    {
+        "text": "Что для вас важнее при выборе вещи?",
+        "options": ["Качество и статус", "Удобство и практичность", "Эстетика и красота", "Оригинальность"]
+    },
+    {
+        "text": "Ваше отношение к брендам?",
+        "options": ["Люблю известные бренды", "Средний сегмент", "Масс-маркет", "Уникальные вещи"]
+    }
+]
+
 def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.message(F.text == "🧠 ПСИХОЛОГИЯ")
     async def psychology_menu(message: types.Message):
         await message.answer("🧠 *Психологический раздел*\n\nВыберите, что вас интересует:", parse_mode="Markdown", reply_markup=psycho_submenu)
 
+    # ---------- ПСИХОЛОГИЧЕСКИЙ ТЕСТ ----------
     @dp.callback_query(F.data == "psycho_test")
     async def start_psycho_test(callback: types.CallbackQuery, state: FSMContext):
-        await state.update_data(step=0, answers=[])
+        await state.update_data(psycho_step=0, psycho_answers=[])
         q = PSYCHO_QUESTIONS[0]
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text=opt, callback_data=f"psycho_ans_{i}") for i, opt in enumerate(q["options"])]
@@ -57,20 +83,19 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.callback_query(PsychoStates.waiting_psycho_question, F.data.startswith("psycho_ans_"))
     async def process_psycho_answer(callback: types.CallbackQuery, state: FSMContext):
         data = await state.get_data()
-        step = data.get("step", 0)
-        answers = data.get("answers", [])
+        step = data.get("psycho_step", 0)
+        answers = data.get("psycho_answers", [])
         ans_index = int(callback.data.split("_")[-1])
         answers.append(ans_index)
         step += 1
         if step < len(PSYCHO_QUESTIONS):
-            await state.update_data(step=step, answers=answers)
+            await state.update_data(psycho_step=step, psycho_answers=answers)
             q = PSYCHO_QUESTIONS[step]
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text=opt, callback_data=f"psycho_ans_{i}") for i, opt in enumerate(q["options"])]
             ])
             await callback.message.answer(f"Вопрос {step+1} из {len(PSYCHO_QUESTIONS)}:\n\n{q['text']}", reply_markup=kb)
         else:
-            # Все ответы собраны – отправляем в YandexGPT
             user_id = callback.from_user.id
             conn = get_connection()
             cursor = conn.cursor()
@@ -88,23 +113,98 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             status_msg = await callback.message.answer("🧠 Анализирую ваши ответы...")
             response = await get_yandex_gpt_response(prompt, user_id)
             await status_msg.delete()
-            # Сохраняем результат
             save_psycho_result(user_id, response)
             add_xp(user_id, "test_passed")
             await callback.message.answer(f"🧠 *Результат теста*\n\n{response}", parse_mode="Markdown", reply_markup=main_menu)
             await state.clear()
         await callback.answer()
 
-    @dp.callback_query(F.data == "my_psycho_result")
-    async def show_my_psycho_result(callback: types.CallbackQuery):
-        user_id = callback.from_user.id
-        result, created_at = get_psycho_result(user_id)
-        if result:
-            await callback.message.answer(f"📘 *Ваш последний результат психотеста* (от {created_at[:10]}):\n\n{result}", parse_mode="Markdown")
-        else:
-            await callback.message.answer("Вы ещё не проходили психотест. Нажмите «ПСИХОТЕСТ», чтобы пройти.")
+    # ---------- ТЕСТ «СТИЛЬ И УДАЧА» ----------
+    @dp.callback_query(F.data == "style_test")
+    async def start_style_test(callback: types.CallbackQuery, state: FSMContext):
+        await state.update_data(style_step=0, style_answers=[])
+        q = STYLE_QUESTIONS[0]
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=opt, callback_data=f"style_ans_{i}") for i, opt in enumerate(q["options"])]
+        ])
+        await callback.message.answer(f"🎨 *Тест: Стиль и удача*\n\nВопрос 1 из {len(STYLE_QUESTIONS)}:\n\n{q['text']}", reply_markup=kb, parse_mode="Markdown")
+        await state.set_state(PsychoStates.waiting_style_answer)
         await callback.answer()
 
+    @dp.callback_query(PsychoStates.waiting_style_answer, F.data.startswith("style_ans_"))
+    async def process_style_answer(callback: types.CallbackQuery, state: FSMContext):
+        data = await state.get_data()
+        step = data.get("style_step", 0)
+        answers = data.get("style_answers", [])
+        ans_index = int(callback.data.split("_")[-1])
+        answers.append(ans_index)
+        step += 1
+        if step < len(STYLE_QUESTIONS):
+            await state.update_data(style_step=step, style_answers=answers)
+            q = STYLE_QUESTIONS[step]
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text=opt, callback_data=f"style_ans_{i}") for i, opt in enumerate(q["options"])]
+            ])
+            await callback.message.answer(f"Вопрос {step+1} из {len(STYLE_QUESTIONS)}:\n\n{q['text']}", reply_markup=kb)
+        else:
+            user_id = callback.from_user.id
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT destiny_number, name, birth_date FROM users WHERE user_id=?", (user_id,))
+            row = cursor.fetchone()
+            conn.close()
+            destiny = row[0] if row else "неизвестно"
+            name = row[1] if row else "пользователь"
+            birth_date = row[2] if row else ""
+            # Определяем знак зодиака (упрощённо)
+            zodiac = ""
+            if birth_date:
+                try:
+                    day, month, _ = map(int, birth_date.split('.'))
+                    if (month == 3 and day >= 21) or (month == 4 and day <= 19):
+                        zodiac = "Овен"
+                    elif (month == 4 and day >= 20) or (month == 5 and day <= 20):
+                        zodiac = "Телец"
+                    elif (month == 5 and day >= 21) or (month == 6 and day <= 20):
+                        zodiac = "Близнецы"
+                    elif (month == 6 and day >= 21) or (month == 7 and day <= 22):
+                        zodiac = "Рак"
+                    elif (month == 7 and day >= 23) or (month == 8 and day <= 22):
+                        zodiac = "Лев"
+                    elif (month == 8 and day >= 23) or (month == 9 and day <= 22):
+                        zodiac = "Дева"
+                    elif (month == 9 and day >= 23) or (month == 10 and day <= 22):
+                        zodiac = "Весы"
+                    elif (month == 10 and day >= 23) or (month == 11 and day <= 21):
+                        zodiac = "Скорпион"
+                    elif (month == 11 and day >= 22) or (month == 12 and day <= 21):
+                        zodiac = "Стрелец"
+                    elif (month == 12 and day >= 22) or (month == 1 and day <= 19):
+                        zodiac = "Козерог"
+                    elif (month == 1 and day >= 20) or (month == 2 and day <= 18):
+                        zodiac = "Водолей"
+                    elif (month == 2 and day >= 19) or (month == 3 and day <= 20):
+                        zodiac = "Рыбы"
+                except:
+                    zodiac = "не определён"
+            prompt = (
+                f"Пользователь {name} с числом судьбы {destiny} и знаком зодиака {zodiac} "
+                f"ответил на вопросы о стиле: {answers}. "
+                "На основе нумерологии, психологии и астрологии дай развёрнутые рекомендации: "
+                "какие цвета ему подходят, какие бренды (стиль одежды, техника, аксессуары), "
+                "какой стиль в интерьере, какие профессии или хобби. "
+                "Ответ должен быть полезным, практичным, без выдумок. Опирайся на реальные принципы."
+            )
+            status_msg = await callback.message.answer("🔮 Аркадий анализирует ваш стиль...")
+            response = await get_yandex_gpt_response(prompt, user_id)
+            await status_msg.delete()
+            # Сохраняем результат (можно в ту же таблицу psycho_results)
+            save_psycho_result(user_id, f"[СТИЛЬ] {response}")
+            await callback.message.answer(f"🎨 *Ваш персональный стиль*\n\n{response}", parse_mode="Markdown", reply_markup=main_menu)
+            await state.clear()
+        await callback.answer()
+
+    # ---------- ДНЕВНИК НАСТРОЕНИЯ ----------
     @dp.callback_query(F.data == "mood_diary")
     async def mood_diary_menu(callback: types.CallbackQuery):
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -145,7 +245,7 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             comment = ""
         user_id = message.from_user.id
         log_mood(user_id, mood, comment)
-        add_xp(user_id, "mood_log_7_days")  # ежедневная запись даёт опыт, но с проверкой на 7 дней – отдельно
+        add_xp(user_id, "mood_log_7_days")
         await message.answer("✅ Ваше настроение сохранено. Спасибо!", reply_markup=main_menu)
         await state.clear()
 
@@ -164,11 +264,20 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             if comment:
                 text += f" – {comment}"
             text += "\n"
-        # Анализ через YandexGPT
         prompt = f"Настроение пользователя за последнюю неделю: {[(date, mood, comment) for date, mood, comment in moods]}. Дай короткий психологический анализ и совет (2-3 предложения)."
         response = await get_yandex_gpt_response(prompt, user_id)
         text += f"\n🧠 *Анализ:*\n{response}"
         await callback.message.answer(text, parse_mode="Markdown", reply_markup=main_menu)
+        await callback.answer()
+
+    @dp.callback_query(F.data == "my_psycho_result")
+    async def show_my_psycho_result(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        result, created_at = get_psycho_result(user_id)
+        if result:
+            await callback.message.answer(f"📘 *Ваш последний результат психотеста* (от {created_at[:10]}):\n\n{result}", parse_mode="Markdown")
+        else:
+            await callback.message.answer("Вы ещё не проходили психотест или тест «Стиль и удача». Пройдите их, чтобы получить результат.")
         await callback.answer()
 
     @dp.callback_query(F.data == "psycho_back")
