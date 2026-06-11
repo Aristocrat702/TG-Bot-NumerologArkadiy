@@ -373,3 +373,27 @@ async def check_crisis(message_text: str, user_id: int, bot, admin_ids):
             # Ответ пользователю
             return f"Друг мой, я слышу, что вам тяжело. Пожалуйста, обратитесь за профессиональной помощью: {CRISIS_HELP_LINKS.get('url', '')}. Вы не один."
     return None
+# ---------- Генерация PDF-отчёта ----------
+def generate_pdf_matrix(user_id: int, name: str, destiny: int, matrix_text: str) -> bytes:
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.units import mm
+    import io
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(30, height - 30, f"Матрица судьбы для {name}")
+    c.setFont("Helvetica", 12)
+    c.drawString(30, height - 50, f"Число судьбы: {destiny}")
+    text = matrix_text
+    y = height - 80
+    for line in text.split('\n'):
+        if y < 50:
+            c.showPage()
+            y = height - 50
+        c.drawString(30, y, line[:100])
+        y -= 15
+    c.save()
+    buffer.seek(0)
+    return buffer.read()
