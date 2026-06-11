@@ -14,7 +14,7 @@ class PsychoStates(StatesGroup):
     waiting_mood_comment = State()
     waiting_style_answer = State()
 
-# Вопросы для психологического теста
+# Вопросы для психологического теста (с вариантами ответов)
 PSYCHO_QUESTIONS = [
     {
         "text": "Как вы обычно реагируете на стресс?",
@@ -68,19 +68,20 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     async def psychology_menu(message: types.Message):
         await message.answer("🧠 *Психологический раздел*\n\nВыберите, что вас интересует:", parse_mode="Markdown", reply_markup=psycho_submenu)
 
-    # ---------- ПСИХОЛОГИЧЕСКИЙ ТЕСТ ----------
+    # ---------- ПСИХОЛОГИЧЕСКИЙ ТЕСТ (вертикальные кнопки) ----------
     @dp.callback_query(F.data == "psycho_test")
     async def start_psycho_test(callback: types.CallbackQuery, state: FSMContext):
         await state.update_data(psycho_step=0, psycho_answers=[])
         q = PSYCHO_QUESTIONS[0]
+        # Вертикальное расположение кнопок (каждая на новой строке)
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=opt, callback_data=f"psycho_ans_{i}") for i, opt in enumerate(q["options"])]
+            [InlineKeyboardButton(text=opt, callback_data=f"psycho_ans_{i}")] for i, opt in enumerate(q["options"])
         ])
         await callback.message.answer(f"🧠 *Психологический тест*\n\nВопрос 1 из {len(PSYCHO_QUESTIONS)}:\n\n{q['text']}", reply_markup=kb, parse_mode="Markdown")
         await state.set_state(PsychoStates.waiting_psycho_question)
         await callback.answer()
 
-    @dp.callback_query(F.data.startswith("psycho_ans_"), PsychoStates.waiting_psycho_question)
+    @dp.callback_query(PsychoStates.waiting_psycho_question, F.data.startswith("psycho_ans_"))
     async def process_psycho_answer(callback: types.CallbackQuery, state: FSMContext):
         data = await state.get_data()
         step = data.get("psycho_step", 0)
@@ -92,7 +93,7 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await state.update_data(psycho_step=step, psycho_answers=answers)
             q = PSYCHO_QUESTIONS[step]
             kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text=opt, callback_data=f"psycho_ans_{i}") for i, opt in enumerate(q["options"])]
+                [InlineKeyboardButton(text=opt, callback_data=f"psycho_ans_{i}")] for i, opt in enumerate(q["options"])
             ])
             await callback.message.answer(f"Вопрос {step+1} из {len(PSYCHO_QUESTIONS)}:\n\n{q['text']}", reply_markup=kb)
         else:
@@ -119,19 +120,19 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await state.clear()
         await callback.answer()
 
-    # ---------- ТЕСТ «СТИЛЬ И УДАЧА» ----------
+    # ---------- ТЕСТ «СТИЛЬ И УДАЧА» (вертикальные кнопки) ----------
     @dp.callback_query(F.data == "style_test")
     async def start_style_test(callback: types.CallbackQuery, state: FSMContext):
         await state.update_data(style_step=0, style_answers=[])
         q = STYLE_QUESTIONS[0]
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=opt, callback_data=f"style_ans_{i}") for i, opt in enumerate(q["options"])]
+            [InlineKeyboardButton(text=opt, callback_data=f"style_ans_{i}")] for i, opt in enumerate(q["options"])
         ])
         await callback.message.answer(f"🎨 *Тест: Стиль и удача*\n\nВопрос 1 из {len(STYLE_QUESTIONS)}:\n\n{q['text']}", reply_markup=kb, parse_mode="Markdown")
         await state.set_state(PsychoStates.waiting_style_answer)
         await callback.answer()
 
-    @dp.callback_query(F.data.startswith("style_ans_"), PsychoStates.waiting_style_answer)
+    @dp.callback_query(PsychoStates.waiting_style_answer, F.data.startswith("style_ans_"))
     async def process_style_answer(callback: types.CallbackQuery, state: FSMContext):
         data = await state.get_data()
         step = data.get("style_step", 0)
@@ -143,7 +144,7 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await state.update_data(style_step=step, style_answers=answers)
             q = STYLE_QUESTIONS[step]
             kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text=opt, callback_data=f"style_ans_{i}") for i, opt in enumerate(q["options"])]
+                [InlineKeyboardButton(text=opt, callback_data=f"style_ans_{i}")] for i, opt in enumerate(q["options"])
             ])
             await callback.message.answer(f"Вопрос {step+1} из {len(STYLE_QUESTIONS)}:\n\n{q['text']}", reply_markup=kb)
         else:
@@ -156,6 +157,7 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             destiny = row[0] if row else "неизвестно"
             name = row[1] if row else "пользователь"
             birth_date = row[2] if row else ""
+            # Определяем знак зодиака (упрощённо)
             zodiac = ""
             if birth_date:
                 try:
