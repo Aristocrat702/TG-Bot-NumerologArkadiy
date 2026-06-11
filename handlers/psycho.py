@@ -1,7 +1,7 @@
 import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup, StateFilter
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from keyboards import main_menu, psycho_submenu
 from database import get_connection
@@ -14,7 +14,7 @@ class PsychoStates(StatesGroup):
     waiting_mood_comment = State()
     waiting_style_answer = State()
 
-# Вопросы для психологического теста (с вариантами ответов)
+# Вопросы для психологического теста
 PSYCHO_QUESTIONS = [
     {
         "text": "Как вы обычно реагируете на стресс?",
@@ -80,7 +80,7 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await state.set_state(PsychoStates.waiting_psycho_question)
         await callback.answer()
 
-    @dp.callback_query(PsychoStates.waiting_psycho_question, F.data.startswith("psycho_ans_"))
+    @dp.callback_query(F.data.startswith("psycho_ans_"), PsychoStates.waiting_psycho_question)
     async def process_psycho_answer(callback: types.CallbackQuery, state: FSMContext):
         data = await state.get_data()
         step = data.get("psycho_step", 0)
@@ -131,7 +131,7 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await state.set_state(PsychoStates.waiting_style_answer)
         await callback.answer()
 
-    @dp.callback_query(PsychoStates.waiting_style_answer, F.data.startswith("style_ans_"))
+    @dp.callback_query(F.data.startswith("style_ans_"), PsychoStates.waiting_style_answer)
     async def process_style_answer(callback: types.CallbackQuery, state: FSMContext):
         data = await state.get_data()
         step = data.get("style_step", 0)
@@ -156,7 +156,6 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             destiny = row[0] if row else "неизвестно"
             name = row[1] if row else "пользователь"
             birth_date = row[2] if row else ""
-            # Определяем знак зодиака (упрощённо)
             zodiac = ""
             if birth_date:
                 try:
@@ -198,7 +197,6 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             status_msg = await callback.message.answer("🔮 Аркадий анализирует ваш стиль...")
             response = await get_yandex_gpt_response(prompt, user_id)
             await status_msg.delete()
-            # Сохраняем результат (можно в ту же таблицу psycho_results)
             save_psycho_result(user_id, f"[СТИЛЬ] {response}")
             await callback.message.answer(f"🎨 *Ваш персональный стиль*\n\n{response}", parse_mode="Markdown", reply_markup=main_menu)
             await state.clear()
