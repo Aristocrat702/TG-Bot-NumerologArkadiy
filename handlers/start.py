@@ -45,8 +45,8 @@ def register_start_handlers(dp: Dispatcher, bot: Bot, admin_ids: list, bot_versi
         row = cursor.fetchone()
         conn.close()
 
+        # Если пользователь уже есть в БД и дата рождения указана – обновляем версию и показываем приветствие
         if row and row[0] and row[1]:
-            # Проверка версии бота для уведомления об обновлениях
             user_version = row[2] if row[2] else "0.0.0"
             if user_version != bot_version:
                 conn = get_connection()
@@ -67,14 +67,26 @@ def register_start_handlers(dp: Dispatcher, bot: Bot, admin_ids: list, bot_versi
                     reply_markup=main_menu
                 )
             else:
+                # Всегда показываем приветственное сообщение с кнопками
                 await message.answer(
-                    f"🔮 С возвращением, {row[0]}! Аркадий Викторович ждёт ваших вопросов.",
-                    reply_markup=main_menu
+                    f"🔮 Аркадий Викторович приветствует вас, {row[0]}!\n\n"
+                    "В главном меню вы найдёте:\n"
+                    "• Ваше число судьбы\n"
+                    "• Полную матрицу (по подписке)\n"
+                    "• Совместимость\n"
+                    "• Карту дня\n"
+                    "• Вопросы (5 бесплатных в день)\n"
+                    "• Психологический тест\n"
+                    "• Дневник настроения\n"
+                    "• Челлендж 7 дней\n\n"
+                    "Нажмите /menu, чтобы открыть меню.",
+                    reply_markup=main_menu,
+                    parse_mode=None
                 )
             await state.clear()
             return
 
-        # Новый пользователь
+        # Новый пользователь – запускаем опрос
         first_name = message.from_user.first_name
         await message.answer(
             f"✨ {first_name}, я — Аркадий Викторович, практикующий нумеролог и психолог с 20-летним стажем.\n\n"
