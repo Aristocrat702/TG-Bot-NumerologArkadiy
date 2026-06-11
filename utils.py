@@ -281,3 +281,27 @@ def admin_log(admin_id: int, action: str, details: str = ""):
                    (admin_id, action, details, datetime.datetime.now().isoformat()))
     conn.commit()
     conn.close()
+
+# ---------- Психотест: сохранение и получение результатов ----------
+def save_psycho_result(user_id: int, result_text: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO psycho_results (user_id, result_text, created_at) VALUES (?, ?, ?)",
+                   (user_id, result_text, datetime.datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
+def get_psycho_result(user_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT result_text, created_at FROM psycho_results WHERE user_id=? ORDER BY created_at DESC LIMIT 1", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return (row[0], row[1]) if row else (None, None)
+
+def update_last_active(user_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET last_active = ? WHERE user_id = ?", (datetime.datetime.now().isoformat(), user_id))
+    conn.commit()
+    conn.close()

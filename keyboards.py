@@ -1,18 +1,26 @@
 ﻿from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram import Bot
 
-# Главное меню (новое, с психотестом и дневником)
+# Главное меню (с кнопкой "Моё число" вместо "Число рождения")
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="🔮 МОЯ МАТРИЦА"), KeyboardButton(text="📅 ЧИСЛО РОЖДЕНИЯ")],
+        [KeyboardButton(text="🔮 МОЯ МАТРИЦА"), KeyboardButton(text="🔢 МОЁ ЧИСЛО")],
         [KeyboardButton(text="❤️ СОВМЕСТИМОСТЬ"), KeyboardButton(text="🎁 КАРТА ДНЯ")],
-        [KeyboardButton(text="💬 ЗАДАТЬ ВОПРОС"), KeyboardButton(text="🧠 ПСИХОЛОГИЧЕСКИЙ ТЕСТ")],
-        [KeyboardButton(text="👤 МОЙ ПРОФИЛЬ"), KeyboardButton(text="😊 ДНЕВНИК НАСТРОЕНИЯ")]
+        [KeyboardButton(text="💬 ЗАДАТЬ ВОПРОС"), KeyboardButton(text="🧠 ПСИХОЛОГИЯ")],
+        [KeyboardButton(text="👤 МОЙ ПРОФИЛЬ")]
     ],
     resize_keyboard=True
 )
 
-# Меню профиля (расширенное, без психотеста и дневника)
+# Подменю "Психология"
+psycho_submenu = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="🧠 ПСИХОТЕСТ", callback_data="psycho_test")],
+    [InlineKeyboardButton(text="😊 ДНЕВНИК НАСТРОЕНИЯ", callback_data="mood_diary")],
+    [InlineKeyboardButton(text="📘 МОИ РЕЗУЛЬТАТЫ ТЕСТА", callback_data="my_psycho_result")],
+    [InlineKeyboardButton(text="🔙 НАЗАД", callback_data="back_to_menu")]
+])
+
+# Меню профиля (без изменений, но можно оставить как есть)
 profile_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="✏️ СМЕНИТЬ ИМЯ", callback_data="change_name"),
      InlineKeyboardButton(text="📅 СМЕНИТЬ ДАТУ", callback_data="change_birth")],
@@ -54,7 +62,7 @@ challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# Админ-меню (расширенное, с новыми кнопками)
+# Админ-меню (оставляем как есть)
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📊 СТАТИСТИКА"), KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ")],
@@ -73,5 +81,6 @@ async def set_main_menu(bot: Bot):
         BotCommand(command="start", description="Запустить бота"),
         BotCommand(command="admin", description="Админ-панель (только для админа)"),
         BotCommand(command="menu", description="Показать главное меню"),
-        BotCommand(command="cancel", description="Отменить текущее действие")
+        BotCommand(command="cancel", description="Отменить текущее действие"),
+        BotCommand(command="mynumber", description="Показать ваше число судьбы")
     ])

@@ -5,7 +5,10 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from keyboards import main_menu, profile_menu, quick_topics_menu, share_button, menu_button, challenge_menu
+from keyboards import (
+    main_menu, profile_menu, quick_topics_menu, share_button,
+    menu_button, challenge_menu, psycho_submenu
+)
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
 from utils import (
@@ -16,7 +19,7 @@ from utils import (
     get_achievements, start_challenge, complete_challenge_day,
     get_challenge_progress, get_bot_config, get_cached_response,
     save_cached_response, delete_user_cache, log_mood, get_week_moods,
-    set_bot_config
+    set_bot_config, save_psycho_result, get_psycho_result, update_last_active
 )
 
 class UserStates(StatesGroup):
@@ -27,7 +30,6 @@ class UserStates(StatesGroup):
     waiting_full_name = State()
     waiting_birth_date_from_poll = State()
     waiting_challenge_day = State()
-    waiting_psycho_test = State()      # для теста
     waiting_psycho_question = State()
     waiting_mood_value = State()
     waiting_mood_comment = State()
@@ -36,7 +38,7 @@ class UserStates(StatesGroup):
 
 # Временное хранение последнего ответа для кнопки «Поделиться»
 last_answer = {}
-# Временное хранение ответов на тест
+# Временное хранение ответов на психотест
 psycho_test_data = {}
 
 def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
@@ -45,6 +47,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.message(Command("start"))
     async def cmd_start(message: types.Message, state: FSMContext):
         user_id = message.from_user.id
+        update_last_active(user_id)
         if is_blacklisted(user_id):
             await message.answer("Вы заблокированы.")
             return
@@ -125,9 +128,8 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             conn.close()
             await message.answer(
                 f"🔢 Ваше число судьбы: {destiny}\n\n"
-                f"Спасибо, {name}! Нажмите на любую кнопку ниже, чтобы получить ответ по интересующей теме.\n"
-                "А в главном меню вас ждёт полная матрица, совместимость и другие возможности.",
-                reply_markup=quick_topics_menu,
+                f"Спасибо, {name}! Теперь вы можете использовать главное меню.",
+                reply_markup=main_menu,
                 parse_mode=None
             )
             grant_achievement(user_id, "first_calculation")
@@ -135,171 +137,44 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         except Exception:
             await message.answer("Неверный формат. Введите дату в формате ДД.ММ.ГГГГ")
 
-    # ---------- КНОПКА «ЧИСЛО РОЖДЕНИЯ» (с кэшем) ----------
-    @dp.message(F.text == "📅 ЧИСЛО РОЖДЕНИЯ")
-    async def ask_birth_date(message: types.Message, state: FSMContext):
-        await message.answer("Введите дату рождения в формате ДД.ММ.ГГГГ (например, 15.06.1985)")
-        await state.set_state(UserStates.waiting_birth_date)
-
-    @dp.message(UserStates.waiting_birth_date)
-    async def process_birth_date(message: types.Message, state: FSMContext):
+    # ---------- КНОПКА «МОЁ ЧИСЛО» (без повторного запроса даты) ----------
+    @dp.message(F.text == "🔢 МОЁ ЧИСЛО")
+    async def show_my_number(message: types.Message):
         user_id = message.from_user.id
-        text = message.text.strip()
-        try:
-            day, month, year = map(int, text.split('.'))
-            birth_date = f"{day:02d}.{month:02d}.{year:04d}"
-            today = datetime.date.today()
-            birth = datetime.date(year, month, day)
-            age = today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
-            if age < 18:
-                await message.answer("Работаю только с совершеннолетними.")
-                await state.clear()
-                return
-            destiny = calculate_destiny_number(birth_date)
-            conn = get_connection()
-            cursor = conn.cursor()
-            cursor.execute("UPDATE users SET birth_date = ?, destiny_number = ?, last_active = ? WHERE user_id = ?",
-                           (birth_date, destiny, datetime.datetime.now().isoformat(), user_id))
-            conn.commit()
-            conn.close()
-
-            cached = get_cached_response(user_id, f"birth_{destiny}")
-            if cached:
-                response = cached
-            else:
-                status_msg = await message.answer("🧐 Аркадий Викторович изучает ваш гороскоп...")
-                prompt = f"Число судьбы {destiny}. Дай краткую характеристику (2-3 предложения), назови слабость и дай совет."
-                response = await get_yandex_gpt_response(prompt, user_id)
-                await status_msg.delete()
-                save_cached_response(user_id, f"birth_{destiny}", response)
-
-            await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}",
-                                 reply_markup=quick_topics_menu, parse_mode=None)
-            await state.clear()
-        except Exception:
-            await message.answer("Неверный формат. Введите ДД.ММ.ГГГГ")
-
-    # ---------- БЫСТРЫЕ ТЕМЫ ----------
-    @dp.callback_query(F.data.startswith("quick_topic_"))
-    async def handle_quick_topic(callback: types.CallbackQuery, state: FSMContext):
-        await callback.answer()
-        user_id = callback.from_user.id
-        topic = callback.data.split("_")[-1]
-
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT destiny_number, name FROM users WHERE user_id=?", (user_id,))
+        cursor.execute("SELECT birth_date, destiny_number, name FROM users WHERE user_id=?", (user_id,))
         row = cursor.fetchone()
         conn.close()
         if not row or not row[0]:
-            await callback.message.answer("Сначала укажите дату рождения через кнопку ЧИСЛО РОЖДЕНИЯ.", reply_markup=menu_button)
+            await message.answer("Сначала введите дату рождения через команду /start или дождитесь опроса.")
             return
-
-        destiny = row[0]
-        name = row[1] or "друг"
-
-        topics_map = {
-            "money": "деньгах, финансах, карьере",
-            "love": "любви, отношениях, совместимости",
-            "health": "здоровье, энергии, самочувствии",
-            "career": "карьере, профессиональном росте, призвании",
-            "family": "семье, домашнем очаге, отношениях с родными",
-            "creativity": "творчестве, самовыражении, хобби",
-            "psychology": "психологических аспектах, эмоциях, привычках"
-        }
-        query = topics_map.get(topic, "интересующей теме")
-        prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о {query}. Дай развёрнутый ответ (5-7 предложений) с конкретными советами."
-        status_msg = await callback.message.answer("🧐 Аркадий Викторович размышляет...")
-        response = await get_yandex_gpt_response(prompt, user_id)
-        await status_msg.delete()
-        last_answer[user_id] = response
-        await callback.message.answer(f"✨ *{topic.capitalize()}*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
-
-    # ---------- МОЯ МАТРИЦА (с кэшем) ----------
-    @dp.message(F.text == "🔮 МОЯ МАТРИЦА")
-    async def matrix_prompt(message: types.Message):
-        user_id = message.from_user.id
-        if not get_user_subscription_status(user_id):
-            await message.answer("Полная матрица судьбы доступна только по подписке. Оформите подписку в профиле.", reply_markup=menu_button)
-            return
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT destiny_number FROM users WHERE user_id=?", (user_id,))
-        row = cursor.fetchone()
-        conn.close()
-        if not row or not row[0]:
-            await message.answer("Сначала укажите дату рождения через кнопку ЧИСЛО РОЖДЕНИЯ.", reply_markup=menu_button)
-            return
-        destiny = row[0]
-        cache_key = f"matrix_{destiny}"
-        cached = get_cached_response(user_id, cache_key)
+        birth_date, destiny, name = row
+        cached = get_cached_response(user_id, f"birth_{destiny}")
         if cached:
             response = cached
         else:
-            status_msg = await message.answer("📜 Аркадий Викторович составляет вашу матрицу... Это может занять до 10 секунд.")
-            prompt = f"Составь полную матрицу судьбы для числа {destiny}. Дай развёрнутую характеристику (10-15 предложений) по арканам."
+            status_msg = await message.answer("🧐 Аркадий Викторович изучает ваш гороскоп...")
+            prompt = f"Число судьбы {destiny}. Дай краткую характеристику (2-3 предложения), назови слабость и дай совет."
             response = await get_yandex_gpt_response(prompt, user_id)
             await status_msg.delete()
-            save_cached_response(user_id, cache_key, response)
-        last_answer[user_id] = response
-        await message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
+            save_cached_response(user_id, f"birth_{destiny}", response)
+        await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}",
+                             reply_markup=quick_topics_menu, parse_mode=None)
+        update_last_active(user_id)
 
-    # ---------- СОВМЕСТИМОСТЬ ----------
-    @dp.message(F.text == "❤️ СОВМЕСТИМОСТЬ")
-    async def ask_partner_birth(message: types.Message, state: FSMContext):
-        await message.answer("Введите дату рождения партнёра в формате ДД.ММ.ГГГГ")
-        await state.set_state(UserStates.waiting_partner_birth_date)
+    # ---------- ПСИХОЛОГИЯ (подменю) ----------
+    @dp.message(F.text == "🧠 ПСИХОЛОГИЯ")
+    async def psychology_menu(message: types.Message):
+        await message.answer("🧠 *Психологический раздел*\n\nВыберите, что вас интересует:", parse_mode="Markdown", reply_markup=psycho_submenu)
 
-    @dp.message(UserStates.waiting_partner_birth_date)
-    async def process_compatibility(message: types.Message, state: FSMContext):
-        user_id = message.from_user.id
-        partner_text = message.text.strip()
-        try:
-            day, month, year = map(int, partner_text.split('.'))
-            partner_birth = f"{day:02d}.{month:02d}.{year:04d}"
-            partner_destiny = calculate_destiny_number(partner_birth)
-            conn = get_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT destiny_number FROM users WHERE user_id=?", (user_id,))
-            row = cursor.fetchone()
-            conn.close()
-            if not row or not row[0]:
-                await message.answer("Сначала укажите свою дату рождения через кнопку ЧИСЛО РОЖДЕНИЯ.", reply_markup=menu_button)
-                await state.clear()
-                return
-            my_destiny = row[0]
-            status_msg = await message.answer("🔍 Анализирую совместимость...")
-            prompt = f"Число судьбы пользователя {my_destiny}, число партнёра {partner_destiny}. Опиши совместимость (5-7 предложений) с советами."
-            response = await get_yandex_gpt_response(prompt, user_id)
-            await status_msg.delete()
-            last_answer[user_id] = response
-            await message.answer(f"❤️ *Совместимость*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
-            await state.clear()
-        except Exception:
-            await message.answer("Неверный формат даты. Введите ДД.ММ.ГГГГ", reply_markup=menu_button)
-
-    # ---------- КАРТА ДНЯ ----------
-    @dp.message(F.text == "🎁 КАРТА ДНЯ")
-    async def daily_card(message: types.Message):
-        user_id = message.from_user.id
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT destiny_number FROM users WHERE user_id=?", (user_id,))
-        row = cursor.fetchone()
-        conn.close()
-        destiny = row[0] if row else "?"
-        status_msg = await message.answer("🌙 Аркадий Викторович заглядывает в будущее...")
-        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (3-5 предложений) с практическим действием. Также добавь одну психологическую практику."
-        response = await get_yandex_gpt_response(prompt, user_id)
-        await status_msg.delete()
-        last_answer[user_id] = response
-        await message.answer(f"🎁 *Карта дня*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
-
-    # ---------- ПСИХОЛОГИЧЕСКИЙ ТЕСТ (через YandexGPT) ----------
-    @dp.message(F.text == "🧠 ПСИХОЛОГИЧЕСКИЙ ТЕСТ")
-    async def start_psycho_test(message: types.Message, state: FSMContext):
-        user_id = message.from_user.id
-        # Готовим вопросы (фиксированные, но можно потом заменить на более глубокие)
+    @dp.callback_query(F.data == "psycho_test")
+    async def start_psycho_test(callback: types.CallbackQuery, state: FSMContext):
+        await callback.message.answer(
+            "🧠 *Психотест*\n\nЯ задам 5 вопросов. Отвечайте честно и коротко.\n\n"
+            "Вопрос 1: Как вы обычно реагируете на стресс? (коротко)",
+            parse_mode="Markdown"
+        )
         questions = [
             "Как вы обычно реагируете на стресс? (коротко)",
             "Что вас мотивирует больше всего?",
@@ -308,8 +183,8 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             "Опишите своё отношение к критике."
         ]
         await state.update_data(questions=questions, answers=[], step=0)
-        await message.answer(f"🧠 *Психологический тест*\n\nЯ задам {len(questions)} вопросов. Отвечайте честно и коротко.\n\nВопрос 1: {questions[0]}", parse_mode="Markdown")
         await state.set_state(UserStates.waiting_psycho_question)
+        await callback.answer()
 
     @dp.message(UserStates.waiting_psycho_question)
     async def process_psycho_question(message: types.Message, state: FSMContext):
@@ -324,7 +199,6 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await state.update_data(step=step, answers=answers)
             await message.answer(f"Вопрос {step+1}: {questions[step]}")
         else:
-            # Все вопросы заданы, отправляем в YandexGPT
             conn = get_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT destiny_number, name FROM users WHERE user_id=?", (user_id,))
@@ -340,20 +214,30 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             status_msg = await message.answer("🧠 Анализирую ваши ответы...")
             response = await get_yandex_gpt_response(prompt, user_id)
             await status_msg.delete()
-            await message.answer(f"🧠 *Результат теста*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
+            # Сохраняем результат в БД
+            save_psycho_result(user_id, response)
+            await message.answer(f"🧠 *Результат теста*\n\n{response}", parse_mode="Markdown", reply_markup=main_menu)
             await state.clear()
 
-    # ---------- ДНЕВНИК НАСТРОЕНИЯ ----------
-    @dp.message(F.text == "😊 ДНЕВНИК НАСТРОЕНИЯ")
-    async def mood_diary_menu(message: types.Message):
-        user_id = message.from_user.id
-        # Кнопки для дневника
+    @dp.callback_query(F.data == "my_psycho_result")
+    async def show_my_psycho_result(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        result, created_at = get_psycho_result(user_id)
+        if result:
+            await callback.message.answer(f"📘 *Ваш последний результат психотеста* (от {created_at[:10]}):\n\n{result}", parse_mode="Markdown")
+        else:
+            await callback.message.answer("Вы ещё не проходили психотест. Нажмите «ПСИХОТЕСТ», чтобы пройти.")
+        await callback.answer()
+
+    @dp.callback_query(F.data == "mood_diary")
+    async def mood_diary_menu(callback: types.CallbackQuery):
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📝 Записать настроение", callback_data="mood_log")],
             [InlineKeyboardButton(text="📊 Мой график", callback_data="mood_graph")],
-            [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="psycho_back")]
         ])
-        await message.answer("😊 *Дневник настроения*\n\nЗдесь вы можете записать своё настроение и посмотреть динамику за неделю.", parse_mode="Markdown", reply_markup=kb)
+        await callback.message.answer("😊 *Дневник настроения*\n\nЗаписывайте своё настроение и смотрите динамику.", parse_mode="Markdown", reply_markup=kb)
+        await callback.answer()
 
     @dp.callback_query(F.data == "mood_log")
     async def mood_log_start(callback: types.CallbackQuery, state: FSMContext):
@@ -400,12 +284,132 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             if comment:
                 text += f" – {comment}"
             text += "\n"
-        # Анализ через YandexGPT
         prompt = f"Настроение пользователя за последнюю неделю: {[(date, mood, comment) for date, mood, comment in moods]}. Дай короткий психологический анализ и совет (2-3 предложения)."
         response = await get_yandex_gpt_response(prompt, user_id)
         text += f"\n🧠 *Анализ:*\n{response}"
-        await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
+        await callback.message.answer(text, parse_mode="Markdown", reply_markup=main_menu)
         await callback.answer()
+
+    @dp.callback_query(F.data == "psycho_back")
+    async def psycho_back(callback: types.CallbackQuery):
+        await callback.message.answer("🧠 Психологический раздел:", reply_markup=psycho_submenu)
+        await callback.answer()
+
+    # ---------- БЫСТРЫЕ ТЕМЫ ----------
+    @dp.callback_query(F.data.startswith("quick_topic_"))
+    async def handle_quick_topic(callback: types.CallbackQuery, state: FSMContext):
+        await callback.answer()
+        user_id = callback.from_user.id
+        topic = callback.data.split("_")[-1]
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT destiny_number, name FROM users WHERE user_id=?", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row or not row[0]:
+            await callback.message.answer("Сначала укажите дату рождения через кнопку «Моё число» или /start.", reply_markup=menu_button)
+            return
+
+        destiny = row[0]
+        name = row[1] or "друг"
+
+        topics_map = {
+            "money": "деньгах, финансах, карьере",
+            "love": "любви, отношениях, совместимости",
+            "health": "здоровье, энергии, самочувствии",
+            "career": "карьере, профессиональном росте, призвании",
+            "family": "семье, домашнем очаге, отношениях с родными",
+            "creativity": "творчестве, самовыражении, хобби",
+            "psychology": "психологических аспектах, эмоциях, привычках"
+        }
+        query = topics_map.get(topic, "интересующей теме")
+        prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о {query}. Дай развёрнутый ответ (5-7 предложений) с конкретными советами."
+        status_msg = await callback.message.answer("🧐 Аркадий Викторович размышляет...")
+        response = await get_yandex_gpt_response(prompt, user_id)
+        await status_msg.delete()
+        last_answer[user_id] = response
+        await callback.message.answer(f"✨ *{topic.capitalize()}*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
+
+    # ---------- МОЯ МАТРИЦА ----------
+    @dp.message(F.text == "🔮 МОЯ МАТРИЦА")
+    async def matrix_prompt(message: types.Message):
+        user_id = message.from_user.id
+        if not get_user_subscription_status(user_id):
+            await message.answer("Полная матрица судьбы доступна только по подписке. Оформите подписку в профиле.", reply_markup=menu_button)
+            return
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT destiny_number FROM users WHERE user_id=?", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row or not row[0]:
+            await message.answer("Сначала укажите дату рождения через кнопку «Моё число» или /start.", reply_markup=menu_button)
+            return
+        destiny = row[0]
+        cache_key = f"matrix_{destiny}"
+        cached = get_cached_response(user_id, cache_key)
+        if cached:
+            response = cached
+        else:
+            status_msg = await message.answer("📜 Аркадий Викторович составляет вашу матрицу... Это может занять до 10 секунд.")
+            prompt = f"Составь полную матрицу судьбы для числа {destiny}. Дай развёрнутую характеристику (10-15 предложений) по арканам."
+            response = await get_yandex_gpt_response(prompt, user_id)
+            await status_msg.delete()
+            save_cached_response(user_id, cache_key, response)
+        last_answer[user_id] = response
+        await message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
+
+    # ---------- СОВМЕСТИМОСТЬ ----------
+    @dp.message(F.text == "❤️ СОВМЕСТИМОСТЬ")
+    async def ask_partner_birth(message: types.Message, state: FSMContext):
+        await message.answer("Введите дату рождения партнёра в формате ДД.ММ.ГГГГ")
+        await state.set_state(UserStates.waiting_partner_birth_date)
+
+    @dp.message(UserStates.waiting_partner_birth_date)
+    async def process_compatibility(message: types.Message, state: FSMContext):
+        user_id = message.from_user.id
+        partner_text = message.text.strip()
+        try:
+            day, month, year = map(int, partner_text.split('.'))
+            partner_birth = f"{day:02d}.{month:02d}.{year:04d}"
+            partner_destiny = calculate_destiny_number(partner_birth)
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT destiny_number FROM users WHERE user_id=?", (user_id,))
+            row = cursor.fetchone()
+            conn.close()
+            if not row or not row[0]:
+                await message.answer("Сначала укажите свою дату рождения через кнопку «Моё число» или /start.", reply_markup=menu_button)
+                await state.clear()
+                return
+            my_destiny = row[0]
+            status_msg = await message.answer("🔍 Анализирую совместимость...")
+            prompt = f"Число судьбы пользователя {my_destiny}, число партнёра {partner_destiny}. Опиши совместимость (5-7 предложений) с советами."
+            response = await get_yandex_gpt_response(prompt, user_id)
+            await status_msg.delete()
+            last_answer[user_id] = response
+            await message.answer(f"❤️ *Совместимость*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
+            await state.clear()
+        except Exception:
+            await message.answer("Неверный формат даты. Введите ДД.ММ.ГГГГ", reply_markup=menu_button)
+
+    # ---------- КАРТА ДНЯ ----------
+    @dp.message(F.text == "🎁 КАРТА ДНЯ")
+    async def daily_card(message: types.Message):
+        user_id = message.from_user.id
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT destiny_number FROM users WHERE user_id=?", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        destiny = row[0] if row else "?"
+        status_msg = await message.answer("🌙 Аркадий Викторович заглядывает в будущее...")
+        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (3-5 предложений) с практическим действием. Также добавь одну психологическую практику."
+        response = await get_yandex_gpt_response(prompt, user_id)
+        await status_msg.delete()
+        last_answer[user_id] = response
+        await message.answer(f"🎁 *Карта дня*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
 
     # ---------- ЗАДАТЬ ВОПРОС ----------
     @dp.message(F.text == "💬 ЗАДАТЬ ВОПРОС")
@@ -506,6 +510,7 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         cursor.execute("UPDATE users SET name = ? WHERE user_id = ?", (new_name, user_id))
         conn.commit()
         conn.close()
+        update_last_active(user_id)
         await message.answer(f"Имя изменено на {new_name}.")
         await state.clear()
 
@@ -534,8 +539,20 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             cursor.execute("UPDATE users SET birth_date = ?, destiny_number = ? WHERE user_id = ?", (birth_date, destiny, user_id))
             conn.commit()
             conn.close()
-            delete_user_cache(user_id)  # очищаем кэш
+            delete_user_cache(user_id)
+            update_last_active(user_id)
             await message.answer(f"Дата рождения изменена. Ваше новое число судьбы: {destiny}")
+            # Сразу показываем характеристику
+            cached = get_cached_response(user_id, f"birth_{destiny}")
+            if cached:
+                response = cached
+            else:
+                status_msg = await message.answer("🧐 Аркадий Викторович изучает ваш новый гороскоп...")
+                prompt = f"Число судьбы {destiny}. Дай краткую характеристику (2-3 предложения), назови слабость и дай совет."
+                response = await get_yandex_gpt_response(prompt, user_id)
+                await status_msg.delete()
+                save_cached_response(user_id, f"birth_{destiny}", response)
+            await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}", reply_markup=quick_topics_menu, parse_mode=None)
         except:
             await message.answer("Неверный формат. Введите ДД.ММ.ГГГГ")
         await state.clear()
@@ -742,6 +759,20 @@ def register_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.message(Command("menu"))
     async def menu_command(message: types.Message):
         await message.answer("Главное меню", reply_markup=main_menu)
+
+    @dp.message(Command("mynumber"))
+    async def mynumber_command(message: types.Message):
+        user_id = message.from_user.id
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT destiny_number FROM users WHERE user_id=?", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row or not row[0]:
+            await message.answer("Сначала введите дату рождения через /start или кнопку «Моё число».")
+            return
+        destiny = row[0]
+        await message.answer(f"Ваше число судьбы: *{destiny}*. Хотите подробнее? Нажмите «Моё число» в меню.", parse_mode="Markdown")
 
     @dp.message(Command("cancel"))
     async def cancel_handler(message: types.Message, state: FSMContext):

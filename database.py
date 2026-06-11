@@ -115,6 +115,15 @@ def init_db():
             created_at TEXT
         )
     ''')
+    # Новая таблица для хранения результатов психотеста
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS psycho_results (
+            user_id INTEGER,
+            result_text TEXT,
+            created_at TEXT,
+            PRIMARY KEY (user_id, created_at)
+        )
+    ''')
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('system_prompt', 'Вы — Аркадий Викторович...')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('subscription_price', '249')")
     conn.commit()
