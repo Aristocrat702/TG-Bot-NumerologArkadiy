@@ -2,8 +2,12 @@
 import glob
 import os
 import time
+import asyncio
+import aiohttp
 from database import get_connection
+from settings import LEVELS, XP_REWARDS, CRISIS_HELP_LINKS, LOGS_DIR
 
+# ---------- Основные функции ----------
 def is_admin(user_id: int, admin_ids: list) -> bool:
     return user_id in admin_ids
 
@@ -77,6 +81,7 @@ def add_referral_bonus(referred_user_id: int):
         return
     referrer_id = row[0]
     add_subscription_days(referrer_id, 7, check_referral=False, admin_id=0)
+    add_xp(referrer_id, "referral_subscription")
     conn.close()
 
 def get_referral_stats(user_id: int) -> dict:
@@ -183,6 +188,7 @@ def grant_achievement(user_id: int, achievement: str):
                    (user_id, achievement, datetime.datetime.now().isoformat()))
     conn.commit()
     conn.close()
+    add_xp(user_id, "first_calculation" if achievement == "first_calculation" else None)
 
 def get_achievements(user_id: int):
     conn = get_connection()
@@ -257,7 +263,16 @@ def backup_database():
     for f in glob.glob(f"{backup_dir}/arkadiy_bot_*.db"):
         if os.path.getmtime(f) < time.time() - 7*86400:
             os.remove(f)
+    # Отправка на Яндекс Диск (опционально)
+    asyncio.create_task(upload_to_yadisk(dst))
     return dst
+
+async def upload_to_yadisk(file_path):
+    # Заглушка: здесь нужен API-ключ Яндекса и код для загрузки
+    # Пока просто логируем
+    print(f"Backup saved locally: {file_path}")
+    # В будущем реализовать через yadisk или requests
+    pass
 
 def set_bot_config(key: str, value: str):
     conn = get_connection()
@@ -282,7 +297,6 @@ def admin_log(admin_id: int, action: str, details: str = ""):
     conn.commit()
     conn.close()
 
-# ---------- Психотест: сохранение и получение результатов ----------
 def save_psycho_result(user_id: int, result_text: str):
     conn = get_connection()
     cursor = conn.cursor()
@@ -305,3 +319,57 @@ def update_last_active(user_id: int):
     cursor.execute("UPDATE users SET last_active = ? WHERE user_id = ?", (datetime.datetime.now().isoformat(), user_id))
     conn.commit()
     conn.close()
+
+# ---------- Уровни и опыт ----------
+def add_xp(user_id: int, action: str):
+    reward = XP_REWARDS.get(action, 0)
+    if reward == 0:
+        return
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT xp, level FROM users WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return
+    current_xp = row[0]
+    current_level = row[1]
+    new_xp = current_xp + reward
+    # Определяем новый уровень
+    new_level = current_level
+    for lvl, data in LEVELS.items():
+        if new_xp >= data["xp"]:
+            new_level = lvl
+    cursor.execute("UPDATE users SET xp = ?, level = ? WHERE user_id = ?", (new_xp, new_level, user_id))
+    conn.commit()
+    conn.close()
+    if new_level > current_level:
+        # Уведомление о повышении уровня можно отправить отдельно
+        pass
+
+def calculate_level(user_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT xp, level FROM users WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return 1, 0, 100
+    current_xp = row[0]
+    current_level = row[1]
+    next_xp = LEVELS.get(current_level + 1, {}).get("xp", current_xp + 100)
+    return current_level, current_xp, next_xp
+
+# ---------- Кризисная поддержка ----------
+CRISIS_KEYWORDS = ["депрессия", "суицид", "мысли о смерти", "безысходность", "не хочу жить", "покончить с собой"]
+
+async def check_crisis(message_text: str, user_id: int, bot, admin_ids):
+    text_lower = message_text.lower()
+    for word in CRISIS_KEYWORDS:
+        if word in text_lower:
+            # Уведомление админу
+            for admin_id in admin_ids:
+                await bot.send_message(admin_id, f"⚠️ Кризисная ситуация!\nПользователь {user_id} написал: {message_text[:200]}")
+            # Ответ пользователю
+            return f"Друг мой, я слышу, что вам тяжело. Пожалуйста, обратитесь за профессиональной помощью: {CRISIS_HELP_LINKS.get('url', '')}. Вы не один."
+    return None

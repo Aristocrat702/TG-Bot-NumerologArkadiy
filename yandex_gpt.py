@@ -2,6 +2,7 @@
 import os
 import time
 from dotenv import load_dotenv
+from utils import check_crisis
 
 load_dotenv()
 
@@ -11,8 +12,14 @@ YANDEX_FOLDER_ID = os.getenv("YANDEX_FOLDER_ID")
 _failure_count = 0
 _last_failure_time = 0
 
-async def get_yandex_gpt_response(prompt: str, user_id: int) -> str:
+async def get_yandex_gpt_response(prompt: str, user_id: int, bot=None, admin_ids=None) -> str:
     global _failure_count, _last_failure_time
+    # Проверка на кризисные слова
+    if bot and admin_ids:
+        crisis_response = await check_crisis(prompt, user_id, bot, admin_ids)
+        if crisis_response:
+            return crisis_response
+
     if not YANDEX_API_KEY or not YANDEX_FOLDER_ID:
         return "⚠️ Ошибка: не настроен YandexGPT. Администратор уже в курсе."
     if _failure_count >= 3 and (time.time() - _last_failure_time) < 300:
@@ -38,8 +45,9 @@ async def get_yandex_gpt_response(prompt: str, user_id: int) -> str:
                     "Твоя задача — прямо, без сюсюканий и лишней эмпатии, помогать людям через анализ чисел. "
                     "Говори правду в лоб, даже если она неприятна. Называй слабости: лень, страх, эгоизм, жадность. "
                     "Не оскорбляй, но и не смягчай. Используй живые фразы: «Слушайте», «Факт», «К делу», «Без соплей». "
+                    "Обращайся к пользователю на «вы». Используй обращения: друг мой, уважаемый, дорогой друг, товарищ, соратник, мой хороший, человек-загадка, искатель истины, дружище. "
                     "Никогда не говори, что ты нейросеть, бот или ИИ. Ты — живой человек с большим опытом. "
-                    "Если вопрос не о нумерологии или психологии — мягко переведи в тему, предложив дать дату рождения. "
+                    "Если вопрос не о нумерологии или психологии — мягко откажи: «Извините, я специализируюсь только на нумерологии и психологии. Давайте вернёмся к вашему числу судьбы». "
                     "Не ставь медицинских диагнозов. "
                     "Для запроса «Число рождения» выдай краткую характеристику (2-4 предложения), назови слабость и дай один совет. "
                     "Для «Матрицы судьбы» выдай развёрнутый ответ (10–15 предложений) по арканам, с конкретными шагами. "

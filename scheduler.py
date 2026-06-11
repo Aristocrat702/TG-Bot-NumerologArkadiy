@@ -10,6 +10,8 @@ from utils import backup_database, add_subscription_days, get_challenge_progress
 scheduler = AsyncIOScheduler()
 
 async def send_daily_card(bot: Bot):
+    # Отправка карты дня в 9:00 по местному времени каждого пользователя (упрощённо: проверяем каждый час)
+    # Более точная реализация требует хранения часовых поясов, пока просто в 9:00 МСК
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT user_id, destiny_number FROM users WHERE subscription_active=1 AND send_daily=1")
@@ -18,7 +20,7 @@ async def send_daily_card(bot: Bot):
     for user in users:
         user_id = user[0]
         destiny = user[1] if user[1] else "?"
-        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (3-5 предложений) с практическим действием. Также добавь одну психологическую практику (например, дыхательное упражнение или совет по саморегуляции)."
+        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (3-5 предложений) с практическим действием. Также добавь одну психологическую практику."
         response = await get_yandex_gpt_response(prompt, user_id)
         try:
             await bot.send_message(user_id, f"🎁 *Карта дня*\n\n{response}", parse_mode="Markdown")
@@ -80,13 +82,13 @@ async def send_challenge_reminders(bot: Bot):
                 await bot.send_message(uid, f"🔥 Напоминание по челленджу: задание дня {day}: {tasks.get(day, 'Выполните любой шаг')}\n\nНажмите кнопку «Выполнил» в профиле, когда сделаете.")
                 break
 
-def start_scheduler(bot: Bot, admin_id: int):
+def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     if admin_id is None:
         logging.warning("admin_id не передан, лидерборд работать не будет")
-    scheduler.add_job(send_daily_card, 'cron', hour=12, minute=0, args=[bot], timezone='Europe/Moscow')
+    scheduler.add_job(send_daily_card, 'cron', hour=9, minute=0, args=[bot], timezone='Europe/Moscow')
     if admin_id:
         scheduler.add_job(weekly_leaderboard, 'cron', day_of_week='sun', hour=20, minute=0, args=[bot, admin_id], timezone='Europe/Moscow')
     scheduler.add_job(daily_backup, 'cron', hour=3, minute=0, timezone='Europe/Moscow')
     scheduler.add_job(send_challenge_reminders, 'cron', hour=10, minute=0, args=[bot], timezone='Europe/Moscow')
     scheduler.start()
-    logging.info("Планировщик заданий запущен")
+    logging.info(f"Планировщик заданий запущен, версия бота {bot_version}")

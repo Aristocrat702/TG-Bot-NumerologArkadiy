@@ -24,7 +24,11 @@ def init_db():
             free_queries_today INTEGER DEFAULT 0,
             send_daily BOOLEAN DEFAULT 1,
             is_sleeping BOOLEAN DEFAULT 0,
-            referred_by INTEGER
+            referred_by INTEGER,
+            phone TEXT,
+            bot_version TEXT,
+            xp INTEGER DEFAULT 0,
+            level INTEGER DEFAULT 1
         )
     ''')
     cursor.execute('''
@@ -115,7 +119,6 @@ def init_db():
             created_at TEXT
         )
     ''')
-    # Новая таблица для хранения результатов психотеста
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS psycho_results (
             user_id INTEGER,
