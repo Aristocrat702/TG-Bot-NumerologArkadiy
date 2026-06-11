@@ -40,9 +40,12 @@ def register_alarm_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "set_alarm_step1")
     async def set_alarm_hour(callback: types.CallbackQuery, state: FSMContext):
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=f"{h:02d}", callback_data=f"alarm_hour_{h}") for h in range(0, 24, 6)]
-        ])
+        # Кнопки выбора часа 0-23, разбиты на 4 строки по 6 кнопок
+        hours_row1 = [InlineKeyboardButton(text=f"{h:02d}", callback_data=f"alarm_hour_{h}") for h in range(0, 6)]
+        hours_row2 = [InlineKeyboardButton(text=f"{h:02d}", callback_data=f"alarm_hour_{h}") for h in range(6, 12)]
+        hours_row3 = [InlineKeyboardButton(text=f"{h:02d}", callback_data=f"alarm_hour_{h}") for h in range(12, 18)]
+        hours_row4 = [InlineKeyboardButton(text=f"{h:02d}", callback_data=f"alarm_hour_{h}") for h in range(18, 24)]
+        kb = InlineKeyboardMarkup(inline_keyboard=[hours_row1, hours_row2, hours_row3, hours_row4])
         await callback.message.answer("Выберите час:", reply_markup=kb)
         await state.set_state(AlarmStates.waiting_hour)
         await callback.answer()
@@ -51,9 +54,21 @@ def register_alarm_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     async def set_alarm_minute(callback: types.CallbackQuery, state: FSMContext):
         hour = int(callback.data.split("_")[-1])
         await state.update_data(hour=hour)
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=f"{m:02d}", callback_data=f"alarm_minute_{m}") for m in range(0, 60, 15)]
-        ])
+        # Кнопки выбора минут 0-59, разбиты на 6 строк по 10 кнопок
+        minute_rows = []
+        for m in range(0, 60, 10):
+            row = [InlineKeyboardButton(text=f"{m:02d}", callback_data=f"alarm_minute_{m}"),
+                   InlineKeyboardButton(text=f"{m+1:02d}", callback_data=f"alarm_minute_{m+1}"),
+                   InlineKeyboardButton(text=f"{m+2:02d}", callback_data=f"alarm_minute_{m+2}"),
+                   InlineKeyboardButton(text=f"{m+3:02d}", callback_data=f"alarm_minute_{m+3}"),
+                   InlineKeyboardButton(text=f"{m+4:02d}", callback_data=f"alarm_minute_{m+4}"),
+                   InlineKeyboardButton(text=f"{m+5:02d}", callback_data=f"alarm_minute_{m+5}"),
+                   InlineKeyboardButton(text=f"{m+6:02d}", callback_data=f"alarm_minute_{m+6}"),
+                   InlineKeyboardButton(text=f"{m+7:02d}", callback_data=f"alarm_minute_{m+7}"),
+                   InlineKeyboardButton(text=f"{m+8:02d}", callback_data=f"alarm_minute_{m+8}"),
+                   InlineKeyboardButton(text=f"{m+9:02d}", callback_data=f"alarm_minute_{m+9}")]
+            minute_rows.append(row)
+        kb = InlineKeyboardMarkup(inline_keyboard=minute_rows)
         await callback.message.answer(f"Выбрано {hour:02d} часов. Теперь выберите минуты:", reply_markup=kb)
         await state.set_state(AlarmStates.waiting_minute)
         await callback.answer()
