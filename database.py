@@ -28,7 +28,9 @@ def init_db():
             phone TEXT,
             bot_version TEXT,
             xp INTEGER DEFAULT 0,
-            level INTEGER DEFAULT 1
+            level INTEGER DEFAULT 1,
+            city TEXT,
+            timezone TEXT
         )
     ''')
     cursor.execute('''
@@ -125,6 +127,17 @@ def init_db():
             result_text TEXT,
             created_at TEXT,
             PRIMARY KEY (user_id, created_at)
+        )
+    ''')
+    # Таблица для будильников
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS alarms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            alarm_time TEXT,
+            message TEXT,
+            is_active BOOLEAN DEFAULT 1,
+            created_at TEXT
         )
     ''')
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('system_prompt', 'Вы — Аркадий Викторович...')")

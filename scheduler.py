@@ -10,8 +10,6 @@ from utils import backup_database, add_subscription_days, get_challenge_progress
 scheduler = AsyncIOScheduler()
 
 async def send_daily_card(bot: Bot):
-    # Отправка карты дня в 9:00 по местному времени каждого пользователя (упрощённо: проверяем каждый час)
-    # Более точная реализация требует хранения часовых поясов, пока просто в 9:00 МСК
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT user_id, destiny_number FROM users WHERE subscription_active=1 AND send_daily=1")
@@ -82,6 +80,39 @@ async def send_challenge_reminders(bot: Bot):
                 await bot.send_message(uid, f"🔥 Напоминание по челленджу: задание дня {day}: {tasks.get(day, 'Выполните любой шаг')}\n\nНажмите кнопку «Выполнил» в профиле, когда сделаете.")
                 break
 
+async def send_alarms(bot: Bot):
+    """Проверяет будильники каждую минуту и отправляет сообщения"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    now = datetime.datetime.now().strftime("%H:%M")
+    cursor.execute("SELECT user_id, alarm_time FROM alarms WHERE is_active=1 AND alarm_time=?", (now,))
+    alarms = cursor.fetchall()
+    conn.close()
+    for (user_id, alarm_time) in alarms:
+        conn2 = get_connection()
+        cursor2 = conn2.cursor()
+        cursor2.execute("SELECT city, destiny_number FROM users WHERE user_id=?", (user_id,))
+        row = cursor2.fetchone()
+        conn2.close()
+        city = row[0] if row else None
+        destiny = row[1] if row else "?"
+        weather = "Погода: не указано. Укажите город в профиле."
+        if city:
+            # Здесь можно вставить реальный API погоды, пока заглушка
+            weather = f"🌤 Погода в {city}: сейчас комфортно."
+        moon_phase = "🌙 Луна в растущей фазе."
+        prompt = f"Для человека с числом судьбы {destiny} в городе {city}. Дай короткий мотивирующий совет на день (1-2 предложения)."
+        advice = await get_yandex_gpt_response(prompt, user_id)
+        text = f"⏰ *Умный будильник!*\n\n{advice}\n\n{weather}\n{moon_phase}\n\nХорошего дня!"
+        await bot.send_message(user_id, text, parse_mode="Markdown")
+        # Отключаем будильник после отправки (одноразовый)
+        conn3 = get_connection()
+        cursor3 = conn3.cursor()
+        cursor3.execute("UPDATE alarms SET is_active=0 WHERE user_id=? AND alarm_time=?", (user_id, alarm_time))
+        conn3.commit()
+        conn3.close()
+        await asyncio.sleep(0.1)
+
 def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     if admin_id is None:
         logging.warning("admin_id не передан, лидерборд работать не будет")
@@ -90,5 +121,6 @@ def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
         scheduler.add_job(weekly_leaderboard, 'cron', day_of_week='sun', hour=20, minute=0, args=[bot, admin_id], timezone='Europe/Moscow')
     scheduler.add_job(daily_backup, 'cron', hour=3, minute=0, timezone='Europe/Moscow')
     scheduler.add_job(send_challenge_reminders, 'cron', hour=10, minute=0, args=[bot], timezone='Europe/Moscow')
+    scheduler.add_job(send_alarms, 'interval', minutes=1, args=[bot])
     scheduler.start()
     logging.info(f"Планировщик заданий запущен, версия бота {bot_version}")

@@ -1,0 +1,944 @@
+2026-06-11 15:11:09,663 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:11:09,664 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:11:09,664 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:11:09,664 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:11:09,665 - apscheduler.scheduler - INFO - Added job "send_daily_card" to job store "default"
+2026-06-11 15:11:09,666 - apscheduler.scheduler - INFO - Added job "weekly_leaderboard" to job store "default"
+2026-06-11 15:11:09,666 - apscheduler.scheduler - INFO - Added job "daily_backup" to job store "default"
+2026-06-11 15:11:09,666 - apscheduler.scheduler - INFO - Added job "send_challenge_reminders" to job store "default"
+2026-06-11 15:11:09,666 - apscheduler.scheduler - INFO - Scheduler started
+2026-06-11 15:11:09,666 - root - INFO - Планировщик заданий запущен, версия бота 2.0.0
+2026-06-11 15:11:09,666 - root - INFO - Бот Аркадий Викторович запущен, версия 2.0.0
+2026-06-11 15:11:09,667 - aiogram.dispatcher - INFO - Start polling
+2026-06-11 15:11:09,687 - root - INFO - Healthcheck сервер запущен на порту 9001
+2026-06-11 15:11:09,704 - aiogram.dispatcher - INFO - Run polling for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 15:11:09,822 - aiogram.event - INFO - Update id=253480368 is not handled. Duration 3 ms by bot id=8934594064
+2026-06-11 15:11:09,822 - aiogram.event - ERROR - Cause exception while process update id=253480368 by bot id=8934594064
+OperationalError: no such column: bot_version
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 309, in _process_update
+    response = await self.feed_update(bot, update, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 158, in feed_update
+    response = await self.update.wrap_outer_middleware(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/error.py", line 25, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/user_context.py", line 56, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/fsm/middleware.py", line 42, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 276, in _listen_update
+    return await self.propagate_event(update_type=update_type, event=event, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
+    return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
+    return await self._propagate_event(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 166, in _propagate_event
+    response = await observer.trigger(event, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/handlers/start.py", line 44, in cmd_start
+    cursor.execute("SELECT name, birth_date, bot_version FROM users WHERE user_id=?", (user_id,))
+sqlite3.OperationalError: no such column: bot_version
+2026-06-11 15:11:10,082 - aiogram.event - INFO - Update id=253480369 is handled. Duration 258 ms by bot id=8934594064
+2026-06-11 15:11:57,317 - aiogram.event - INFO - Update id=253480370 is not handled. Duration 1 ms by bot id=8934594064
+2026-06-11 15:11:57,317 - aiogram.event - ERROR - Cause exception while process update id=253480370 by bot id=8934594064
+NameError: name 'menu_button' is not defined
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 309, in _process_update
+    response = await self.feed_update(bot, update, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 158, in feed_update
+    response = await self.update.wrap_outer_middleware(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/error.py", line 25, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/user_context.py", line 56, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/fsm/middleware.py", line 42, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 276, in _listen_update
+    return await self.propagate_event(update_type=update_type, event=event, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
+    return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
+    return await self._propagate_event(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 166, in _propagate_event
+    response = await observer.trigger(event, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/handlers/main.py", line 55, in matrix_prompt
+    await message.answer("Полная матрица судьбы доступна только по подписке. Оформите подписку в профиле.", reply_markup=menu_button)
+                                                                                                                         ^^^^^^^^^^^
+NameError: name 'menu_button' is not defined
+2026-06-11 15:12:06,666 - aiogram.event - INFO - Update id=253480371 is not handled. Duration 2 ms by bot id=8934594064
+2026-06-11 15:12:06,666 - aiogram.event - ERROR - Cause exception while process update id=253480371 by bot id=8934594064
+OperationalError: no such column: xp
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 309, in _process_update
+    response = await self.feed_update(bot, update, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 158, in feed_update
+    response = await self.update.wrap_outer_middleware(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/error.py", line 25, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/user_context.py", line 56, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/fsm/middleware.py", line 42, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 276, in _listen_update
+    return await self.propagate_event(update_type=update_type, event=event, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
+    return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
+    return await self._propagate_event(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 166, in _propagate_event
+    response = await observer.trigger(event, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/handlers/main.py", line 47, in show_my_number
+    add_xp(user_id, "daily_visit")  # ежедневный вход (можно проверять)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/utils.py", line 330, in add_xp
+    cursor.execute("SELECT xp, level FROM users WHERE user_id=?", (user_id,))
+sqlite3.OperationalError: no such column: xp
+2026-06-11 15:12:12,125 - aiogram.event - INFO - Update id=253480372 is handled. Duration 59 ms by bot id=8934594064
+2026-06-11 15:12:19,939 - aiogram.event - INFO - Update id=253480373 is handled. Duration 70 ms by bot id=8934594064
+2026-06-11 15:12:21,915 - aiogram.event - INFO - Update id=253480374 is not handled. Duration 2 ms by bot id=8934594064
+2026-06-11 15:12:21,915 - aiogram.event - ERROR - Cause exception while process update id=253480374 by bot id=8934594064
+OperationalError: no such column: comment
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 309, in _process_update
+    response = await self.feed_update(bot, update, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 158, in feed_update
+    response = await self.update.wrap_outer_middleware(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/error.py", line 25, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/user_context.py", line 56, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/fsm/middleware.py", line 42, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 276, in _listen_update
+    return await self.propagate_event(update_type=update_type, event=event, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
+    return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
+    return await self._propagate_event(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 166, in _propagate_event
+    response = await observer.trigger(event, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/handlers/psycho.py", line 155, in mood_graph
+    moods = get_week_moods(user_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/utils.py", line 249, in get_week_moods
+    cursor.execute("SELECT log_date, mood, comment FROM mood_log WHERE user_id=? AND log_date >= ? ORDER BY log_date", (user_id, week_ago))
+sqlite3.OperationalError: no such column: comment
+2026-06-11 15:12:25,418 - aiogram.event - INFO - Update id=253480375 is handled. Duration 38 ms by bot id=8934594064
+2026-06-11 15:12:27,020 - aiogram.event - INFO - Update id=253480376 is handled. Duration 40 ms by bot id=8934594064
+2026-06-11 15:12:29,513 - aiogram.event - INFO - Update id=253480377 is handled. Duration 65 ms by bot id=8934594064
+2026-06-11 15:12:32,391 - aiogram.event - INFO - Update id=253480378 is not handled. Duration 1 ms by bot id=8934594064
+2026-06-11 15:12:32,391 - aiogram.event - ERROR - Cause exception while process update id=253480378 by bot id=8934594064
+OperationalError: no such column: phone
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 309, in _process_update
+    response = await self.feed_update(bot, update, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 158, in feed_update
+    response = await self.update.wrap_outer_middleware(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/error.py", line 25, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/user_context.py", line 56, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/fsm/middleware.py", line 42, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 276, in _listen_update
+    return await self.propagate_event(update_type=update_type, event=event, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
+    return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
+    return await self._propagate_event(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 166, in _propagate_event
+    response = await observer.trigger(event, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/handlers/profile.py", line 28, in show_profile
+    cursor.execute("SELECT name, birth_date, destiny_number, subscription_active, subscription_end, phone FROM users WHERE user_id=?", (user_id,))
+sqlite3.OperationalError: no such column: phone
+2026-06-11 15:12:37,952 - aiogram.event - INFO - Update id=253480379 is not handled. Duration 1 ms by bot id=8934594064
+2026-06-11 15:12:37,952 - aiogram.event - ERROR - Cause exception while process update id=253480379 by bot id=8934594064
+NameError: name 'menu_button' is not defined
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/handlers/main.py", line 89, in process_compatibility
+    day, month, year = map(int, partner_text.split('.'))
+    ^^^^^^^^^^^^^^^^
+ValueError: invalid literal for int() with base 10: '/admin'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 309, in _process_update
+    response = await self.feed_update(bot, update, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 158, in feed_update
+    response = await self.update.wrap_outer_middleware(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/error.py", line 25, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/user_context.py", line 56, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/fsm/middleware.py", line 42, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 276, in _listen_update
+    return await self.propagate_event(update_type=update_type, event=event, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
+    return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
+    return await self._propagate_event(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 166, in _propagate_event
+    response = await observer.trigger(event, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/handlers/main.py", line 110, in process_compatibility
+    await message.answer("Неверный формат даты. Введите ДД.ММ.ГГГГ", reply_markup=menu_button)
+                                                                                  ^^^^^^^^^^^
+NameError: name 'menu_button' is not defined
+2026-06-11 15:14:39,415 - aiogram.event - INFO - Update id=253480380 is not handled. Duration 3 ms by bot id=8934594064
+2026-06-11 15:14:39,415 - aiogram.event - ERROR - Cause exception while process update id=253480380 by bot id=8934594064
+OperationalError: no such column: bot_version
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 309, in _process_update
+    response = await self.feed_update(bot, update, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 158, in feed_update
+    response = await self.update.wrap_outer_middleware(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/error.py", line 25, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/user_context.py", line 56, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/fsm/middleware.py", line 42, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 276, in _listen_update
+    return await self.propagate_event(update_type=update_type, event=event, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
+    return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
+    return await self._propagate_event(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 166, in _propagate_event
+    response = await observer.trigger(event, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/handlers/start.py", line 44, in cmd_start
+    cursor.execute("SELECT name, birth_date, bot_version FROM users WHERE user_id=?", (user_id,))
+sqlite3.OperationalError: no such column: bot_version
+2026-06-11 15:39:35,035 - aiogram.dispatcher - WARNING - Received SIGTERM signal
+2026-06-11 15:39:35,039 - aiogram.dispatcher - INFO - Polling stopped for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 15:39:35,039 - aiogram.dispatcher - INFO - Polling stopped
+2026-06-11 15:39:37,909 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:39:37,910 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:39:37,910 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:39:37,911 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:39:37,912 - apscheduler.scheduler - INFO - Added job "send_daily_card" to job store "default"
+2026-06-11 15:39:37,912 - apscheduler.scheduler - INFO - Added job "weekly_leaderboard" to job store "default"
+2026-06-11 15:39:37,912 - apscheduler.scheduler - INFO - Added job "daily_backup" to job store "default"
+2026-06-11 15:39:37,913 - apscheduler.scheduler - INFO - Added job "send_challenge_reminders" to job store "default"
+2026-06-11 15:39:37,913 - apscheduler.scheduler - INFO - Scheduler started
+2026-06-11 15:39:37,913 - root - INFO - Планировщик заданий запущен, версия бота 2.0.0
+2026-06-11 15:39:37,913 - root - INFO - Бот Аркадий Викторович запущен, версия 2.0.0
+2026-06-11 15:39:37,913 - aiogram.dispatcher - INFO - Start polling
+2026-06-11 15:39:37,931 - root - INFO - Healthcheck сервер запущен на порту 9001
+2026-06-11 15:39:37,942 - aiogram.dispatcher - INFO - Run polling for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 15:43:37,112 - aiogram.dispatcher - WARNING - Received SIGTERM signal
+2026-06-11 15:43:37,114 - aiogram.dispatcher - INFO - Polling stopped for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 15:43:37,114 - aiogram.dispatcher - INFO - Polling stopped
+2026-06-11 15:43:40,221 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:43:40,222 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:43:40,222 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:43:40,223 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:43:40,223 - apscheduler.scheduler - INFO - Added job "send_daily_card" to job store "default"
+2026-06-11 15:43:40,224 - apscheduler.scheduler - INFO - Added job "weekly_leaderboard" to job store "default"
+2026-06-11 15:43:40,224 - apscheduler.scheduler - INFO - Added job "daily_backup" to job store "default"
+2026-06-11 15:43:40,224 - apscheduler.scheduler - INFO - Added job "send_challenge_reminders" to job store "default"
+2026-06-11 15:43:40,224 - apscheduler.scheduler - INFO - Scheduler started
+2026-06-11 15:43:40,224 - root - INFO - Планировщик заданий запущен, версия бота 2.0.0
+2026-06-11 15:43:40,224 - root - INFO - Бот Аркадий Викторович запущен, версия 2.0.0
+2026-06-11 15:43:40,224 - aiogram.dispatcher - INFO - Start polling
+2026-06-11 15:43:40,239 - root - INFO - Healthcheck сервер запущен на порту 9001
+2026-06-11 15:43:40,252 - aiogram.dispatcher - INFO - Run polling for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 15:44:47,176 - aiogram.event - INFO - Update id=253480381 is not handled. Duration 4 ms by bot id=8934594064
+2026-06-11 15:44:47,176 - aiogram.event - ERROR - Cause exception while process update id=253480381 by bot id=8934594064
+ProgrammingError: Cannot operate on a closed database.
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 309, in _process_update
+    response = await self.feed_update(bot, update, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 158, in feed_update
+    response = await self.update.wrap_outer_middleware(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/error.py", line 25, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/user_context.py", line 56, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/fsm/middleware.py", line 42, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 276, in _listen_update
+    return await self.propagate_event(update_type=update_type, event=event, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
+    return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
+    return await self._propagate_event(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 166, in _propagate_event
+    response = await observer.trigger(event, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/handlers/start.py", line 52, in cmd_start
+    cursor = conn.cursor()
+             ^^^^^^^^^^^^^
+sqlite3.ProgrammingError: Cannot operate on a closed database.
+2026-06-11 15:45:48,189 - aiogram.dispatcher - WARNING - Received SIGTERM signal
+2026-06-11 15:45:48,189 - aiogram.dispatcher - INFO - Polling stopped for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 15:45:48,189 - aiogram.dispatcher - INFO - Polling stopped
+2026-06-11 15:45:51,202 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:45:51,203 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:45:51,203 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:45:51,203 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:45:51,204 - apscheduler.scheduler - INFO - Added job "send_daily_card" to job store "default"
+2026-06-11 15:45:51,204 - apscheduler.scheduler - INFO - Added job "weekly_leaderboard" to job store "default"
+2026-06-11 15:45:51,204 - apscheduler.scheduler - INFO - Added job "daily_backup" to job store "default"
+2026-06-11 15:45:51,204 - apscheduler.scheduler - INFO - Added job "send_challenge_reminders" to job store "default"
+2026-06-11 15:45:51,204 - apscheduler.scheduler - INFO - Scheduler started
+2026-06-11 15:45:51,205 - root - INFO - Планировщик заданий запущен, версия бота 2.0.0
+2026-06-11 15:45:51,205 - root - INFO - Бот Аркадий Викторович запущен, версия 2.0.0
+2026-06-11 15:45:51,205 - aiogram.dispatcher - INFO - Start polling
+2026-06-11 15:45:51,220 - root - INFO - Healthcheck сервер запущен на порту 9001
+2026-06-11 15:45:51,232 - aiogram.dispatcher - INFO - Run polling for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 15:46:15,413 - aiogram.event - INFO - Update id=253480382 is not handled. Duration 4 ms by bot id=8934594064
+2026-06-11 15:46:15,414 - aiogram.event - ERROR - Cause exception while process update id=253480382 by bot id=8934594064
+ProgrammingError: Cannot operate on a closed database.
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 309, in _process_update
+    response = await self.feed_update(bot, update, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 158, in feed_update
+    response = await self.update.wrap_outer_middleware(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/error.py", line 25, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/user_context.py", line 56, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/fsm/middleware.py", line 42, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 276, in _listen_update
+    return await self.propagate_event(update_type=update_type, event=event, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
+    return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
+    return await self._propagate_event(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 166, in _propagate_event
+    response = await observer.trigger(event, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/handlers/start.py", line 52, in cmd_start
+    cursor = conn.cursor()
+             ^^^^^^^^^^^^^
+sqlite3.ProgrammingError: Cannot operate on a closed database.
+2026-06-11 15:47:36,528 - aiogram.dispatcher - WARNING - Received SIGTERM signal
+2026-06-11 15:47:36,531 - aiogram.dispatcher - INFO - Polling stopped for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 15:47:36,531 - aiogram.dispatcher - INFO - Polling stopped
+2026-06-11 15:47:39,725 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:47:39,725 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:47:39,726 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:47:39,726 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:47:39,727 - apscheduler.scheduler - INFO - Added job "send_daily_card" to job store "default"
+2026-06-11 15:47:39,727 - apscheduler.scheduler - INFO - Added job "weekly_leaderboard" to job store "default"
+2026-06-11 15:47:39,728 - apscheduler.scheduler - INFO - Added job "daily_backup" to job store "default"
+2026-06-11 15:47:39,728 - apscheduler.scheduler - INFO - Added job "send_challenge_reminders" to job store "default"
+2026-06-11 15:47:39,728 - apscheduler.scheduler - INFO - Scheduler started
+2026-06-11 15:47:39,728 - root - INFO - Планировщик заданий запущен, версия бота 2.0.0
+2026-06-11 15:47:39,728 - root - INFO - Бот Аркадий Викторович запущен, версия 2.0.0
+2026-06-11 15:47:39,728 - aiogram.dispatcher - INFO - Start polling
+2026-06-11 15:47:39,743 - root - INFO - Healthcheck сервер запущен на порту 9001
+2026-06-11 15:47:39,761 - aiogram.dispatcher - INFO - Run polling for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 15:47:49,806 - aiogram.event - INFO - Update id=253480383 is handled. Duration 94 ms by bot id=8934594064
+2026-06-11 15:47:55,389 - aiogram.event - INFO - Update id=253480384 is not handled. Duration 4 ms by bot id=8934594064
+2026-06-11 15:47:55,389 - aiogram.event - ERROR - Cause exception while process update id=253480384 by bot id=8934594064
+ProgrammingError: Cannot operate on a closed database.
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 309, in _process_update
+    response = await self.feed_update(bot, update, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 158, in feed_update
+    response = await self.update.wrap_outer_middleware(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/error.py", line 25, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/user_context.py", line 56, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/fsm/middleware.py", line 42, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 276, in _listen_update
+    return await self.propagate_event(update_type=update_type, event=event, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
+    return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
+    return await self._propagate_event(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 166, in _propagate_event
+    response = await observer.trigger(event, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/handlers/start.py", line 52, in cmd_start
+    cursor = conn.cursor()
+             ^^^^^^^^^^^^^
+sqlite3.ProgrammingError: Cannot operate on a closed database.
+2026-06-11 15:47:59,776 - aiogram.event - INFO - Update id=253480385 is handled. Duration 88 ms by bot id=8934594064
+2026-06-11 15:48:04,126 - aiogram.event - INFO - Update id=253480386 is handled. Duration 46 ms by bot id=8934594064
+2026-06-11 15:48:10,960 - aiogram.event - INFO - Update id=253480387 is handled. Duration 83 ms by bot id=8934594064
+2026-06-11 15:48:13,343 - aiogram.event - INFO - Update id=253480388 is handled. Duration 45 ms by bot id=8934594064
+2026-06-11 15:48:16,473 - aiogram.event - INFO - Update id=253480389 is handled. Duration 113 ms by bot id=8934594064
+2026-06-11 15:48:17,691 - aiogram.event - INFO - Update id=253480390 is handled. Duration 43 ms by bot id=8934594064
+2026-06-11 15:49:39,369 - aiogram.event - INFO - Update id=253480391 is not handled. Duration 3 ms by bot id=8934594064
+2026-06-11 15:49:39,370 - aiogram.event - ERROR - Cause exception while process update id=253480391 by bot id=8934594064
+ProgrammingError: Cannot operate on a closed database.
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 309, in _process_update
+    response = await self.feed_update(bot, update, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 158, in feed_update
+    response = await self.update.wrap_outer_middleware(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/error.py", line 25, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/middlewares/user_context.py", line 56, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/fsm/middleware.py", line 42, in __call__
+    return await handler(event, data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/dispatcher.py", line 276, in _listen_update
+    return await self.propagate_event(update_type=update_type, event=event, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 146, in propagate_event
+    return await observer.wrap_outer_middleware(_wrapped, event=event, data=kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 141, in _wrapped
+    return await self._propagate_event(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/router.py", line 166, in _propagate_event
+    response = await observer.trigger(event, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/telegram.py", line 121, in trigger
+    return await wrapped_inner(event, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiogram/dispatcher/event/handler.py", line 43, in call
+    return await wrapped()
+           ^^^^^^^^^^^^^^^
+  File "/root/arkadiy_bot/handlers/start.py", line 52, in cmd_start
+    cursor = conn.cursor()
+             ^^^^^^^^^^^^^
+sqlite3.ProgrammingError: Cannot operate on a closed database.
+2026-06-11 15:53:11,189 - aiogram.dispatcher - WARNING - Received SIGTERM signal
+2026-06-11 15:53:11,190 - aiogram.dispatcher - INFO - Polling stopped for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 15:53:11,190 - aiogram.dispatcher - INFO - Polling stopped
+2026-06-11 15:57:03,483 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:57:03,484 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:57:03,484 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:57:03,485 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 15:57:03,486 - apscheduler.scheduler - INFO - Added job "send_daily_card" to job store "default"
+2026-06-11 15:57:03,486 - apscheduler.scheduler - INFO - Added job "weekly_leaderboard" to job store "default"
+2026-06-11 15:57:03,486 - apscheduler.scheduler - INFO - Added job "daily_backup" to job store "default"
+2026-06-11 15:57:03,487 - apscheduler.scheduler - INFO - Added job "send_challenge_reminders" to job store "default"
+2026-06-11 15:57:03,487 - apscheduler.scheduler - INFO - Scheduler started
+2026-06-11 15:57:03,487 - root - INFO - Планировщик заданий запущен, версия бота 2.0.0
+2026-06-11 15:57:03,487 - root - INFO - Бот Аркадий Викторович запущен, версия 2.0.0
+2026-06-11 15:57:03,488 - aiogram.dispatcher - INFO - Start polling
+2026-06-11 15:57:03,509 - root - INFO - Healthcheck сервер запущен на порту 9001
+2026-06-11 15:57:03,522 - aiogram.dispatcher - INFO - Run polling for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 15:57:20,499 - aiogram.event - INFO - Update id=253480392 is handled. Duration 83 ms by bot id=8934594064
+2026-06-11 15:57:45,604 - aiogram.event - INFO - Update id=253480393 is handled. Duration 106 ms by bot id=8934594064
+2026-06-11 15:57:48,640 - aiogram.event - INFO - Update id=253480394 is handled. Duration 70 ms by bot id=8934594064
+2026-06-11 15:57:52,696 - aiogram.event - INFO - Update id=253480395 is handled. Duration 53 ms by bot id=8934594064
+2026-06-11 15:58:00,971 - aiogram.event - INFO - Update id=253480396 is handled. Duration 233 ms by bot id=8934594064
+2026-06-11 15:58:07,278 - aiogram.event - INFO - Update id=253480397 is handled. Duration 84 ms by bot id=8934594064
+2026-06-11 15:58:12,729 - aiogram.event - INFO - Update id=253480398 is handled. Duration 58 ms by bot id=8934594064
+2026-06-11 15:58:17,725 - aiogram.event - INFO - Update id=253480399 is handled. Duration 71 ms by bot id=8934594064
+2026-06-11 15:58:23,442 - aiogram.event - INFO - Update id=253480400 is handled. Duration 2595 ms by bot id=8934594064
+2026-06-11 15:58:34,463 - aiogram.event - INFO - Update id=253480401 is handled. Duration 89 ms by bot id=8934594064
+2026-06-11 15:58:37,853 - aiogram.event - INFO - Update id=253480402 is handled. Duration 112 ms by bot id=8934594064
+2026-06-11 15:58:40,165 - aiogram.event - INFO - Update id=253480403 is handled. Duration 40 ms by bot id=8934594064
+2026-06-11 16:13:16,657 - aiogram.event - INFO - Update id=253480404 is handled. Duration 65 ms by bot id=8934594064
+2026-06-11 16:13:21,745 - aiogram.event - INFO - Update id=253480405 is handled. Duration 65 ms by bot id=8934594064
+2026-06-11 16:13:35,162 - aiogram.event - INFO - Update id=253480406 is handled. Duration 104 ms by bot id=8934594064
+2026-06-11 16:13:38,826 - aiogram.event - INFO - Update id=253480407 is handled. Duration 100 ms by bot id=8934594064
+2026-06-11 16:16:37,887 - aiogram.dispatcher - WARNING - Received SIGTERM signal
+2026-06-11 16:16:37,888 - aiogram.dispatcher - INFO - Polling stopped for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 16:16:37,888 - aiogram.dispatcher - INFO - Polling stopped
+2026-06-11 16:16:40,848 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:16:40,849 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:16:40,849 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:16:40,849 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:16:40,850 - apscheduler.scheduler - INFO - Added job "send_daily_card" to job store "default"
+2026-06-11 16:16:40,851 - apscheduler.scheduler - INFO - Added job "weekly_leaderboard" to job store "default"
+2026-06-11 16:16:40,851 - apscheduler.scheduler - INFO - Added job "daily_backup" to job store "default"
+2026-06-11 16:16:40,851 - apscheduler.scheduler - INFO - Added job "send_challenge_reminders" to job store "default"
+2026-06-11 16:16:40,851 - apscheduler.scheduler - INFO - Scheduler started
+2026-06-11 16:16:40,851 - root - INFO - Планировщик заданий запущен, версия бота 2.0.0
+2026-06-11 16:16:40,851 - root - INFO - Бот Аркадий Викторович запущен, версия 2.0.0
+2026-06-11 16:16:40,852 - aiogram.dispatcher - INFO - Start polling
+2026-06-11 16:16:40,870 - root - INFO - Healthcheck сервер запущен на порту 9001
+2026-06-11 16:16:40,882 - aiogram.dispatcher - INFO - Run polling for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 16:18:20,366 - aiogram.event - INFO - Update id=253480408 is handled. Duration 182 ms by bot id=8934594064
+2026-06-11 16:26:30,555 - aiogram.event - INFO - Update id=253480409 is handled. Duration 96 ms by bot id=8934594064
+2026-06-11 16:27:23,461 - aiogram.event - INFO - Update id=253480410 is handled. Duration 71 ms by bot id=8934594064
+2026-06-11 16:27:45,287 - aiogram.event - INFO - Update id=253480411 is handled. Duration 76 ms by bot id=8934594064
+2026-06-11 16:27:47,513 - aiogram.event - INFO - Update id=253480412 is handled. Duration 62 ms by bot id=8934594064
+2026-06-11 16:28:25,126 - aiogram.dispatcher - WARNING - Received SIGTERM signal
+2026-06-11 16:28:25,127 - aiogram.dispatcher - INFO - Polling stopped for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 16:28:25,127 - aiogram.dispatcher - INFO - Polling stopped
+2026-06-11 16:28:28,192 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:28:28,192 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:28:28,192 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:28:28,193 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:28:28,194 - apscheduler.scheduler - INFO - Added job "send_daily_card" to job store "default"
+2026-06-11 16:28:28,194 - apscheduler.scheduler - INFO - Added job "weekly_leaderboard" to job store "default"
+2026-06-11 16:28:28,194 - apscheduler.scheduler - INFO - Added job "daily_backup" to job store "default"
+2026-06-11 16:28:28,194 - apscheduler.scheduler - INFO - Added job "send_challenge_reminders" to job store "default"
+2026-06-11 16:28:28,194 - apscheduler.scheduler - INFO - Scheduler started
+2026-06-11 16:28:28,195 - root - INFO - Планировщик заданий запущен, версия бота 2.0.0
+2026-06-11 16:28:28,195 - root - INFO - Бот Аркадий Викторович запущен, версия 2.0.0
+2026-06-11 16:28:28,195 - aiogram.dispatcher - INFO - Start polling
+2026-06-11 16:28:28,210 - root - INFO - Healthcheck сервер запущен на порту 9001
+2026-06-11 16:28:28,222 - aiogram.dispatcher - INFO - Run polling for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 16:29:06,585 - aiogram.dispatcher - WARNING - Received SIGTERM signal
+2026-06-11 16:29:06,587 - aiogram.dispatcher - INFO - Polling stopped for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 16:29:06,587 - aiogram.dispatcher - INFO - Polling stopped
+2026-06-11 16:29:09,581 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:29:09,582 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:29:09,582 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:29:09,582 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:29:09,583 - apscheduler.scheduler - INFO - Added job "send_daily_card" to job store "default"
+2026-06-11 16:29:09,584 - apscheduler.scheduler - INFO - Added job "weekly_leaderboard" to job store "default"
+2026-06-11 16:29:09,584 - apscheduler.scheduler - INFO - Added job "daily_backup" to job store "default"
+2026-06-11 16:29:09,584 - apscheduler.scheduler - INFO - Added job "send_challenge_reminders" to job store "default"
+2026-06-11 16:29:09,584 - apscheduler.scheduler - INFO - Scheduler started
+2026-06-11 16:29:09,584 - root - INFO - Планировщик заданий запущен, версия бота 2.0.0
+2026-06-11 16:29:09,585 - root - INFO - Бот Аркадий Викторович запущен, версия 2.0.0
+2026-06-11 16:29:09,585 - aiogram.dispatcher - INFO - Start polling
+2026-06-11 16:29:09,607 - root - INFO - Healthcheck сервер запущен на порту 9001
+2026-06-11 16:29:09,619 - aiogram.dispatcher - INFO - Run polling for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 16:29:19,378 - aiogram.event - INFO - Update id=253480413 is handled. Duration 72 ms by bot id=8934594064
+2026-06-11 16:29:50,988 - aiogram.dispatcher - WARNING - Received SIGTERM signal
+2026-06-11 16:29:50,990 - aiogram.dispatcher - INFO - Polling stopped for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 16:29:50,990 - aiogram.dispatcher - INFO - Polling stopped
+2026-06-11 16:29:54,036 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:29:54,037 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:29:54,037 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:29:54,037 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:29:54,038 - apscheduler.scheduler - INFO - Added job "send_daily_card" to job store "default"
+2026-06-11 16:29:54,038 - apscheduler.scheduler - INFO - Added job "weekly_leaderboard" to job store "default"
+2026-06-11 16:29:54,038 - apscheduler.scheduler - INFO - Added job "daily_backup" to job store "default"
+2026-06-11 16:29:54,039 - apscheduler.scheduler - INFO - Added job "send_challenge_reminders" to job store "default"
+2026-06-11 16:29:54,039 - apscheduler.scheduler - INFO - Scheduler started
+2026-06-11 16:29:54,039 - root - INFO - Планировщик заданий запущен, версия бота 2.0.0
+2026-06-11 16:29:54,039 - root - INFO - Бот Аркадий Викторович запущен, версия 2.0.0
+2026-06-11 16:29:54,039 - aiogram.dispatcher - INFO - Start polling
+2026-06-11 16:29:54,057 - root - INFO - Healthcheck сервер запущен на порту 9001
+2026-06-11 16:29:54,068 - aiogram.dispatcher - INFO - Run polling for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 16:30:46,968 - aiogram.dispatcher - WARNING - Received SIGTERM signal
+2026-06-11 16:30:46,979 - aiogram.dispatcher - INFO - Polling stopped for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 16:30:46,980 - aiogram.dispatcher - INFO - Polling stopped
+2026-06-11 16:33:27,049 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:33:27,049 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:33:27,050 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:33:27,050 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:33:27,051 - apscheduler.scheduler - INFO - Added job "send_daily_card" to job store "default"
+2026-06-11 16:33:27,051 - apscheduler.scheduler - INFO - Added job "weekly_leaderboard" to job store "default"
+2026-06-11 16:33:27,052 - apscheduler.scheduler - INFO - Added job "daily_backup" to job store "default"
+2026-06-11 16:33:27,052 - apscheduler.scheduler - INFO - Added job "send_challenge_reminders" to job store "default"
+2026-06-11 16:33:27,052 - apscheduler.scheduler - INFO - Scheduler started
+2026-06-11 16:33:27,052 - root - INFO - Планировщик заданий запущен, версия бота 2.0.0
+2026-06-11 16:33:27,052 - root - INFO - Бот Аркадий Викторович запущен, версия 2.0.0
+2026-06-11 16:33:27,053 - aiogram.dispatcher - INFO - Start polling
+2026-06-11 16:33:27,068 - root - INFO - Healthcheck сервер запущен на порту 9001
+2026-06-11 16:33:27,085 - aiogram.dispatcher - INFO - Run polling for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 16:33:27,294 - aiogram.event - INFO - Update id=253480415 is handled. Duration 90 ms by bot id=8934594064
+2026-06-11 16:33:27,298 - aiogram.event - INFO - Update id=253480420 is handled. Duration 89 ms by bot id=8934594064
+2026-06-11 16:33:27,325 - aiogram.event - INFO - Update id=253480414 is handled. Duration 122 ms by bot id=8934594064
+2026-06-11 16:33:27,350 - aiogram.event - INFO - Update id=253480419 is handled. Duration 141 ms by bot id=8934594064
+2026-06-11 16:33:27,375 - aiogram.event - INFO - Update id=253480416 is handled. Duration 167 ms by bot id=8934594064
+2026-06-11 16:33:27,391 - aiogram.event - INFO - Update id=253480418 is handled. Duration 182 ms by bot id=8934594064
+2026-06-11 16:33:27,418 - aiogram.event - INFO - Update id=253480417 is handled. Duration 210 ms by bot id=8934594064
+2026-06-11 16:33:43,926 - aiogram.event - INFO - Update id=253480421 is handled. Duration 111 ms by bot id=8934594064
+2026-06-11 16:33:47,840 - aiogram.event - INFO - Update id=253480422 is handled. Duration 56 ms by bot id=8934594064
+2026-06-11 16:39:52,925 - aiogram.event - INFO - Update id=253480423 is handled. Duration 56 ms by bot id=8934594064
+2026-06-11 16:39:57,075 - aiogram.event - INFO - Update id=253480424 is handled. Duration 66 ms by bot id=8934594064
+2026-06-11 16:40:02,707 - aiogram.event - INFO - Update id=253480425 is handled. Duration 94 ms by bot id=8934594064
+2026-06-11 16:40:04,522 - aiogram.event - INFO - Update id=253480426 is handled. Duration 85 ms by bot id=8934594064
+2026-06-11 16:40:08,118 - aiogram.event - INFO - Update id=253480427 is handled. Duration 129 ms by bot id=8934594064
+2026-06-11 16:40:11,864 - aiogram.event - INFO - Update id=253480428 is handled. Duration 178 ms by bot id=8934594064
+2026-06-11 16:40:15,241 - aiogram.event - INFO - Update id=253480429 is handled. Duration 108 ms by bot id=8934594064
+2026-06-11 16:40:20,532 - aiogram.event - INFO - Update id=253480430 is handled. Duration 123 ms by bot id=8934594064
+2026-06-11 16:40:29,530 - aiogram.event - INFO - Update id=253480431 is handled. Duration 3190 ms by bot id=8934594064
+2026-06-11 16:40:46,361 - aiogram.event - INFO - Update id=253480432 is handled. Duration 60 ms by bot id=8934594064
+2026-06-11 16:40:49,088 - aiogram.event - INFO - Update id=253480433 is handled. Duration 60 ms by bot id=8934594064
+2026-06-11 16:46:12,658 - aiogram.event - INFO - Update id=253480434 is handled. Duration 63 ms by bot id=8934594064
+2026-06-11 16:46:15,262 - aiogram.event - INFO - Update id=253480435 is handled. Duration 41 ms by bot id=8934594064
+2026-06-11 16:46:17,077 - aiogram.event - INFO - Update id=253480436 is handled. Duration 68 ms by bot id=8934594064
+2026-06-11 16:48:08,710 - aiogram.dispatcher - WARNING - Received SIGTERM signal
+2026-06-11 16:48:08,711 - aiogram.dispatcher - INFO - Polling stopped for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 16:48:08,711 - aiogram.dispatcher - INFO - Polling stopped
+2026-06-11 16:48:11,591 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:48:11,591 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:48:11,592 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:48:11,592 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 16:48:11,592 - apscheduler.scheduler - INFO - Added job "send_daily_card" to job store "default"
+2026-06-11 16:48:11,593 - apscheduler.scheduler - INFO - Added job "weekly_leaderboard" to job store "default"
+2026-06-11 16:48:11,593 - apscheduler.scheduler - INFO - Added job "daily_backup" to job store "default"
+2026-06-11 16:48:11,593 - apscheduler.scheduler - INFO - Added job "send_challenge_reminders" to job store "default"
+2026-06-11 16:48:11,594 - apscheduler.scheduler - INFO - Scheduler started
+2026-06-11 16:48:11,594 - root - INFO - Планировщик заданий запущен, версия бота 2.0.0
+2026-06-11 16:48:11,594 - root - INFO - Бот Аркадий Викторович запущен, версия 2.0.0
+2026-06-11 16:48:11,594 - aiogram.dispatcher - INFO - Start polling
+2026-06-11 16:48:11,610 - root - INFO - Healthcheck сервер запущен на порту 9001
+2026-06-11 16:48:11,622 - aiogram.dispatcher - INFO - Run polling for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 16:48:20,243 - aiogram.event - INFO - Update id=253480437 is handled. Duration 75 ms by bot id=8934594064
+2026-06-11 16:48:23,799 - aiogram.event - INFO - Update id=253480438 is handled. Duration 151 ms by bot id=8934594064
+2026-06-11 16:48:28,917 - aiogram.event - INFO - Update id=253480439 is handled. Duration 1996 ms by bot id=8934594064
+2026-06-11 16:48:32,098 - aiogram.event - INFO - Update id=253480440 is handled. Duration 70 ms by bot id=8934594064
+2026-06-11 16:50:46,036 - aiogram.event - INFO - Update id=253480441 is handled. Duration 52 ms by bot id=8934594064
+2026-06-11 16:50:48,055 - aiogram.event - INFO - Update id=253480442 is handled. Duration 54 ms by bot id=8934594064
+2026-06-11 16:50:59,199 - aiogram.event - INFO - Update id=253480443 is handled. Duration 55 ms by bot id=8934594064
+2026-06-11 16:51:02,387 - aiogram.event - INFO - Update id=253480444 is handled. Duration 76 ms by bot id=8934594064
+2026-06-11 16:51:25,243 - aiogram.event - INFO - Update id=253480445 is handled. Duration 71 ms by bot id=8934594064
+2026-06-11 16:51:36,837 - aiogram.event - INFO - Update id=253480446 is handled. Duration 327 ms by bot id=8934594064
+2026-06-11 16:51:38,351 - aiogram.event - INFO - Update id=253480447 is handled. Duration 69 ms by bot id=8934594064
+2026-06-11 16:51:41,135 - aiogram.event - INFO - Update id=253480448 is not handled. Duration 3 ms by bot id=8934594064
+2026-06-11 16:52:00,252 - aiogram.event - INFO - Update id=253480449 is not handled. Duration 3 ms by bot id=8934594064
+2026-06-11 16:52:03,460 - aiogram.event - INFO - Update id=253480450 is not handled. Duration 2 ms by bot id=8934594064
+2026-06-11 16:52:04,693 - aiogram.event - INFO - Update id=253480451 is not handled. Duration 2 ms by bot id=8934594064
+2026-06-11 16:52:05,421 - aiogram.event - INFO - Update id=253480452 is not handled. Duration 3 ms by bot id=8934594064
+2026-06-11 16:52:06,176 - aiogram.event - INFO - Update id=253480453 is not handled. Duration 4 ms by bot id=8934594064
+2026-06-11 16:52:06,900 - aiogram.event - INFO - Update id=253480454 is not handled. Duration 3 ms by bot id=8934594064
+2026-06-11 16:52:24,759 - aiogram.event - INFO - Update id=253480455 is handled. Duration 98 ms by bot id=8934594064
+2026-06-11 16:52:28,979 - aiogram.event - INFO - Update id=253480456 is handled. Duration 1823 ms by bot id=8934594064
+2026-06-11 16:52:44,041 - aiogram.event - INFO - Update id=253480457 is handled. Duration 56 ms by bot id=8934594064
+2026-06-11 16:52:55,107 - aiogram.event - INFO - Update id=253480458 is handled. Duration 35 ms by bot id=8934594064
+2026-06-11 16:52:58,796 - aiogram.event - INFO - Update id=253480459 is handled. Duration 43 ms by bot id=8934594064
+2026-06-11 16:53:03,694 - aiogram.event - INFO - Update id=253480460 is handled. Duration 40 ms by bot id=8934594064
+2026-06-11 16:53:07,819 - aiogram.event - INFO - Update id=253480461 is handled. Duration 36 ms by bot id=8934594064
+2026-06-11 16:53:12,671 - aiogram.event - INFO - Update id=253480462 is handled. Duration 35 ms by bot id=8934594064
+2026-06-11 16:53:19,770 - aiogram.event - INFO - Update id=253480463 is handled. Duration 64 ms by bot id=8934594064
+2026-06-11 16:53:25,994 - aiogram.event - INFO - Update id=253480464 is handled. Duration 39 ms by bot id=8934594064
+2026-06-11 16:53:33,197 - aiogram.event - INFO - Update id=253480465 is handled. Duration 56 ms by bot id=8934594064
+2026-06-11 16:53:37,778 - aiogram.event - INFO - Update id=253480466 is handled. Duration 41 ms by bot id=8934594064
+2026-06-11 16:54:23,899 - aiogram.event - INFO - Update id=253480467 is handled. Duration 69 ms by bot id=8934594064
+2026-06-11 16:54:25,734 - aiogram.event - INFO - Update id=253480468 is not handled. Duration 3 ms by bot id=8934594064
+2026-06-11 16:55:34,018 - aiogram.event - INFO - Update id=253480469 is handled. Duration 94 ms by bot id=8934594064
+2026-06-11 16:57:29,429 - aiohttp.access - INFO - 79.124.40.174 [11/Jun/2026:16:57:29 +0000] "GET / HTTP/1.1" 200 213 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36"
+2026-06-11 17:04:16,489 - aiohttp.server - ERROR - Error handling request
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiohttp/web_protocol.py", line 350, in data_received
+    messages, upgraded, tail = self._request_parser.feed_data(data)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "aiohttp/_http_parser.pyx", line 557, in aiohttp._http_parser.HttpParser.feed_data
+aiohttp.http_exceptions.BadStatusLine: 400, message:
+  Invalid method encountered:
+
+    b'\x01\x01'
+      ^
+2026-06-11 17:04:16,491 - aiohttp.access - INFO - 79.124.40.174 [11/Jun/2026:17:04:16 +0000] "UNKNOWN / HTTP/1.0" 400 209 "-" "-"
+2026-06-11 17:04:16,578 - aiohttp.server - ERROR - Error handling request
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiohttp/web_protocol.py", line 350, in data_received
+    messages, upgraded, tail = self._request_parser.feed_data(data)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "aiohttp/_http_parser.pyx", line 557, in aiohttp._http_parser.HttpParser.feed_data
+aiohttp.http_exceptions.BadStatusLine: 400, message:
+  Invalid method encountered:
+
+    b'\x01\x01'
+      ^
+2026-06-11 17:04:16,579 - aiohttp.access - INFO - 79.124.40.174 [11/Jun/2026:17:04:16 +0000] "UNKNOWN / HTTP/1.0" 400 209 "-" "-"
+2026-06-11 17:04:16,661 - aiohttp.server - ERROR - Error handling request
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiohttp/web_protocol.py", line 350, in data_received
+    messages, upgraded, tail = self._request_parser.feed_data(data)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "aiohttp/_http_parser.pyx", line 557, in aiohttp._http_parser.HttpParser.feed_data
+aiohttp.http_exceptions.BadStatusLine: 400, message:
+  Invalid method encountered:
+
+    b'\x01\x01'
+      ^
+2026-06-11 17:04:16,662 - aiohttp.access - INFO - 79.124.40.174 [11/Jun/2026:17:04:16 +0000] "UNKNOWN / HTTP/1.0" 400 209 "-" "-"
+2026-06-11 17:04:16,744 - aiohttp.server - ERROR - Error handling request
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiohttp/web_protocol.py", line 350, in data_received
+    messages, upgraded, tail = self._request_parser.feed_data(data)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "aiohttp/_http_parser.pyx", line 557, in aiohttp._http_parser.HttpParser.feed_data
+aiohttp.http_exceptions.BadStatusLine: 400, message:
+  Invalid method encountered:
+
+    b'\x01\x01'
+      ^
+2026-06-11 17:04:16,745 - aiohttp.access - INFO - 79.124.40.174 [11/Jun/2026:17:04:16 +0000] "UNKNOWN / HTTP/1.0" 400 209 "-" "-"
+2026-06-11 17:04:16,832 - aiohttp.server - ERROR - Error handling request
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiohttp/web_protocol.py", line 350, in data_received
+    messages, upgraded, tail = self._request_parser.feed_data(data)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "aiohttp/_http_parser.pyx", line 557, in aiohttp._http_parser.HttpParser.feed_data
+aiohttp.http_exceptions.BadStatusLine: 400, message:
+  Invalid method encountered:
+
+    b'\x01\x01'
+      ^
+2026-06-11 17:04:16,833 - aiohttp.access - INFO - 79.124.40.174 [11/Jun/2026:17:04:16 +0000] "UNKNOWN / HTTP/1.0" 400 209 "-" "-"
+2026-06-11 17:04:16,919 - aiohttp.server - ERROR - Error handling request
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiohttp/web_protocol.py", line 350, in data_received
+    messages, upgraded, tail = self._request_parser.feed_data(data)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "aiohttp/_http_parser.pyx", line 557, in aiohttp._http_parser.HttpParser.feed_data
+aiohttp.http_exceptions.BadStatusLine: 400, message:
+  Invalid method encountered:
+
+    b'\x01\x01'
+      ^
+2026-06-11 17:04:16,921 - aiohttp.access - INFO - 79.124.40.174 [11/Jun/2026:17:04:16 +0000] "UNKNOWN / HTTP/1.0" 400 209 "-" "-"
+2026-06-11 17:04:17,007 - aiohttp.server - ERROR - Error handling request
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiohttp/web_protocol.py", line 350, in data_received
+    messages, upgraded, tail = self._request_parser.feed_data(data)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "aiohttp/_http_parser.pyx", line 557, in aiohttp._http_parser.HttpParser.feed_data
+aiohttp.http_exceptions.BadStatusLine: 400, message:
+  Invalid method encountered:
+
+    b'\x01\x01'
+      ^
+2026-06-11 17:04:17,008 - aiohttp.access - INFO - 79.124.40.174 [11/Jun/2026:17:04:17 +0000] "UNKNOWN / HTTP/1.0" 400 209 "-" "-"
+2026-06-11 17:04:17,095 - aiohttp.server - ERROR - Error handling request
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiohttp/web_protocol.py", line 350, in data_received
+    messages, upgraded, tail = self._request_parser.feed_data(data)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "aiohttp/_http_parser.pyx", line 557, in aiohttp._http_parser.HttpParser.feed_data
+aiohttp.http_exceptions.BadStatusLine: 400, message:
+  Invalid method encountered:
+
+    b'\x01\x01'
+      ^
+2026-06-11 17:04:17,095 - aiohttp.access - INFO - 79.124.40.174 [11/Jun/2026:17:04:17 +0000] "UNKNOWN / HTTP/1.0" 400 209 "-" "-"
+2026-06-11 17:04:17,182 - aiohttp.server - ERROR - Error handling request
+Traceback (most recent call last):
+  File "/root/arkadiy_bot/venv/lib/python3.12/site-packages/aiohttp/web_protocol.py", line 350, in data_received
+    messages, upgraded, tail = self._request_parser.feed_data(data)
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "aiohttp/_http_parser.pyx", line 557, in aiohttp._http_parser.HttpParser.feed_data
+aiohttp.http_exceptions.BadStatusLine: 400, message:
+  Invalid method encountered:
+
+    b'\x01\x01'
+      ^
+2026-06-11 17:04:17,183 - aiohttp.access - INFO - 79.124.40.174 [11/Jun/2026:17:04:17 +0000] "UNKNOWN / HTTP/1.0" 400 209 "-" "-"
+2026-06-11 17:13:21,246 - aiogram.dispatcher - WARNING - Received SIGTERM signal
+2026-06-11 17:13:21,247 - aiogram.dispatcher - INFO - Polling stopped for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
+2026-06-11 17:13:21,247 - aiogram.dispatcher - INFO - Polling stopped
+2026-06-11 17:13:24,089 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 17:13:24,090 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 17:13:24,090 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 17:13:24,090 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-06-11 17:13:24,091 - apscheduler.scheduler - INFO - Added job "send_daily_card" to job store "default"
+2026-06-11 17:13:24,091 - apscheduler.scheduler - INFO - Added job "weekly_leaderboard" to job store "default"
+2026-06-11 17:13:24,092 - apscheduler.scheduler - INFO - Added job "daily_backup" to job store "default"
+2026-06-11 17:13:24,092 - apscheduler.scheduler - INFO - Added job "send_challenge_reminders" to job store "default"
+2026-06-11 17:13:24,092 - apscheduler.scheduler - INFO - Scheduler started
+2026-06-11 17:13:24,092 - root - INFO - Планировщик заданий запущен, версия бота 2.0.0
+2026-06-11 17:13:24,092 - root - INFO - Бот Аркадий Викторович запущен, версия 2.0.0
+2026-06-11 17:13:24,093 - aiogram.dispatcher - INFO - Start polling
+2026-06-11 17:13:24,108 - root - INFO - Healthcheck сервер запущен на порту 9001
+2026-06-11 17:13:24,125 - aiogram.dispatcher - INFO - Run polling for bot @NumerologArkadiy_bot id=8934594064 - 'Нумеролог Аркадий. Практикующий психолог'
