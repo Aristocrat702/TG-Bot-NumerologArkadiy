@@ -81,7 +81,6 @@ async def send_challenge_reminders(bot: Bot):
                 break
 
 async def send_alarms(bot: Bot):
-    """Проверяет будильники каждую минуту и отправляет сообщения"""
     conn = get_connection()
     cursor = conn.cursor()
     now = datetime.datetime.now().strftime("%H:%M")
@@ -98,14 +97,12 @@ async def send_alarms(bot: Bot):
         destiny = row[1] if row else "?"
         weather = "Погода: не указано. Укажите город в профиле."
         if city:
-            # Здесь можно вставить реальный API погоды, пока заглушка
-            weather = f"🌤 Погода в {city}: сейчас комфортно."
+            weather = f"Погода в {city}: сейчас хорошая."
         moon_phase = "🌙 Луна в растущей фазе."
         prompt = f"Для человека с числом судьбы {destiny} в городе {city}. Дай короткий мотивирующий совет на день (1-2 предложения)."
         advice = await get_yandex_gpt_response(prompt, user_id)
         text = f"⏰ *Умный будильник!*\n\n{advice}\n\n{weather}\n{moon_phase}\n\nХорошего дня!"
         await bot.send_message(user_id, text, parse_mode="Markdown")
-        # Отключаем будильник после отправки (одноразовый)
         conn3 = get_connection()
         cursor3 = conn3.cursor()
         cursor3.execute("UPDATE alarms SET is_active=0 WHERE user_id=? AND alarm_time=?", (user_id, alarm_time))

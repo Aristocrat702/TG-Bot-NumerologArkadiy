@@ -129,7 +129,6 @@ def init_db():
             PRIMARY KEY (user_id, created_at)
         )
     ''')
-    # Таблица для будильников
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS alarms (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

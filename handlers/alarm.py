@@ -1,5 +1,3 @@
-import re
-import datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -7,7 +5,9 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from keyboards import main_menu
 from database import get_connection
-from utils import update_last_active
+from utils import get_user_subscription_status, update_last_active
+import datetime
+import re
 
 class AlarmStates(StatesGroup):
     waiting_time = State()
