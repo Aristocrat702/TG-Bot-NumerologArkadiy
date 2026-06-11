@@ -4,13 +4,13 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from keyboards import main_menu, profile_menu, psycho_submenu, share_button, quick_topics_menu, menu_button, main_menu, share_button, quick_topics_menu, menu_button
+from keyboards import main_menu, share_button, quick_topics_menu, menu_button
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
 from utils import (
     get_user_subscription_status, get_free_questions_remaining, increment_free_query,
     get_cached_response, save_cached_response, add_xp, update_last_active,
-    calculate_destiny_number
+    calculate_destiny_number, generate_pdf_matrix
 )
 
 class MainStates(StatesGroup):
@@ -44,7 +44,7 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             response = await get_yandex_gpt_response(prompt, user_id)
             await status_msg.delete()
             save_cached_response(user_id, f"birth_{destiny}", response)
-        add_xp(user_id, "daily_visit")  # ежедневный вход (можно проверять)
+        add_xp(user_id, "daily_visit")
         await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}",
                              reply_markup=quick_topics_menu, parse_mode=None)
 
@@ -56,13 +56,14 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             return
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT destiny_number FROM users WHERE user_id=?", (user_id,))
+        cursor.execute("SELECT destiny_number, name FROM users WHERE user_id=?", (user_id,))
         row = cursor.fetchone()
         conn.close()
         if not row or not row[0]:
             await message.answer("Сначала укажите дату рождения через кнопку «Моё число» или /start.", reply_markup=menu_button)
             return
         destiny = row[0]
+        name = row[1] if row[1] else "пользователь"
         cache_key = f"matrix_{destiny}"
         cached = get_cached_response(user_id, cache_key)
         if cached:
@@ -74,7 +75,43 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await status_msg.delete()
             save_cached_response(user_id, cache_key, response)
         last_answer[user_id] = response
-        await message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
+        # Кнопки: Поделиться + Скачать PDF
+        pdf_share_menu = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📄 Скачать PDF", callback_data="download_pdf")],
+            [InlineKeyboardButton(text="📤 Поделиться результатом", callback_data="share_result")],
+            [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
+        ])
+        await message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=pdf_share_menu)
+
+    @dp.callback_query(F.data == "download_pdf")
+    async def download_pdf(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT destiny_number, name FROM users WHERE user_id=?", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row or not row[0]:
+            await callback.message.answer("Сначала рассчитайте матрицу через кнопку «МОЯ МАТРИЦА».")
+            await callback.answer()
+            return
+        destiny = row[0]
+        name = row[1] if row[1] else "пользователь"
+        cache_key = f"matrix_{destiny}"
+        matrix_text = get_cached_response(user_id, cache_key)
+        if not matrix_text:
+            await callback.message.answer("Сначала рассчитайте матрицу через кнопку «МОЯ МАТРИЦА».")
+            await callback.answer()
+            return
+        pdf_data = generate_pdf_matrix(user_id, name, destiny, matrix_text)
+        if pdf_data:
+            await callback.message.answer_document(
+                types.BufferedInputFile(pdf_data, filename=f"matrix_{user_id}.pdf"),
+                caption="📄 Ваша матрица судьбы в формате PDF"
+            )
+        else:
+            await callback.message.answer("Ошибка генерации PDF. Попробуйте позже.")
+        await callback.answer()
 
     @dp.message(F.text == "❤️ СОВМЕСТИМОСТЬ")
     async def ask_partner_birth(message: types.Message, state: FSMContext):

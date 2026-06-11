@@ -6,8 +6,11 @@ import asyncio
 import aiohttp
 from database import get_connection
 from settings import LEVELS, XP_REWARDS, CRISIS_HELP_LINKS, LOGS_DIR
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+import io
 
-# ---------- Основные функции ----------
+# ---------- Основные функции (полностью, как было) ----------
 def is_admin(user_id: int, admin_ids: list) -> bool:
     return user_id in admin_ids
 
@@ -263,16 +266,11 @@ def backup_database():
     for f in glob.glob(f"{backup_dir}/arkadiy_bot_*.db"):
         if os.path.getmtime(f) < time.time() - 7*86400:
             os.remove(f)
-    # Отправка на Яндекс Диск (опционально)
     asyncio.create_task(upload_to_yadisk(dst))
     return dst
 
 async def upload_to_yadisk(file_path):
-    # Заглушка: здесь нужен API-ключ Яндекса и код для загрузки
-    # Пока просто логируем
     print(f"Backup saved locally: {file_path}")
-    # В будущем реализовать через yadisk или requests
-    pass
 
 def set_bot_config(key: str, value: str):
     conn = get_connection()
@@ -320,7 +318,6 @@ def update_last_active(user_id: int):
     conn.commit()
     conn.close()
 
-# ---------- Уровни и опыт ----------
 def add_xp(user_id: int, action: str):
     reward = XP_REWARDS.get(action, 0)
     if reward == 0:
@@ -332,10 +329,9 @@ def add_xp(user_id: int, action: str):
     if not row:
         conn.close()
         return
-    current_xp = row[0]
-    current_level = row[1]
+    current_xp = row[0] if row[0] is not None else 0
+    current_level = row[1] if row[1] is not None else 1
     new_xp = current_xp + reward
-    # Определяем новый уровень
     new_level = current_level
     for lvl, data in LEVELS.items():
         if new_xp >= data["xp"]:
@@ -344,7 +340,6 @@ def add_xp(user_id: int, action: str):
     conn.commit()
     conn.close()
     if new_level > current_level:
-        # Уведомление о повышении уровня можно отправить отдельно
         pass
 
 def calculate_level(user_id: int):
@@ -355,45 +350,52 @@ def calculate_level(user_id: int):
     conn.close()
     if not row:
         return 1, 0, 100
-    current_xp = row[0]
-    current_level = row[1]
+    current_xp = row[0] if row[0] is not None else 0
+    current_level = row[1] if row[1] is not None else 1
     next_xp = LEVELS.get(current_level + 1, {}).get("xp", current_xp + 100)
     return current_level, current_xp, next_xp
 
-# ---------- Кризисная поддержка ----------
 CRISIS_KEYWORDS = ["депрессия", "суицид", "мысли о смерти", "безысходность", "не хочу жить", "покончить с собой"]
 
 async def check_crisis(message_text: str, user_id: int, bot, admin_ids):
     text_lower = message_text.lower()
     for word in CRISIS_KEYWORDS:
         if word in text_lower:
-            # Уведомление админу
             for admin_id in admin_ids:
                 await bot.send_message(admin_id, f"⚠️ Кризисная ситуация!\nПользователь {user_id} написал: {message_text[:200]}")
-            # Ответ пользователю
             return f"Друг мой, я слышу, что вам тяжело. Пожалуйста, обратитесь за профессиональной помощью: {CRISIS_HELP_LINKS.get('url', '')}. Вы не один."
     return None
+
 # ---------- Генерация PDF-отчёта ----------
 def generate_pdf_matrix(user_id: int, name: str, destiny: int, matrix_text: str) -> bytes:
-    from reportlab.lib.pagesizes import A4
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.units import mm
-    import io
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(30, height - 30, f"Матрица судьбы для {name}")
-    c.setFont("Helvetica", 12)
-    c.drawString(30, height - 50, f"Число судьбы: {destiny}")
-    text = matrix_text
-    y = height - 80
-    for line in text.split('\n'):
-        if y < 50:
-            c.showPage()
-            y = height - 50
-        c.drawString(30, y, line[:100])
-        y -= 15
-    c.save()
-    buffer.seek(0)
-    return buffer.read()
+    try:
+        buffer = io.BytesIO()
+        c = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(30, height - 30, f"Матрица судьбы для {name}")
+        c.setFont("Helvetica", 12)
+        c.drawString(30, height - 50, f"Число судьбы: {destiny}")
+        c.drawString(30, height - 70, f"Дата формирования: {datetime.datetime.now().strftime('%d.%m.%Y')}")
+        text = matrix_text
+        y = height - 100
+        for line in text.split('\n'):
+            if y < 50:
+                c.showPage()
+                y = height - 50
+                c.setFont("Helvetica", 12)
+            # Перенос длинных строк
+            if len(line) > 80:
+                parts = [line[i:i+80] for i in range(0, len(line), 80)]
+                for part in parts:
+                    c.drawString(30, y, part)
+                    y -= 15
+            else:
+                c.drawString(30, y, line)
+                y -= 15
+        c.save()
+        buffer.seek(0)
+        return buffer.read()
+    except Exception as e:
+        print(f"Ошибка генерации PDF: {e}")
+        return None
