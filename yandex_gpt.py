@@ -18,7 +18,7 @@ async def get_yandex_gpt_response(prompt: str, user_id: int) -> str:
         return "⚠️ Ошибка: не настроен YandexGPT."
     if _failure_count >= 3 and (time.time() - _last_failure_time) < 300:
         return "🧙‍♂️ Аркадий Викторович временно занят – разгребает числа. Попробуйте через пару минут."
-    
+
     url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
     headers = {
         "Authorization": f"Api-Key {YANDEX_API_KEY}",
@@ -26,23 +26,13 @@ async def get_yandex_gpt_response(prompt: str, user_id: int) -> str:
     }
     data = {
         "modelUri": f"gpt://{YANDEX_FOLDER_ID}/yandexgpt/latest",
-        "completionOptions": {
-            "stream": False,
-            "temperature": 0.7,
-            "maxTokens": 2000   # увеличено для матрицы
-        },
+        "completionOptions": {"stream": False, "temperature": 0.7, "maxTokens": 2000},
         "messages": [
             {
                 "role": "system",
-                "text": (
-                    "Ты — Аркадий Викторович, практикующий нумеролог и психолог с 20-летним стажем. "
-                    "Говори прямо, без сюсюканий. Для запроса «Матрица судьбы» дай развёрнутый ответ на 10-15 предложений."
-                )
+                "text": "Ты — Аркадий Викторович, нумеролог и психолог с 20-летним стажем. Говори прямо, без сюсюканий."
             },
-            {
-                "role": "user",
-                "text": prompt
-            }
+            {"role": "user", "text": prompt}
         ]
     }
     async with aiohttp.ClientSession() as session:
@@ -59,7 +49,7 @@ async def get_yandex_gpt_response(prompt: str, user_id: int) -> str:
         except asyncio.TimeoutError:
             _failure_count += 1
             _last_failure_time = time.time()
-            return "⏳ Нейросеть думает слишком долго. Попробуйте ещё раз через минуту."
+            return "⏳ Нейросеть думает слишком долго. Попробуйте ещё раз."
         except Exception as e:
             _failure_count += 1
             _last_failure_time = time.time()
