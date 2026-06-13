@@ -1,6 +1,7 @@
 ﻿import aiohttp
 import os
 import time
+import asyncio
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,9 +15,9 @@ _last_failure_time = 0
 async def get_yandex_gpt_response(prompt: str, user_id: int) -> str:
     global _failure_count, _last_failure_time
     if not YANDEX_API_KEY or not YANDEX_FOLDER_ID:
-        return "⚠️ Ошибка: не настроен YandexGPT. Администратор уже в курсе."
+        return "⚠️ Ошибка: не настроен YandexGPT."
     if _failure_count >= 3 and (time.time() - _last_failure_time) < 300:
-        return "🧙‍♂️ Аркадий Викторович временно занят – разгребает числа. Задайте вопрос через пару минут."
+        return "🧙‍♂️ Аркадий Викторович временно занят – разгребает числа. Попробуйте через пару минут."
     
     url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
     headers = {
@@ -28,18 +29,14 @@ async def get_yandex_gpt_response(prompt: str, user_id: int) -> str:
         "completionOptions": {
             "stream": False,
             "temperature": 0.7,
-            "maxTokens": 1500
+            "maxTokens": 2000   # увеличено для матрицы
         },
         "messages": [
             {
                 "role": "system",
                 "text": (
                     "Ты — Аркадий Викторович, практикующий нумеролог и психолог с 20-летним стажем. "
-                    "Твоя задача — прямо, без сюсюканий, помогать людям через анализ чисел. "
-                    "Говори правду в лоб. Называй слабости. "
-                    "Не говори, что ты нейросеть. Ты — живой человек. "
-                    "Если вопрос не о нумерологии или психологии — мягко откажи. "
-                    "Для «Матрицы судьбы» дай развёрнутый ответ (10-15 предложений) по арканам, с конкретными шагами."
+                    "Говори прямо, без сюсюканий. Для запроса «Матрица судьбы» дай развёрнутый ответ на 10-15 предложений."
                 )
             },
             {
@@ -50,7 +47,7 @@ async def get_yandex_gpt_response(prompt: str, user_id: int) -> str:
     }
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.post(url, headers=headers, json=data, timeout=aiohttp.ClientTimeout(total=120)) as resp:
+            async with session.post(url, headers=headers, json=data, timeout=aiohttp.ClientTimeout(total=180)) as resp:
                 if resp.status == 200:
                     result = await resp.json()
                     _failure_count = 0
@@ -58,12 +55,12 @@ async def get_yandex_gpt_response(prompt: str, user_id: int) -> str:
                 else:
                     _failure_count += 1
                     _last_failure_time = time.time()
-                    return f"⚠️ Ошибка YandexGPT: {resp.status}. Попробуйте позже."
+                    return f"⚠️ Ошибка YandexGPT: {resp.status}"
         except asyncio.TimeoutError:
             _failure_count += 1
             _last_failure_time = time.time()
-            return "⏳ Превышено время ожидания. Нейросеть долго думает. Попробуйте ещё раз через минуту."
+            return "⏳ Нейросеть думает слишком долго. Попробуйте ещё раз через минуту."
         except Exception as e:
             _failure_count += 1
             _last_failure_time = time.time()
-            return f"⚠️ Не удалось связаться с нейросетью. Аркадий Викторович уже чинит."
+            return f"⚠️ Ошибка соединения: {str(e)}"
