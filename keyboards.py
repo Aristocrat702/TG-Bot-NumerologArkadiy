@@ -1,13 +1,13 @@
 ﻿from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram import Bot
 
-# Главное меню
+# Главное меню (с кнопкой города)
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🔮 МОЯ МАТРИЦА"), KeyboardButton(text="🔢 МОЁ ЧИСЛО")],
         [KeyboardButton(text="❤️ СОВМЕСТИМОСТЬ"), KeyboardButton(text="🎁 КАРТА ДНЯ")],
         [KeyboardButton(text="💬 ЗАДАТЬ ВОПРОС"), KeyboardButton(text="🧠 ПСИХОЛОГИЯ")],
-        [KeyboardButton(text="👤 МОЙ ПРОФИЛЬ")]
+        [KeyboardButton(text="🌍 МОЙ ГОРОД"), KeyboardButton(text="👤 МОЙ ПРОФИЛЬ")]
     ],
     resize_keyboard=True
 )
@@ -21,7 +21,7 @@ psycho_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 НАЗАД", callback_data="psycho_back")]
 ])
 
-# Меню профиля (с кнопкой будильника)
+# Меню профиля (с кнопками для города и телефона)
 profile_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="✏️ СМЕНИТЬ ИМЯ", callback_data="change_name"),
      InlineKeyboardButton(text="📅 СМЕНИТЬ ДАТУ", callback_data="change_birth")],
@@ -84,5 +84,6 @@ async def set_main_menu(bot: Bot):
         BotCommand(command="admin", description="Админ-панель (только для админа)"),
         BotCommand(command="menu", description="Показать главное меню"),
         BotCommand(command="cancel", description="Отменить текущее действие"),
-        BotCommand(command="mynumber", description="Показать ваше число судьбы")
+        BotCommand(command="mynumber", description="Показать ваше число судьбы"),
+        BotCommand(command="setcity", description="Указать город")
     ])
