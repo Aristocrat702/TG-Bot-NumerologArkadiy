@@ -11,7 +11,7 @@ from yandex_gpt import get_yandex_gpt_response
 from utils import (
     get_user_subscription_status, get_free_questions_remaining, increment_free_query,
     get_cached_response, save_cached_response, add_xp, update_last_active,
-    calculate_destiny_number
+    calculate_destiny_number, get_city_coords, get_weather_by_coords
 )
 
 class MainStates(StatesGroup):
@@ -20,8 +20,6 @@ class MainStates(StatesGroup):
     waiting_question = State()
 
 last_answer = {}
-
-# Словарь для хранения pending запросов матрицы
 pending_matrix = {}
 
 def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
@@ -52,32 +50,26 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}",
                              reply_markup=quick_topics_menu, parse_mode=None)
 
-    # Асинхронная обработка матрицы
     async def process_matrix(user_id: int, destiny: int, name: str, bot: Bot, status_msg: types.Message, cache_key: str):
         prompt = f"Составь полную матрицу судьбы для числа {destiny}. Дай развёрнутую характеристику (10-15 предложений) по арканам."
         response = await get_yandex_gpt_response(prompt, user_id)
-        # Удаляем сообщение «составляю матрицу»
         await status_msg.delete()
         if "Ошибка" not in response and "Нейросеть" not in response and "таймаут" not in response:
             save_cached_response(user_id, cache_key, response)
-        # Отправляем результат пользователю
         pdf_share_menu = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📄 Скачать PDF", callback_data="download_pdf")],
             [InlineKeyboardButton(text="📤 Поделиться результатом", callback_data="share_result")],
             [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
         ])
         await bot.send_message(user_id, f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=pdf_share_menu)
-        # Удаляем из pending
         pending_matrix.pop(user_id, None)
 
     @dp.message(F.text == "🔮 МОЯ МАТРИЦА")
     async def matrix_prompt(message: types.Message):
         user_id = message.from_user.id
-        # Проверка подписки
         if not get_user_subscription_status(user_id):
             await message.answer("Полная матрица судьбы доступна только по подписке. Оформите подписку в профиле.", reply_markup=menu_button)
             return
-        # Если уже есть запрос в обработке – не дублируем
         if user_id in pending_matrix:
             await message.answer("Матрица уже формируется, подождите немного. Как только будет готова – я пришлю.")
             return
@@ -92,7 +84,6 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         destiny = row[0]
         name = row[1] if row[1] else "пользователь"
         cache_key = f"matrix_{destiny}"
-        # Проверяем кэш
         cached = get_cached_response(user_id, cache_key)
         if cached:
             pdf_share_menu = InlineKeyboardMarkup(inline_keyboard=[
@@ -102,7 +93,6 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             ])
             await message.answer(f"🔮 *Матрица судьбы*\n\n{cached}", parse_mode="Markdown", reply_markup=pdf_share_menu)
             return
-        # Запускаем асинхронную задачу
         status_msg = await message.answer("📜 Аркадий Викторович составляет вашу матрицу... Это может занять до 2 минут. Я пришлю результат отдельным сообщением.")
         pending_matrix[user_id] = status_msg
         asyncio.create_task(process_matrix(user_id, destiny, name, bot, status_msg, cache_key))
@@ -138,7 +128,6 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await callback.message.answer("Ошибка генерации PDF. Попробуйте позже.")
         await callback.answer()
 
-    # Остальные функции (совместимость, карта дня, вопросы) – без изменений
     @dp.message(F.text == "❤️ СОВМЕСТИМОСТЬ")
     async def ask_partner_birth(message: types.Message, state: FSMContext):
         await message.answer("Введите дату рождения партнёра в формате ДД.ММ.ГГГГ")
@@ -177,16 +166,27 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         user_id = message.from_user.id
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT destiny_number FROM users WHERE user_id=?", (user_id,))
+        cursor.execute("SELECT destiny_number, city FROM users WHERE user_id=?", (user_id,))
         row = cursor.fetchone()
         conn.close()
         destiny = row[0] if row else "?"
+        city = row[1] if row and row[1] else None
+        
+        weather_str = ""
+        if city:
+            lat, lon = await get_city_coords(city)
+            if lat and lon:
+                weather_str = await get_weather_by_coords(lat, lon)
+                if weather_str and "Не удалось" not in weather_str and "Ошибка" not in weather_str:
+                    weather_str = f"\n\n🌤️ *Погода в {city}:* {weather_str}"
+                else:
+                    weather_str = ""
         status_msg = await message.answer("🌙 Аркадий Викторович заглядывает в будущее...")
         prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (3-5 предложений) с практическим действием. Также добавь одну психологическую практику."
         response = await get_yandex_gpt_response(prompt, user_id)
         await status_msg.delete()
         last_answer[user_id] = response
-        await message.answer(f"🎁 *Карта дня*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
+        await message.answer(f"🎁 *Карта дня*\n\n{response}{weather_str}", parse_mode="Markdown", reply_markup=share_button)
 
     @dp.message(F.text == "💬 ЗАДАТЬ ВОПРОС")
     async def ask_question(message: types.Message, state: FSMContext):
