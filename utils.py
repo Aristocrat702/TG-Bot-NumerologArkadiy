@@ -4,6 +4,7 @@ import os
 import time
 import asyncio
 import aiohttp
+import pytz
 from database import get_connection
 from settings import LEVELS, XP_REWARDS, CRISIS_HELP_LINKS, LOGS_DIR
 from reportlab.lib.pagesizes import A4
@@ -252,7 +253,7 @@ def get_week_moods(user_id: int):
     cursor.execute("SELECT log_date, mood, comment FROM mood_log WHERE user_id=? AND log_date >= ? ORDER BY log_date", (user_id, week_ago))
     rows = cursor.fetchall()
     conn.close()
-    return [(row[0], row[1], row[2]) for row in rows)
+    return [(row[0], row[1], row[2]) for row in rows]
 
 def backup_database():
     import shutil
@@ -365,6 +366,73 @@ async def check_crisis(message_text: str, user_id: int, bot, admin_ids):
                 await bot.send_message(admin_id, f"⚠️ Кризисная ситуация!\nПользователь {user_id} написал: {message_text[:200]}")
             return f"Друг мой, я слышу, что вам тяжело. Пожалуйста, обратитесь за профессиональной помощью: {CRISIS_HELP_LINKS.get('url', '')}. Вы не один."
     return None
+
+# ---------- ФУНКЦИИ ДЛЯ ПОГОДЫ (Open-Meteo) И ЧАСОВЫХ ПОЯСОВ ----------
+async def get_weather_by_coords(lat: float, lon: float) -> str:
+    """Получает краткую строку с погодой по координатам через Open-Meteo."""
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "current_weather": "true",
+        "timezone": "auto"
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    weather = data.get("current_weather", {})
+                    temp = weather.get("temperature")
+                    wind_speed = weather.get("windspeed")
+                    if temp is not None and wind_speed is not None:
+                        return f"🌡️ Температура: {temp}°C, 💨 Ветер: {wind_speed} м/с"
+                    else:
+                        return "Не удалось получить данные о погоде."
+                else:
+                    return f"Ошибка при получении погоды: {resp.status}"
+    except Exception as e:
+        print(f"Ошибка запроса погоды: {e}")
+        return "Не удалось получить прогноз погоды."
+
+async def get_timezone_by_coords(lat: float, lon: float) -> str:
+    """Получает название часового пояса по координатам через World Time API."""
+    url = f"http://worldtimeapi.org/api/timezone/{lat}/{lon}"
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return data.get("timezone", "Europe/Moscow")
+                else:
+                    return "Europe/Moscow"  # часовой пояс по умолчанию
+    except Exception:
+        return "Europe/Moscow"
+
+async def get_city_coords(city_name: str) -> tuple:
+    """Получает координаты по названию города через Open-Meteo Geocoding API."""
+    url = "https://geocoding-api.open-meteo.com/v1/search"
+    params = {
+        "name": city_name,
+        "count": 1,
+        "language": "ru",
+        "format": "json"
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, params=params) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if data.get("results") and len(data["results"]) > 0:
+                        result = data["results"][0]
+                        return result.get("latitude", 55.75), result.get("longitude", 37.62)
+                    else:
+                        return None, None
+                else:
+                    return None, None
+    except Exception as e:
+        print(f"Ошибка поиска города: {e}")
+        return None, None
 
 # ---------- Генерация PDF-отчёта ----------
 def generate_pdf_matrix(user_id: int, name: str, destiny: int, matrix_text: str) -> bytes:
