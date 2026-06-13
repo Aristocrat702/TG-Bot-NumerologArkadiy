@@ -252,7 +252,7 @@ def get_week_moods(user_id: int):
     cursor.execute("SELECT log_date, mood, comment FROM mood_log WHERE user_id=? AND log_date >= ? ORDER BY log_date", (user_id, week_ago))
     rows = cursor.fetchall()
     conn.close()
-    return [(row[0], row[1], row[2]) for row in rows]
+    return [(row[0], row[1], row[2]) for row in rows)
 
 def backup_database():
     import shutil
