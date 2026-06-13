@@ -19,7 +19,7 @@ class UserStates(StatesGroup):
     waiting_new_name = State()
     waiting_new_birth = State()
     waiting_phone = State()
-    waiting_city = State()          # новое состояние для ввода города
+    waiting_city = State()
 
 def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
@@ -82,7 +82,6 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.callback_query(F.data == "change_birth")
     async def change_birth_start(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.answer("Введите новую дату рождения в формате ДД.ММ.ГГГГ. Внимание: дату можно изменить только через администратора. Для этого напишите @Aristocrat102.")
-        # Защита от абуза: дата не меняется, только через админа
         await callback.answer()
 
     @dp.callback_query(F.data == "referral_info")
@@ -121,7 +120,7 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             "• Отписаться от ежедневной рассылки – /unsubscribe_daily\n"
             "• Подписаться на рассылку – /subscribe_daily\n"
             "• Добавить номер телефона (для восстановления подписки)\n"
-            "• Указать город (для прогноза погоды) – /setcity\n\n"
+            "• Указать город (для прогноза погоды) – /setcity или кнопка ниже\n\n"
             "Нажмите кнопку ниже, чтобы добавить номер телефона или указать город.",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -198,6 +197,31 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             conn.close()
             await status_msg.edit_text(f"✅ Город {city} сохранён. Ваш часовой пояс: {timezone}")
         else:
+            await status_msg.edit_text("❌ Не удалось определить город. Попробувайте написать его на русском или английском языке более точно (например, 'Санкт-Петербург').")
+        await state.clear()
+
+    @dp.message(Command("setcity"))
+    async def setcity_command(message: types.Message, state: FSMContext):
+        args = message.text.split(maxsplit=1)
+        if len(args) < 2:
+            await message.answer("Использование: /setcity <название города>\nПример: /setcity Москва")
+            return
+        city = args[1].strip()
+        if len(city) < 2:
+            await message.answer("Название города должно быть не менее 2 символов.")
+            return
+        user_id = message.from_user.id
+        status_msg = await message.answer("🌍 Определяю местоположение...")
+        lat, lon = await get_city_coords(city)
+        if lat and lon:
+            timezone = await get_timezone_by_coords(lat, lon)
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET city = ?, timezone = ? WHERE user_id = ?", (city, timezone, user_id))
+            conn.commit()
+            conn.close()
+            await status_msg.edit_text(f"✅ Город сохранён: {city}\nЧасовой пояс: {timezone}")
+        else:
             await status_msg.edit_text("❌ Не удалось определить город. Попробуйте написать его на русском или английском языке более точно (например, 'Санкт-Петербург').")
         await state.clear()
 
@@ -226,25 +250,3 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                 text += f"{ts[:16]} {emoji} {msg[:80]}\n"
         await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
         await callback.answer()
-
-    @dp.message(Command("setcity"))
-    async def setcity_command(message: types.Message, state: FSMContext):
-        args = message.text.split(maxsplit=1)
-        if len(args) < 2:
-            await message.answer("Использование: /setcity <название города>\nПример: /setcity Москва")
-            return
-        city = args[1].strip()
-        status_msg = await message.answer("🌍 Определяю местоположение...")
-        lat, lon = await get_city_coords(city)
-        if lat and lon:
-            timezone = await get_timezone_by_coords(lat, lon)
-            user_id = message.from_user.id
-            conn = get_connection()
-            cursor = conn.cursor()
-            cursor.execute("UPDATE users SET city = ?, timezone = ? WHERE user_id = ?", (city, timezone, user_id))
-            conn.commit()
-            conn.close()
-            await status_msg.edit_text(f"✅ Город сохранён: {city}\nЧасовой пояс: {timezone}")
-        else:
-            await status_msg.edit_text("❌ Не удалось определить город. Попробуйте написать его на русском или английском языке.")
-        await state.clear()
