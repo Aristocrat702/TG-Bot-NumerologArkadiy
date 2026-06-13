@@ -10,7 +10,7 @@ from yandex_gpt import get_yandex_gpt_response
 from utils import (
     get_user_subscription_status, get_free_questions_remaining, increment_free_query,
     get_cached_response, save_cached_response, add_xp, update_last_active,
-    calculate_destiny_number, generate_pdf_matrix
+    calculate_destiny_number
 )
 
 class MainStates(StatesGroup):
@@ -18,7 +18,6 @@ class MainStates(StatesGroup):
     waiting_partner_birth_date = State()
     waiting_question = State()
 
-# Временное хранение последнего ответа для кнопки «Поделиться»
 last_answer = {}
 
 def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
@@ -32,9 +31,9 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         row = cursor.fetchone()
         conn.close()
         if not row or not row[0]:
-            await message.answer("Сначала введите дату рождения через /start или дождитесь опроса.")
+            await message.answer("Сначала введите дату рождения через /start.")
             return
-        birth_date, destiny, name = row
+        destiny = row[1]
         cached = get_cached_response(user_id, f"birth_{destiny}")
         if cached:
             response = cached
@@ -60,7 +59,7 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         row = cursor.fetchone()
         conn.close()
         if not row or not row[0]:
-            await message.answer("Сначала укажите дату рождения через кнопку «Моё число» или /start.", reply_markup=menu_button)
+            await message.answer("Сначала укажите дату рождения через кнопку «Моё число».", reply_markup=menu_button)
             return
         destiny = row[0]
         name = row[1] if row[1] else "пользователь"
@@ -69,13 +68,13 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         if cached:
             response = cached
         else:
-            status_msg = await message.answer("📜 Аркадий Викторович составляет вашу матрицу... Это может занять до 10 секунд.")
+            status_msg = await message.answer("📜 Аркадий Викторович составляет вашу матрицу... Это может занять до 2 минут.")
             prompt = f"Составь полную матрицу судьбы для числа {destiny}. Дай развёрнутую характеристику (10-15 предложений) по арканам."
             response = await get_yandex_gpt_response(prompt, user_id)
             await status_msg.delete()
-            save_cached_response(user_id, cache_key, response)
+            if "Ошибка" not in response and "Нейросеть" not in response and "таймаут" not in response:
+                save_cached_response(user_id, cache_key, response)
         last_answer[user_id] = response
-        # Кнопки: Поделиться + Скачать PDF
         pdf_share_menu = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📄 Скачать PDF", callback_data="download_pdf")],
             [InlineKeyboardButton(text="📤 Поделиться результатом", callback_data="share_result")],
@@ -103,6 +102,8 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await callback.message.answer("Сначала рассчитайте матрицу через кнопку «МОЯ МАТРИЦА».")
             await callback.answer()
             return
+        # Генерация PDF
+        from utils import generate_pdf_matrix
         pdf_data = generate_pdf_matrix(user_id, name, destiny, matrix_text)
         if pdf_data:
             await callback.message.answer_document(
@@ -132,7 +133,7 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             row = cursor.fetchone()
             conn.close()
             if not row or not row[0]:
-                await message.answer("Сначала укажите свою дату рождения через кнопку «Моё число» или /start.", reply_markup=menu_button)
+                await message.answer("Сначала укажите свою дату рождения через кнопку «Моё число».", reply_markup=menu_button)
                 await state.clear()
                 return
             my_destiny = row[0]
