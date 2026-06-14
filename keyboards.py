@@ -1,7 +1,6 @@
 ﻿from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram import Bot
 
-# Главное меню
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🔮 МОЯ МАТРИЦА"), KeyboardButton(text="🔢 МОЁ ЧИСЛО")],
@@ -12,14 +11,6 @@ main_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Подменю выбора гороскопа (после нажатия на кнопку)
-horoscope_choice_menu = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="📅 На сегодня", callback_data="horoscope_daily")],
-    [InlineKeyboardButton(text="📆 На месяц", callback_data="horoscope_monthly")],
-    [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
-])
-
-# Подменю психологии (оставляем как есть)
 psycho_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🧠 ПСИХОТЕСТ", callback_data="psycho_test")],
     [InlineKeyboardButton(text="😊 ДНЕВНИК НАСТРОЕНИЯ", callback_data="mood_diary")],
@@ -28,7 +19,6 @@ psycho_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 НАЗАД", callback_data="psycho_back")]
 ])
 
-# Меню профиля (без изменений)
 profile_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="✏️ СМЕНИТЬ ИМЯ", callback_data="change_name"),
      InlineKeyboardButton(text="📅 СМЕНИТЬ ДАТУ", callback_data="change_birth")],
@@ -42,7 +32,6 @@ profile_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="✖️ ЗАКРЫТЬ", callback_data="close")]
 ])
 
-# Быстрые темы
 quick_topics_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="💰 Деньги", callback_data="quick_topic_money"),
      InlineKeyboardButton(text="❤️ Любовь", callback_data="quick_topic_love")],
@@ -54,7 +43,6 @@ quick_topics_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
 ])
 
-# Кнопка «Поделиться»
 share_button = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="📤 Поделиться результатом", callback_data="share_result")],
     [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
@@ -64,14 +52,12 @@ menu_button = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
 ])
 
-# Меню челленджа
 challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔥 Начать челлендж 7 дней", callback_data="start_challenge")],
     [InlineKeyboardButton(text="📊 Мой прогресс", callback_data="challenge_progress")],
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# Админ-меню
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📊 СТАТИСТИКА"), KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ")],
@@ -91,5 +77,6 @@ async def set_main_menu(bot: Bot):
         BotCommand(command="admin", description="Админ-панель (только для админа)"),
         BotCommand(command="menu", description="Показать главное меню"),
         BotCommand(command="cancel", description="Отменить текущее действие"),
-        BotCommand(command="mynumber", description="Показать ваше число судьбы")
+        BotCommand(command="mynumber", description="Показать ваше число судьбы"),
+        BotCommand(command="setcity", description="Указать ваш город")
     ])
