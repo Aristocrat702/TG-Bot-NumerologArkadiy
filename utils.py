@@ -11,7 +11,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import io
 
-# ---------- Основные функции ----------
+# ---------- Основные функции (без изменений) ----------
 def is_admin(user_id: int, admin_ids: list) -> bool:
     return user_id in admin_ids
 
@@ -367,7 +367,7 @@ async def check_crisis(message_text: str, user_id: int, bot, admin_ids):
             return f"Друг мой, я слышу, что вам тяжело. Пожалуйста, обратитесь за профессиональной помощью: {CRISIS_HELP_LINKS.get('url', '')}. Вы не один."
     return None
 
-# ---------- ФУНКЦИИ ДЛЯ ПОГОДЫ (Open-Meteo) И ЧАСОВЫХ ПОЯСОВ ----------
+# ---------- ФУНКЦИИ ДЛЯ ПОГОДЫ И ЧАСОВЫХ ПОЯСОВ ----------
 async def get_weather_by_coords(lat: float, lon: float) -> str:
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
@@ -452,9 +452,8 @@ def translate_timezone(tz_name: str) -> str:
     }
     return tz_map.get(tz_name, tz_name)
 
-# ---------- ФУНКЦИИ ДЛЯ ГОРОСКОПА ----------
+# ---------- ФУНКЦИЯ ДЛЯ ОПРЕДЕЛЕНИЯ ЗНАКА ЗОДИАКА ----------
 def get_zodiac_sign(birth_date: str) -> str:
-    """Возвращает знак зодиака по дате рождения (ДД.ММ.ГГГГ)."""
     try:
         day, month, _ = map(int, birth_date.split('.'))
         if (month == 3 and day >= 21) or (month == 4 and day <= 19):
@@ -483,34 +482,6 @@ def get_zodiac_sign(birth_date: str) -> str:
             return "Рыбы"
     except:
         return "не определён"
-
-def get_horoscope_cache_key(user_id: int, horizon: str, date_str: str) -> str:
-    """Ключ для кэширования гороскопа: 'horoscope_daily_2025-01-15' или 'horoscope_monthly_2025-01'."""
-    return f"horoscope_{horizon}_{date_str}"
-
-async def get_or_generate_horoscope(user_id: int, destiny: int, zodiac: str, horizon: str, target_date: str, is_subscriber: bool) -> str:
-    """
-    horizon: 'daily' или 'monthly'
-    target_date: для daily – 'YYYY-MM-DD', для monthly – 'YYYY-MM'
-    is_subscriber: для проверки доступа к месячному гороскопу
-    """
-    if horizon == 'monthly' and not is_subscriber:
-        return "❌ Гороскоп на месяц доступен только по подписке. Оформите подписку в профиле."
-    cache_key = get_horoscope_cache_key(user_id, horizon, target_date)
-    cached = get_cached_response(user_id, cache_key)
-    if cached:
-        return cached
-    if horizon == 'daily':
-        prompt = f"Составь гороскоп на сегодня ({datetime.datetime.now().strftime('%d.%m.%Y')}) для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. Дай краткий прогноз (3-5 предложений) на день."
-    else:
-        # monthly: target_date = 'YYYY-MM'
-        year, month = target_date.split('-')
-        month_name = datetime.date(int(year), int(month), 1).strftime('%B').lower()
-        prompt = f"Составь гороскоп на месяц {month_name} {year} для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. Дай развёрнутый прогноз (10-12 предложений) по сферам: любовь, деньги, здоровье. Укажи благоприятные и неблагоприятные периоды."
-    response = await get_yandex_gpt_response(prompt, user_id)
-    if "Ошибка" not in response and "Нейросеть" not in response and "таймаут" not in response:
-        save_cached_response(user_id, cache_key, response)
-    return response
 
 # ---------- Генерация PDF-отчёта ----------
 def generate_pdf_matrix(user_id: int, name: str, destiny: int, matrix_text: str) -> bytes:
