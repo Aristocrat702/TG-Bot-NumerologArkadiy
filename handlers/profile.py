@@ -3,7 +3,7 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice, PreCheckoutQuery
 from keyboards import profile_menu, main_menu, menu_button
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
@@ -13,9 +13,9 @@ from utils import (
     get_user_subscription_status, calculate_level,
     get_city_coords, get_timezone_by_coords, translate_timezone
 )
-from settings import LEVELS
+from settings import LEVELS, PAYMENTS_TOKEN
 
-# Ручная корректировка часовых поясов для городов, где API ошибается
+# Ручная корректировка часовых поясов для городов
 MANUAL_TIMEZONES = {
     "стерлитамак": "Asia/Yekaterinburg",
     "екатеринбург": "Asia/Yekaterinburg",
@@ -34,10 +34,10 @@ MANUAL_TIMEZONES = {
     "магадан": "Asia/Magadan",
     "петропавловск-камчатский": "Asia/Kamchatka",
     "калининград": "Europe/Kaliningrad",
-    "казань": "Europe/Moscow",       # Казань в UTC+3
+    "казань": "Europe/Moscow",
     "нижний новгород": "Europe/Moscow",
     "ростов-на-дону": "Europe/Moscow",
-    "волгоград": "Europe/Volgograd", # UTC+3 или +4, уточним – оставим Europe/Volgograd
+    "волгоград": "Europe/Volgograd",
 }
 
 class UserStates(StatesGroup):
@@ -45,6 +45,7 @@ class UserStates(StatesGroup):
     waiting_new_birth = State()
     waiting_phone = State()
     waiting_city = State()
+    waiting_gift_username = State()
 
 def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
@@ -207,7 +208,6 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     async def process_city(message: types.Message, state: FSMContext):
         user_id = message.from_user.id
         city_input = message.text.strip()
-        # Нормализуем название для поиска в словаре (нижний регистр)
         city_lower = city_input.lower()
         if len(city_input) < 2:
             await message.answer("Пожалуйста, введите корректное название города (не менее 2 символов).")
@@ -216,7 +216,6 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         status_msg = await message.answer("🌍 Определяю местоположение и часовой пояс...")
         lat, lon = await get_city_coords(city_input)
         if lat and lon:
-            # Проверяем ручной словарь для этого города
             manual_tz = None
             for key, tz in MANUAL_TIMEZONES.items():
                 if key in city_lower:
@@ -307,3 +306,69 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await message.answer(f"🌍 Ваш город: {row[0]}. Чтобы изменить, используйте /setcity.")
         else:
             await message.answer("🌍 Город не указан. Укажите его через /setcity или в настройках профиля.")
+
+    # ---------- НОВЫЕ ФУНКЦИИ: TELEGRAM STARS, ПОДАРОЧНАЯ ПОДПИСКА, ПРОДЛЕНИЕ ----------
+    @dp.callback_query(F.data == "buy_subscription")
+    async def buy_subscription(callback: types.CallbackQuery):
+        await bot.send_invoice(
+            chat_id=callback.from_user.id,
+            title="Подписка на бота «Аркадий Викторович»",
+            description="Месяц полного доступа: матрица судьбы, безлимитные вопросы, прогнозы, гороскопы и психологические практики.",
+            payload="subscription_month",
+            provider_token=PAYMENTS_TOKEN,
+            currency="XTR",
+            prices=[LabeledPrice(label="Месяц", amount=249)],
+            start_parameter="subscription"
+        )
+        await callback.answer()
+
+    @dp.callback_query(F.data == "gift_subscription")
+    async def gift_start(callback: types.CallbackQuery, state: FSMContext):
+        await callback.message.answer("Введите @username друга, которому хотите подарить подписку (без @):")
+        await state.set_state(UserStates.waiting_gift_username)
+        await callback.answer()
+
+    @dp.message(UserStates.waiting_gift_username)
+    async def gift_process(message: types.Message, state: FSMContext):
+        username = message.text.strip().lstrip('@')
+        # Получаем user_id по username (требуются права на получение информации, но можно через get_chat)
+        try:
+            chat = await bot.get_chat(f"@{username}")
+            gifted_user_id = chat.id
+        except Exception as e:
+            await message.answer(f"❌ Не удалось найти пользователя @{username}. Проверьте правильность написания.")
+            await state.clear()
+            return
+        # Отправляем инвойс на оплату
+        await bot.send_invoice(
+            chat_id=message.from_user.id,
+            title=f"Подарочная подписка для @{username}",
+            description=f"Вы дарите месяц подписки пользователю @{username}",
+            payload=f"gift_{gifted_user_id}",
+            provider_token=PAYMENTS_TOKEN,
+            currency="XTR",
+            prices=[LabeledPrice(label="Месяц в подарок", amount=249)],
+            start_parameter="gift"
+        )
+        await state.clear()
+
+    @dp.callback_query(F.data == "renew_subscription")
+    async def renew_subscription(callback: types.CallbackQuery):
+        await buy_subscription(callback)
+
+    @dp.pre_checkout_query()
+    async def pre_checkout(query: PreCheckoutQuery):
+        await query.answer(ok=True)
+
+    @dp.message(F.successful_payment)
+    async def successful_payment(message: types.Message):
+        payload = message.successful_payment.invoice_payload
+        if payload.startswith("gift_"):
+            gifted_user_id = int(payload.split("_")[1])
+            add_subscription_days(gifted_user_id, 30, check_referral=False, admin_id=0)
+            await bot.send_message(gifted_user_id, "🎁 *Вам подарили месяц подписки!*\n\nТеперь вам доступны: матрица судьбы, безлимитные вопросы, прогнозы, гороскопы и психологические практики. Спасибо вашему другу!", parse_mode="Markdown")
+            await message.answer("✅ Подарок отправлен! Спасибо за доверие.")
+        else:
+            # Обычная подписка на себя
+            add_subscription_days(message.from_user.id, 30, check_referral=False, admin_id=0)
+            await message.answer("✅ Подписка активирована на 30 дней! Теперь вам доступны матрица судьбы, безлимитные вопросы и все премиум-функции. Спасибо, что с нами!")

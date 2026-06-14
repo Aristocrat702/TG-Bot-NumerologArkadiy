@@ -6,11 +6,13 @@ import datetime
 import asyncio
 import logging
 import pytz
-from utils import backup_database, add_subscription_days, get_challenge_progress, get_zodiac_sign
+from utils import backup_database, add_subscription_days, get_challenge_progress, get_zodiac_sign, get_cached_response, save_cached_response
+from keyboards import main_menu
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 scheduler = AsyncIOScheduler()
 
-# ---------- Существующие задачи ----------
+# ---------- Существующие задачи (карта дня, лидерборд, бэкап, челлендж, будильник, гороскопы) ----------
 async def send_daily_card(bot: Bot):
     conn = get_connection()
     cursor = conn.cursor()
@@ -116,9 +118,7 @@ async def send_alarms(bot: Bot):
         conn3.close()
         await asyncio.sleep(0.1)
 
-# ---------- НОВЫЕ ЗАДАЧИ: рассылка гороскопов через YandexGPT ----------
 async def send_daily_horoscope(bot: Bot):
-    """Рассылает гороскоп на день в 9:00 по местному времени."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT user_id, birth_date, destiny_number, timezone FROM users WHERE send_daily=1")
@@ -155,7 +155,6 @@ async def send_daily_horoscope(bot: Bot):
         await asyncio.sleep(0.1)
 
 async def send_monthly_horoscope(bot: Bot):
-    """Рассылает гороскоп на месяц 1-го числа в 10:00 (только подписчикам)."""
     if datetime.date.today().day != 1:
         return
     conn = get_connection()
@@ -193,6 +192,69 @@ async def send_monthly_horoscope(bot: Bot):
                 logging.error(f"Не удалось отправить месячный гороскоп {user_id}: {e}")
         await asyncio.sleep(0.1)
 
+# ---------- НОВЫЕ ЗАДАЧИ ----------
+
+async def send_motivation(bot: Bot):
+    """Ежедневно в 11:00 отправляет подписчикам мотивирующую фразу (генерирует YandexGPT)."""
+    today_str = datetime.date.today().isoformat()
+    cache_key = f"motivation_{today_str}"
+    cached = get_cached_response(0, cache_key)
+    if cached:
+        phrase = cached
+    else:
+        prompt = "Придумай короткую, мудрую, мотивирующую фразу или аффирмацию в стиле Аркадия Викторовича (нумеролога и психолога). Не более 2 предложений. Не используй шаблонные фразы."
+        phrase = await get_yandex_gpt_response(prompt, 0)
+        if "Ошибка" in phrase or len(phrase) < 10:
+            # fallback список
+            fallback = [
+                "Числа не врут, но и вы не обманывайте себя. Слушайте душу.",
+                "Ваше число судьбы – это компас. Следуйте ему без страха.",
+                "Ошибки – это тоже цифры, которые ведут к правильному ответу.",
+                "Не бойтесь начинать с нуля. Ноль – это начало нового цикла.",
+                "Каждое утро вы перезагружаете свою личную статистику. Используйте это.",
+                "Гармония приходит, когда внутреннее число совпадает с внешним действием.",
+                "Счастье – это не случайность, а сумма правильных решений.",
+                "Ваш путь уникален, как отпечаток пальца. Не сравнивайте.",
+                "Смелость – это когда ваш страх умножают на веру в себя.",
+                "Маленькие победы складываются в большую судьбу."
+            ]
+            import random
+            phrase = random.choice(fallback)
+        save_cached_response(0, cache_key, phrase)
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM users WHERE subscription_active=1 AND send_daily=1")
+    users = cursor.fetchall()
+    conn.close()
+    for (user_id,) in users:
+        try:
+            await bot.send_message(user_id, f"🧠 *Аркадий говорит:*\n\n{phrase}", parse_mode="Markdown")
+        except Exception as e:
+            logging.error(f"Не удалось отправить мотивацию {user_id}: {e}")
+        await asyncio.sleep(0.1)
+
+async def check_subscription_expiry(bot: Bot):
+    """Раз в день проверяет подписки и за 3 дня до окончания отправляет напоминание."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, subscription_end FROM users WHERE subscription_active=1 AND subscription_end IS NOT NULL")
+    users = cursor.fetchall()
+    conn.close()
+    today = datetime.date.today()
+    for (user_id, end_str) in users:
+        try:
+            end_date = datetime.datetime.fromisoformat(end_str).date()
+            days_left = (end_date - today).days
+            if days_left == 3:
+                kb = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="💎 Продлить подписку", callback_data="renew_subscription")],
+                    [InlineKeyboardButton(text="🔙 Позже", callback_data="back_to_menu")]
+                ])
+                await bot.send_message(user_id, f"⚠️ *Ваша подписка закончится через 3 дня!*\n\nНе оставайтесь без полной матрицы и безлимитных вопросов. Продлите подписку сейчас, чтобы не прерывать доступ.", parse_mode="Markdown", reply_markup=kb)
+        except:
+            pass
+
 def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     if admin_id is None:
         logging.warning("admin_id не передан, лидерборд работать не будет")
@@ -204,5 +266,8 @@ def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     scheduler.add_job(send_alarms, 'interval', minutes=1, args=[bot])
     scheduler.add_job(send_daily_horoscope, 'interval', minutes=30, args=[bot])
     scheduler.add_job(send_monthly_horoscope, 'cron', day='1', hour=10, minute=0, args=[bot], timezone='Europe/Moscow')
+    # Новые задачи
+    scheduler.add_job(send_motivation, 'cron', hour=11, minute=0, args=[bot], timezone='Europe/Moscow')
+    scheduler.add_job(check_subscription_expiry, 'cron', hour=10, minute=0, args=[bot], timezone='Europe/Moscow')
     scheduler.start()
     logging.info(f"Планировщик заданий запущен, версия бота {bot_version}")
