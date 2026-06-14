@@ -5,11 +5,11 @@ from yandex_gpt import get_yandex_gpt_response
 import datetime
 import asyncio
 import logging
-from utils import backup_database, add_subscription_days, get_challenge_progress, get_zodiac_sign, get_or_generate_horoscope, get_cached_response, save_cached_response
+from utils import backup_database, add_subscription_days, get_challenge_progress, get_zodiac_sign
 
 scheduler = AsyncIOScheduler()
 
-# ---------- Существующие задачи (карта дня, лидерборд, бэкап, челлендж, будильники) ----------
+# ---------- Существующие задачи (оставляем) ----------
 async def send_daily_card(bot: Bot):
     conn = get_connection()
     cursor = conn.cursor()
@@ -82,6 +82,7 @@ async def send_challenge_reminders(bot: Bot):
                 break
 
 async def send_alarms(bot: Bot):
+    from utils import get_city_coords, get_weather_by_coords
     conn = get_connection()
     cursor = conn.cursor()
     now = datetime.datetime.now().strftime("%H:%M")
@@ -98,7 +99,6 @@ async def send_alarms(bot: Bot):
         destiny = row[1] if row else "?"
         weather_str = ""
         if city:
-            from utils import get_city_coords, get_weather_by_coords
             lat, lon = await get_city_coords(city)
             if lat and lon:
                 weather_str = await get_weather_by_coords(lat, lon)
@@ -115,91 +115,87 @@ async def send_alarms(bot: Bot):
         conn3.close()
         await asyncio.sleep(0.1)
 
-# ---------- НОВЫЕ ЗАДАЧИ ДЛЯ ГОРОСКОПА ----------
+# ---------- НОВЫЕ ЗАДАЧИ: рассылка гороскопов ----------
 async def send_daily_horoscope(bot: Bot):
-    """
-    Отправляет гороскоп на сегодня всем пользователям, у которых есть дата рождения.
-    Время отправки – 9:00 по местному времени (запускается каждый час, проверяет, кому пора).
-    Для пользователей без часового пояса – 9:00 МСК.
-    """
+    """Рассылает гороскоп на день всем пользователям в 9:00 по их часовому поясу (или в 9:00 МСК, если пояс не указан)."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT user_id, destiny_number, birth_date, timezone FROM users WHERE birth_date IS NOT NULL AND birth_date != ''")
+    cursor.execute("SELECT user_id, birth_date, destiny_number, timezone FROM users WHERE send_daily=1")
     users = cursor.fetchall()
     conn.close()
     now_utc = datetime.datetime.utcnow()
-    for (user_id, destiny, birth_date, tz_str) in users:
+    for user in users:
+        user_id = user[0]
+        birth_date = user[1]
+        destiny = user[2]
+        timezone_str = user[3] if user[3] else "Europe/Moscow"
         try:
-            # Получаем часовой пояс пользователя или МСК по умолчанию
-            if tz_str:
-                tz = pytz.timezone(tz_str)
-            else:
-                tz = pytz.timezone("Europe/Moscow")
-            local_time = now_utc.astimezone(tz)
-            # Отправляем, если сейчас 9:00 по местному времени
-            if local_time.hour == 9 and local_time.minute == 0:
-                zodiac = get_zodiac_sign(birth_date)
-                today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-                cache_key = f"horoscope_daily_{today_str}_{user_id}"
-                cached = get_cached_response(user_id, cache_key)
-                if cached:
-                    response = cached
-                else:
-                    response = await get_or_generate_horoscope(user_id, destiny, zodiac, "daily", today_str, True)
-                    # Кэшируем на день, чтобы не генерировать повторно при рассылке
-                    save_cached_response(user_id, cache_key, response)
+            tz = pytz.timezone(timezone_str)
+        except:
+            tz = pytz.timezone("Europe/Moscow")
+        local_time = now_utc + tz.utcoffset(now_utc)
+        if local_time.hour == 9:  # если у местного пользователя 9 утра
+            zodiac = get_zodiac_sign(birth_date) if birth_date else "неизвестно"
+            prompt = (
+                f"Составь астрологический гороскоп на сегодня ({datetime.datetime.now().strftime('%d.%m.%Y')}) "
+                f"для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. "
+                "Дай краткий прогноз (3-5 предложений) и добавь один короткий совет."
+            )
+            response = await get_yandex_gpt_response(prompt, user_id)
+            try:
                 await bot.send_message(user_id, f"🌟 *Ваш гороскоп на сегодня*\n\n{response}", parse_mode="Markdown")
-                await asyncio.sleep(0.05)
-        except Exception as e:
-            logging.error(f"Ошибка отправки дневного гороскопа пользователю {user_id}: {e}")
+            except Exception as e:
+                logging.error(f"Не удалось отправить гороскоп {user_id}: {e}")
+        await asyncio.sleep(0.1)
 
 async def send_monthly_horoscope(bot: Bot):
-    """
-    Отправляет гороскоп на месяц 1-го числа в 10:00 по местному времени.
-    Только для подписчиков.
-    """
+    """Рассылает гороскоп на месяц 1-го числа в 10:00 по местному времени (только подписчикам)."""
+    # Проверяем, сегодня ли 1-е число
+    if datetime.date.today().day != 1:
+        return
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT user_id, destiny_number, birth_date, timezone FROM users WHERE subscription_active=1 AND birth_date IS NOT NULL AND birth_date != ''")
+    cursor.execute("SELECT user_id, birth_date, destiny_number, timezone FROM users WHERE subscription_active=1 AND send_daily=1")
     users = cursor.fetchall()
     conn.close()
     now_utc = datetime.datetime.utcnow()
-    for (user_id, destiny, birth_date, tz_str) in users:
+    today = datetime.date.today()
+    month_name = today.strftime('%B').lower()
+    for user in users:
+        user_id = user[0]
+        birth_date = user[1]
+        destiny = user[2]
+        timezone_str = user[3] if user[3] else "Europe/Moscow"
         try:
-            if tz_str:
-                tz = pytz.timezone(tz_str)
-            else:
-                tz = pytz.timezone("Europe/Moscow")
-            local_time = now_utc.astimezone(tz)
-            # Первое число месяца и 10:00 утра
-            if local_time.day == 1 and local_time.hour == 10 and local_time.minute == 0:
-                zodiac = get_zodiac_sign(birth_date)
-                month_str = local_time.strftime("%Y-%m")
-                cache_key = f"horoscope_monthly_{month_str}_{user_id}"
-                cached = get_cached_response(user_id, cache_key)
-                if cached:
-                    response = cached
-                else:
-                    response = await get_or_generate_horoscope(user_id, destiny, zodiac, "monthly", month_str, True)
-                    save_cached_response(user_id, cache_key, response)
-                await bot.send_message(user_id, f"🌟 *Ваш гороскоп на месяц*\n\n{response}", parse_mode="Markdown")
-                await asyncio.sleep(0.05)
-        except Exception as e:
-            logging.error(f"Ошибка отправки месячного гороскопа пользователю {user_id}: {e}")
+            tz = pytz.timezone(timezone_str)
+        except:
+            tz = pytz.timezone("Europe/Moscow")
+        local_time = now_utc + tz.utcoffset(now_utc)
+        if local_time.hour == 10:  # 10 утра
+            zodiac = get_zodiac_sign(birth_date) if birth_date else "неизвестно"
+            prompt = (
+                f"Составь нумерологический прогноз на месяц {month_name} для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. "
+                "Прогноз должен включать сферы: любовь, деньги, здоровье. Дай развёрнутый ответ (10-12 предложений). "
+                "Укажи благоприятные и неблагоприятные периоды. Добавь общий совет на месяц."
+            )
+            response = await get_yandex_gpt_response(prompt, user_id)
+            try:
+                await bot.send_message(user_id, f"🌟 *Ваш гороскоп на месяц {month_name.capitalize()}*\n\n{response}", parse_mode="Markdown")
+            except Exception as e:
+                logging.error(f"Не удалось отправить месячный гороскоп {user_id}: {e}")
+        await asyncio.sleep(0.1)
 
-# ---------- Запуск планировщика ----------
 def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     if admin_id is None:
         logging.warning("admin_id не передан, лидерборд работать не будет")
-    # Существующие задачи
     scheduler.add_job(send_daily_card, 'cron', hour=9, minute=0, args=[bot], timezone='Europe/Moscow')
     if admin_id:
         scheduler.add_job(weekly_leaderboard, 'cron', day_of_week='sun', hour=20, minute=0, args=[bot, admin_id], timezone='Europe/Moscow')
     scheduler.add_job(daily_backup, 'cron', hour=3, minute=0, timezone='Europe/Moscow')
     scheduler.add_job(send_challenge_reminders, 'cron', hour=10, minute=0, args=[bot], timezone='Europe/Moscow')
     scheduler.add_job(send_alarms, 'interval', minutes=1, args=[bot])
-    # Новые задачи для гороскопов
-    scheduler.add_job(send_daily_horoscope, 'interval', minutes=60, args=[bot])  # проверяем каждый час
-    scheduler.add_job(send_monthly_horoscope, 'interval', minutes=60, args=[bot]) # проверяем каждый час
+    # Новые задачи
+    scheduler.add_job(send_daily_horoscope, 'interval', minutes=30, args=[bot])  # каждые 30 минут проверяем, кому пора
+    scheduler.add_job(send_monthly_horoscope, 'cron', day='1', hour=10, minute=0, args=[bot], timezone='Europe/Moscow')
     scheduler.start()
     logging.info(f"Планировщик заданий запущен, версия бота {bot_version}")
