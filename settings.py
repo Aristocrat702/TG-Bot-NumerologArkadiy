@@ -1,8 +1,7 @@
-# settings.py
 import os
 
 # Версия бота
-BOT_VERSION = "2.0.0"  # первая версия глобального обновления
+BOT_VERSION = "2.0.0"
 
 # Папки и логи
 LOGS_DIR = "/root/arkadiy_bot/logs"
@@ -66,3 +65,6 @@ XP_REWARDS = {
 # Настройки рассылки
 DAILY_CARD_HOUR = 9  # час рассылки карты дня по местному времени
 MIN_ACTIVE_DAYS_FOR_PHONE_REQUEST = 2  # через сколько дней активного использования просить номер телефона
+
+# Токен для платежей Telegram Stars (может быть пустым)
+PAYMENTS_TOKEN = os.getenv("PAYMENTS_TOKEN", "")
