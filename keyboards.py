@@ -1,18 +1,25 @@
 ﻿from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram import Bot
 
-# Главное меню (с кнопкой города)
+# Главное меню
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🔮 МОЯ МАТРИЦА"), KeyboardButton(text="🔢 МОЁ ЧИСЛО")],
         [KeyboardButton(text="❤️ СОВМЕСТИМОСТЬ"), KeyboardButton(text="🎁 КАРТА ДНЯ")],
         [KeyboardButton(text="💬 ЗАДАТЬ ВОПРОС"), KeyboardButton(text="🧠 ПСИХОЛОГИЯ")],
-        [KeyboardButton(text="🌍 МОЙ ГОРОД"), KeyboardButton(text="👤 МОЙ ПРОФИЛЬ")]
+        [KeyboardButton(text="🌟 ГОРОСКОП"), KeyboardButton(text="👤 МОЙ ПРОФИЛЬ")]
     ],
     resize_keyboard=True
 )
 
-# Подменю психологии
+# Подменю выбора гороскопа (после нажатия на кнопку)
+horoscope_choice_menu = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="📅 На сегодня", callback_data="horoscope_daily")],
+    [InlineKeyboardButton(text="📆 На месяц", callback_data="horoscope_monthly")],
+    [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
+])
+
+# Подменю психологии (оставляем как есть)
 psycho_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🧠 ПСИХОТЕСТ", callback_data="psycho_test")],
     [InlineKeyboardButton(text="😊 ДНЕВНИК НАСТРОЕНИЯ", callback_data="mood_diary")],
@@ -21,7 +28,7 @@ psycho_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 НАЗАД", callback_data="psycho_back")]
 ])
 
-# Меню профиля (с кнопками для города и телефона)
+# Меню профиля (без изменений)
 profile_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="✏️ СМЕНИТЬ ИМЯ", callback_data="change_name"),
      InlineKeyboardButton(text="📅 СМЕНИТЬ ДАТУ", callback_data="change_birth")],
@@ -84,6 +91,5 @@ async def set_main_menu(bot: Bot):
         BotCommand(command="admin", description="Админ-панель (только для админа)"),
         BotCommand(command="menu", description="Показать главное меню"),
         BotCommand(command="cancel", description="Отменить текущее действие"),
-        BotCommand(command="mynumber", description="Показать ваше число судьбы"),
-        BotCommand(command="setcity", description="Указать город")
+        BotCommand(command="mynumber", description="Показать ваше число судьбы")
     ])

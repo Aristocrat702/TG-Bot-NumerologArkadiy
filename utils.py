@@ -369,7 +369,6 @@ async def check_crisis(message_text: str, user_id: int, bot, admin_ids):
 
 # ---------- ФУНКЦИИ ДЛЯ ПОГОДЫ (Open-Meteo) И ЧАСОВЫХ ПОЯСОВ ----------
 async def get_weather_by_coords(lat: float, lon: float) -> str:
-    """Получает краткую строку с погодой по координатам через Open-Meteo."""
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": lat,
@@ -396,7 +395,6 @@ async def get_weather_by_coords(lat: float, lon: float) -> str:
         return "Не удалось получить прогноз погоды."
 
 async def get_timezone_by_coords(lat: float, lon: float) -> str:
-    """Получает название часового пояса по координатам через World Time API."""
     url = f"http://worldtimeapi.org/api/timezone/{lat}/{lon}"
     try:
         async with aiohttp.ClientSession() as session:
@@ -410,7 +408,6 @@ async def get_timezone_by_coords(lat: float, lon: float) -> str:
         return "Europe/Moscow"
 
 async def get_city_coords(city_name: str) -> tuple:
-    """Получает координаты по названию города через Open-Meteo Geocoding API."""
     url = "https://geocoding-api.open-meteo.com/v1/search"
     params = {
         "name": city_name,
@@ -434,9 +431,7 @@ async def get_city_coords(city_name: str) -> tuple:
         print(f"Ошибка поиска города: {e}")
         return None, None
 
-# ---------- Перевод часовых поясов на русский ----------
 def translate_timezone(tz_name: str) -> str:
-    """Преобразует название часового пояса в русскоязычный формат с UTC."""
     tz_map = {
         "Europe/Moscow": "Московское время (UTC+3)",
         "Europe/Samara": "Самарское время (UTC+4)",
@@ -456,6 +451,66 @@ def translate_timezone(tz_name: str) -> str:
         "America/Los_Angeles": "Лос-Анджелес (UTC-7)",
     }
     return tz_map.get(tz_name, tz_name)
+
+# ---------- ФУНКЦИИ ДЛЯ ГОРОСКОПА ----------
+def get_zodiac_sign(birth_date: str) -> str:
+    """Возвращает знак зодиака по дате рождения (ДД.ММ.ГГГГ)."""
+    try:
+        day, month, _ = map(int, birth_date.split('.'))
+        if (month == 3 and day >= 21) or (month == 4 and day <= 19):
+            return "Овен"
+        elif (month == 4 and day >= 20) or (month == 5 and day <= 20):
+            return "Телец"
+        elif (month == 5 and day >= 21) or (month == 6 and day <= 20):
+            return "Близнецы"
+        elif (month == 6 and day >= 21) or (month == 7 and day <= 22):
+            return "Рак"
+        elif (month == 7 and day >= 23) or (month == 8 and day <= 22):
+            return "Лев"
+        elif (month == 8 and day >= 23) or (month == 9 and day <= 22):
+            return "Дева"
+        elif (month == 9 and day >= 23) or (month == 10 and day <= 22):
+            return "Весы"
+        elif (month == 10 and day >= 23) or (month == 11 and day <= 21):
+            return "Скорпион"
+        elif (month == 11 and day >= 22) or (month == 12 and day <= 21):
+            return "Стрелец"
+        elif (month == 12 and day >= 22) or (month == 1 and day <= 19):
+            return "Козерог"
+        elif (month == 1 and day >= 20) or (month == 2 and day <= 18):
+            return "Водолей"
+        else:
+            return "Рыбы"
+    except:
+        return "не определён"
+
+def get_horoscope_cache_key(user_id: int, horizon: str, date_str: str) -> str:
+    """Ключ для кэширования гороскопа: 'horoscope_daily_2025-01-15' или 'horoscope_monthly_2025-01'."""
+    return f"horoscope_{horizon}_{date_str}"
+
+async def get_or_generate_horoscope(user_id: int, destiny: int, zodiac: str, horizon: str, target_date: str, is_subscriber: bool) -> str:
+    """
+    horizon: 'daily' или 'monthly'
+    target_date: для daily – 'YYYY-MM-DD', для monthly – 'YYYY-MM'
+    is_subscriber: для проверки доступа к месячному гороскопу
+    """
+    if horizon == 'monthly' and not is_subscriber:
+        return "❌ Гороскоп на месяц доступен только по подписке. Оформите подписку в профиле."
+    cache_key = get_horoscope_cache_key(user_id, horizon, target_date)
+    cached = get_cached_response(user_id, cache_key)
+    if cached:
+        return cached
+    if horizon == 'daily':
+        prompt = f"Составь гороскоп на сегодня ({datetime.datetime.now().strftime('%d.%m.%Y')}) для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. Дай краткий прогноз (3-5 предложений) на день."
+    else:
+        # monthly: target_date = 'YYYY-MM'
+        year, month = target_date.split('-')
+        month_name = datetime.date(int(year), int(month), 1).strftime('%B').lower()
+        prompt = f"Составь гороскоп на месяц {month_name} {year} для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. Дай развёрнутый прогноз (10-12 предложений) по сферам: любовь, деньги, здоровье. Укажи благоприятные и неблагоприятные периоды."
+    response = await get_yandex_gpt_response(prompt, user_id)
+    if "Ошибка" not in response and "Нейросеть" not in response and "таймаут" not in response:
+        save_cached_response(user_id, cache_key, response)
+    return response
 
 # ---------- Генерация PDF-отчёта ----------
 def generate_pdf_matrix(user_id: int, name: str, destiny: int, matrix_text: str) -> bytes:

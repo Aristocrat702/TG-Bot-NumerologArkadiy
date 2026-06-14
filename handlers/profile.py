@@ -11,9 +11,34 @@ from utils import (
     generate_referral_link, get_referral_stats, get_free_questions_remaining,
     get_achievements, add_subscription_days, update_last_active,
     get_user_subscription_status, calculate_level,
-    get_city_coords, get_timezone_by_coords
+    get_city_coords, get_timezone_by_coords, translate_timezone
 )
 from settings import LEVELS
+
+# Ручная корректировка часовых поясов для городов, где API ошибается
+MANUAL_TIMEZONES = {
+    "стерлитамак": "Asia/Yekaterinburg",
+    "екатеринбург": "Asia/Yekaterinburg",
+    "челябинск": "Asia/Yekaterinburg",
+    "тюмень": "Asia/Yekaterinburg",
+    "уфа": "Asia/Yekaterinburg",
+    "пермь": "Asia/Yekaterinburg",
+    "самара": "Europe/Samara",
+    "томск": "Asia/Novosibirsk",
+    "новосибирск": "Asia/Novosibirsk",
+    "красноярск": "Asia/Krasnoyarsk",
+    "иркутск": "Asia/Irkutsk",
+    "якутск": "Asia/Yakutsk",
+    "владивосток": "Asia/Vladivostok",
+    "хабаровск": "Asia/Vladivostok",
+    "магадан": "Asia/Magadan",
+    "петропавловск-камчатский": "Asia/Kamchatka",
+    "калининград": "Europe/Kaliningrad",
+    "казань": "Europe/Moscow",       # Казань в UTC+3
+    "нижний новгород": "Europe/Moscow",
+    "ростов-на-дону": "Europe/Moscow",
+    "волгоград": "Europe/Volgograd", # UTC+3 или +4, уточним – оставим Europe/Volgograd
+}
 
 class UserStates(StatesGroup):
     waiting_new_name = State()
@@ -120,7 +145,7 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             "• Отписаться от ежедневной рассылки – /unsubscribe_daily\n"
             "• Подписаться на рассылку – /subscribe_daily\n"
             "• Добавить номер телефона (для восстановления подписки)\n"
-            "• Указать город (для прогноза погоды)\n\n"
+            "• Указать город (для прогноза погоды) – /setcity\n\n"
             "Нажмите кнопку ниже, чтобы добавить номер телефона или указать город.",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -134,7 +159,8 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.callback_query(F.data == "add_phone")
     async def add_phone_start(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.answer(
-            "Отправьте ваш номер телефона, нажав на кнопку ниже. Он нужен для восстановления подписки и важных уведомлений.",
+            "Отправьте ваш номер телефона, нажав на кнопку ниже. Он нужен для восстановления подписки и важных уведомлений. "
+            "Номер не передаётся третьим лицам.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="📱 Отправить номер", callback_data="request_phone")],
                 [InlineKeyboardButton(text="🔙 Назад", callback_data="settings")]
@@ -169,7 +195,7 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.callback_query(F.data == "add_city")
     async def add_city_start(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.answer(
-            "Напишите название вашего города (например, Москва или Moscow). Это нужно для точного прогноза погоды в карте дня и будильнике.",
+            "Напишите название вашего города (например, Москва или Санкт-Петербург). Это нужно для точного прогноза погоды в карте дня и будильнике.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🔙 Назад", callback_data="settings")]
             ])
@@ -180,23 +206,35 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.message(UserStates.waiting_city)
     async def process_city(message: types.Message, state: FSMContext):
         user_id = message.from_user.id
-        city = message.text.strip()
-        if len(city) < 2:
+        city_input = message.text.strip()
+        # Нормализуем название для поиска в словаре (нижний регистр)
+        city_lower = city_input.lower()
+        if len(city_input) < 2:
             await message.answer("Пожалуйста, введите корректное название города (не менее 2 символов).")
             return
 
-        status_msg = await message.answer("🌍 Определяю местоположение...")
-        lat, lon = await get_city_coords(city)
+        status_msg = await message.answer("🌍 Определяю местоположение и часовой пояс...")
+        lat, lon = await get_city_coords(city_input)
         if lat and lon:
-            timezone = await get_timezone_by_coords(lat, lon)
+            # Проверяем ручной словарь для этого города
+            manual_tz = None
+            for key, tz in MANUAL_TIMEZONES.items():
+                if key in city_lower:
+                    manual_tz = tz
+                    break
+            if manual_tz:
+                timezone_raw = manual_tz
+            else:
+                timezone_raw = await get_timezone_by_coords(lat, lon)
+            timezone_ru = translate_timezone(timezone_raw)
             conn = get_connection()
             cursor = conn.cursor()
-            cursor.execute("UPDATE users SET city = ?, timezone = ? WHERE user_id = ?", (city, timezone, user_id))
+            cursor.execute("UPDATE users SET city = ?, timezone = ? WHERE user_id = ?", (city_input, timezone_raw, user_id))
             conn.commit()
             conn.close()
-            await status_msg.edit_text(f"✅ Город {city} сохранён. Ваш часовой пояс: {timezone}")
+            await status_msg.edit_text(f"✅ Город *{city_input}* сохранён.\n🗓️ Часовой пояс: {timezone_ru}")
         else:
-            await status_msg.edit_text("❌ Не удалось определить город. Попробуйте написать его на русском или английском языке более точно.")
+            await status_msg.edit_text("❌ Не удалось определить город. Попробуйте написать его на русском или английском языке более точно (например, 'Санкт-Петербург').")
         await state.clear()
 
     @dp.callback_query(F.data == "cancel_sub")
@@ -225,45 +263,47 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
         await callback.answer()
 
-    @dp.message(F.text == "🌍 МОЙ ГОРОД")
-    async def my_city_menu(message: types.Message, state: FSMContext):
-        user_id = message.from_user.id
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT city, timezone FROM users WHERE user_id=?", (user_id,))
-        row = cursor.fetchone()
-        conn.close()
-        if row and row[0]:
-            await message.answer(f"📍 Ваш город: {row[0]}\n🕒 Часовой пояс: {row[1] or 'не определён'}\n\nЧтобы изменить город, нажмите кнопку ниже.",
-                                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                                     [InlineKeyboardButton(text="🌍 Изменить город", callback_data="add_city")],
-                                     [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
-                                 ]))
-        else:
-            await message.answer("🌍 Вы ещё не указали город. Нажмите кнопку ниже, чтобы добавить его.\n\nЭто нужно для прогноза погоды в карте дня и будильнике.",
-                                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                                     [InlineKeyboardButton(text="🌍 Указать город", callback_data="add_city")],
-                                     [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
-                                 ]))
-
     @dp.message(Command("setcity"))
     async def setcity_command(message: types.Message, state: FSMContext):
         args = message.text.split(maxsplit=1)
         if len(args) < 2:
             await message.answer("Использование: /setcity <название города>\nПример: /setcity Москва")
             return
-        city = args[1].strip()
+        city_input = args[1].strip()
+        city_lower = city_input.lower()
         status_msg = await message.answer("🌍 Определяю местоположение...")
-        lat, lon = await get_city_coords(city)
+        lat, lon = await get_city_coords(city_input)
         if lat and lon:
-            timezone = await get_timezone_by_coords(lat, lon)
+            manual_tz = None
+            for key, tz in MANUAL_TIMEZONES.items():
+                if key in city_lower:
+                    manual_tz = tz
+                    break
+            if manual_tz:
+                timezone_raw = manual_tz
+            else:
+                timezone_raw = await get_timezone_by_coords(lat, lon)
+            timezone_ru = translate_timezone(timezone_raw)
             user_id = message.from_user.id
             conn = get_connection()
             cursor = conn.cursor()
-            cursor.execute("UPDATE users SET city = ?, timezone = ? WHERE user_id = ?", (city, timezone, user_id))
+            cursor.execute("UPDATE users SET city = ?, timezone = ? WHERE user_id = ?", (city_input, timezone_raw, user_id))
             conn.commit()
             conn.close()
-            await status_msg.edit_text(f"✅ Город сохранён: {city}\nЧасовой пояс: {timezone}")
+            await status_msg.edit_text(f"✅ Город *{city_input}* сохранён.\n🗓️ Часовой пояс: {timezone_ru}")
         else:
             await status_msg.edit_text("❌ Не удалось определить город. Попробуйте написать его на русском или английском языке более точно.")
         await state.clear()
+
+    @dp.message(Command("mycity"))
+    async def mycity_command(message: types.Message):
+        user_id = message.from_user.id
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT city FROM users WHERE user_id=?", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row and row[0]:
+            await message.answer(f"🌍 Ваш город: {row[0]}. Чтобы изменить, используйте /setcity.")
+        else:
+            await message.answer("🌍 Город не указан. Укажите его через /setcity или в настройках профиля.")
