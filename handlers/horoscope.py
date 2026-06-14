@@ -7,12 +7,16 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from keyboards import main_menu
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
-from utils import get_user_subscription_status, get_zodiac_sign, get_cached_response, save_cached_response
+from utils import (
+    get_user_subscription_status, get_zodiac_sign,
+    get_cached_response, save_cached_response
+)
 
 class HoroscopeStates(StatesGroup):
     waiting_choice = State()
 
 def register_horoscope_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
+
     @dp.message(F.text == "🌟 ГОРОСКОП")
     async def horoscope_menu(message: types.Message, state: FSMContext):
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -20,7 +24,7 @@ def register_horoscope_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             [InlineKeyboardButton(text="📆 На месяц", callback_data="horoscope_monthly")],
             [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
         ])
-        await message.answer("🌟 *Гороскоп*\n\nВыберите период:", parse_mode="Markdown", reply_markup=kb)
+        await message.answer("🌟 *Астрологический гороскоп*\n\nВыберите период:", parse_mode="Markdown", reply_markup=kb)
         await state.set_state(HoroscopeStates.waiting_choice)
 
     @dp.callback_query(HoroscopeStates.waiting_choice, F.data.startswith("horoscope_"))
@@ -49,16 +53,24 @@ def register_horoscope_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         birth_date = row[0]
         destiny = row[1]
         zodiac = get_zodiac_sign(birth_date)
+
         today = datetime.date.today()
         if horizon == "daily":
             target_date = today.strftime("%Y-%m-%d")
             cache_key = f"horoscope_daily_{target_date}_{user_id}"
-            prompt = f"Составь гороскоп на сегодня ({today.strftime('%d.%m.%Y')}) для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. Дай краткий прогноз (3-5 предложений)."
+            prompt = (
+                f"Составь астрологический гороскоп на сегодня ({today.strftime('%d.%m.%Y')}) для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. "
+                "Дай краткий прогноз (3-5 предложений) и в конце добавь одну короткую инструкцию: 'Что вам стоит сделать сегодня для удачи?'."
+            )
         else:
             target_date = today.strftime("%Y-%m")
             cache_key = f"horoscope_monthly_{target_date}_{user_id}"
             month_name = today.strftime('%B').lower()
-            prompt = f"Составь гороскоп на месяц {month_name} для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. Дай развёрнутый прогноз (10-12 предложений) по сферам: любовь, деньги, здоровье."
+            prompt = (
+                f"Составь астрологический гороскоп на месяц {month_name} для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. "
+                "Дай развёрнутый прогноз (10-12 предложений) по сферам: любовь, деньги, здоровье. Укажи благоприятные и неблагоприятные периоды. "
+                "Добавь совет на месяц."
+            )
 
         cached = get_cached_response(user_id, cache_key)
         if cached:
@@ -70,6 +82,9 @@ def register_horoscope_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             if "Ошибка" not in response and "Нейросеть" not in response and "таймаут" not in response:
                 save_cached_response(user_id, cache_key, response)
 
-        await callback.message.answer(f"🌟 *Гороскоп на {'сегодня' if horizon == 'daily' else 'месяц'}*\n\n{response}", parse_mode="Markdown", reply_markup=main_menu)
+        await callback.message.answer(
+            f"🌟 *Гороскоп на {'сегодня' if horizon == 'daily' else 'месяц'}*\n\n{response}",
+            parse_mode="Markdown", reply_markup=main_menu
+        )
         await state.clear()
         await callback.answer()
