@@ -42,7 +42,6 @@ MANUAL_TIMEZONES = {
 
 class UserStates(StatesGroup):
     waiting_new_name = State()
-    waiting_new_birth = State()
     waiting_phone = State()
     waiting_city = State()
     waiting_gift_username = State()
@@ -104,11 +103,6 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         update_last_active(user_id)
         await message.answer(f"Имя изменено на {new_name}.")
         await state.clear()
-
-    @dp.callback_query(F.data == "change_birth")
-    async def change_birth_start(callback: types.CallbackQuery, state: FSMContext):
-        await callback.message.answer("Введите новую дату рождения в формате ДД.ММ.ГГГГ. Внимание: дату можно изменить только через администратора. Для этого напишите @Aristocrat102.")
-        await callback.answer()
 
     @dp.callback_query(F.data == "referral_info")
     async def referral_info(callback: types.CallbackQuery):
@@ -307,15 +301,15 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         else:
             await message.answer("🌍 Город не указан. Укажите его через /setcity или в настройках профиля.")
 
-    # ---------- НОВЫЕ ФУНКЦИИ: TELEGRAM STARS, ПОДАРОЧНАЯ ПОДПИСКА, ПРОДЛЕНИЕ ----------
+    # ---------- ПЛАТЕЖИ TELEGRAM STARS ----------
     @dp.callback_query(F.data == "buy_subscription")
     async def buy_subscription(callback: types.CallbackQuery):
-        await bot.send_invoice(
+        await callback.bot.send_invoice(
             chat_id=callback.from_user.id,
             title="Подписка на бота «Аркадий Викторович»",
             description="Месяц полного доступа: матрица судьбы, безлимитные вопросы, прогнозы, гороскопы и психологические практики.",
             payload="subscription_month",
-            provider_token=PAYMENTS_TOKEN,
+            provider_token=PAYMENTS_TOKEN,  # для Stars может быть пустым
             currency="XTR",
             prices=[LabeledPrice(label="Месяц", amount=249)],
             start_parameter="subscription"
@@ -331,16 +325,14 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.message(UserStates.waiting_gift_username)
     async def gift_process(message: types.Message, state: FSMContext):
         username = message.text.strip().lstrip('@')
-        # Получаем user_id по username (требуются права на получение информации, но можно через get_chat)
         try:
-            chat = await bot.get_chat(f"@{username}")
+            chat = await message.bot.get_chat(f"@{username}")
             gifted_user_id = chat.id
         except Exception as e:
             await message.answer(f"❌ Не удалось найти пользователя @{username}. Проверьте правильность написания.")
             await state.clear()
             return
-        # Отправляем инвойс на оплату
-        await bot.send_invoice(
+        await message.bot.send_invoice(
             chat_id=message.from_user.id,
             title=f"Подарочная подписка для @{username}",
             description=f"Вы дарите месяц подписки пользователю @{username}",
@@ -366,9 +358,8 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         if payload.startswith("gift_"):
             gifted_user_id = int(payload.split("_")[1])
             add_subscription_days(gifted_user_id, 30, check_referral=False, admin_id=0)
-            await bot.send_message(gifted_user_id, "🎁 *Вам подарили месяц подписки!*\n\nТеперь вам доступны: матрица судьбы, безлимитные вопросы, прогнозы, гороскопы и психологические практики. Спасибо вашему другу!", parse_mode="Markdown")
+            await message.bot.send_message(gifted_user_id, "🎁 *Вам подарили месяц подписки!*\n\nТеперь вам доступны: матрица судьбы, безлимитные вопросы, прогнозы, гороскопы и психологические практики. Спасибо вашему другу!", parse_mode="Markdown")
             await message.answer("✅ Подарок отправлен! Спасибо за доверие.")
         else:
-            # Обычная подписка на себя
             add_subscription_days(message.from_user.id, 30, check_referral=False, admin_id=0)
             await message.answer("✅ Подписка активирована на 30 дней! Теперь вам доступны матрица судьбы, безлимитные вопросы и все премиум-функции. Спасибо, что с нами!")

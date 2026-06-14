@@ -21,10 +21,9 @@ psycho_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 НАЗАД", callback_data="psycho_back")]
 ])
 
-# Меню профиля (с кнопками покупки и подарка)
+# Меню профиля (без кнопки смены даты)
 profile_menu = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="✏️ СМЕНИТЬ ИМЯ", callback_data="change_name"),
-     InlineKeyboardButton(text="📅 СМЕНИТЬ ДАТУ", callback_data="change_birth")],
+    [InlineKeyboardButton(text="✏️ СМЕНИТЬ ИМЯ", callback_data="change_name")],
     [InlineKeyboardButton(text="🎁 БЕСПЛАТНЫЕ ДНИ", callback_data="referral_info"),
      InlineKeyboardButton(text="🏆 ДОСТИЖЕНИЯ", callback_data="achievements")],
     [InlineKeyboardButton(text="⏰ УМНЫЙ БУДИЛЬНИК", callback_data="alarm_menu")],
