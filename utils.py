@@ -11,7 +11,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import io
 
-# ---------- Основные функции (без изменений) ----------
+# ---------- Основные функции ----------
 def is_admin(user_id: int, admin_ids: list) -> bool:
     return user_id in admin_ids
 
@@ -65,12 +65,68 @@ def add_subscription_days(user_id: int, days: int, check_referral: bool = False,
         add_referral_bonus(user_id)
 
 def get_user_subscription_status(user_id: int) -> bool:
+    """Возвращает True, если подписка активна (и не истекла). Если истекла – отключает в БД."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT subscription_active FROM users WHERE user_id=?", (user_id,))
+    cursor.execute("SELECT subscription_active, subscription_end FROM users WHERE user_id=?", (user_id,))
     row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return False
+    active, end_str = row
+    if not active:
+        conn.close()
+        return False
+    if end_str:
+        try:
+            end_date = datetime.datetime.fromisoformat(end_str)
+            if end_date < datetime.datetime.now():
+                cursor.execute("UPDATE users SET subscription_active = 0 WHERE user_id = ?", (user_id,))
+                conn.commit()
+                conn.close()
+                return False
+        except:
+            pass
     conn.close()
-    return row[0] if row else False
+    return True
+
+def format_subscription_remaining(end_date_str: str) -> str:
+    """Возвращает строку: «осталось X дней» или «осталось X часов»."""
+    if not end_date_str:
+        return "не активна"
+    try:
+        end = datetime.datetime.fromisoformat(end_date_str)
+        now = datetime.datetime.now()
+        diff = end - now
+        if diff.total_seconds() <= 0:
+            return "истекла"
+        days = diff.days
+        if days >= 1:
+            return f"осталось {days} дн."
+        else:
+            hours = int(diff.total_seconds() // 3600)
+            if hours == 0:
+                return "менее часа"
+            return f"осталось {hours} ч."
+    except:
+        return "ошибка"
+
+async def check_and_expire_subscriptions():
+    """Раз в день проверяет все подписки и отключает истекшие."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, subscription_end FROM users WHERE subscription_active=1 AND subscription_end IS NOT NULL")
+    rows = cursor.fetchall()
+    now = datetime.datetime.now()
+    for user_id, end_str in rows:
+        try:
+            end_date = datetime.datetime.fromisoformat(end_str)
+            if end_date < now:
+                cursor.execute("UPDATE users SET subscription_active = 0 WHERE user_id = ?", (user_id,))
+        except:
+            pass
+    conn.commit()
+    conn.close()
 
 def generate_referral_link(user_id: int, bot_username: str = "NumerologArkadiy_bot") -> str:
     return f"https://t.me/{bot_username}?start=ref_{user_id}"
@@ -367,7 +423,7 @@ async def check_crisis(message_text: str, user_id: int, bot, admin_ids):
             return f"Друг мой, я слышу, что вам тяжело. Пожалуйста, обратитесь за профессиональной помощью: {CRISIS_HELP_LINKS.get('url', '')}. Вы не один."
     return None
 
-# ---------- ФУНКЦИИ ДЛЯ ПОГОДЫ И ЧАСОВЫХ ПОЯСОВ ----------
+# ---------- ФУНКЦИИ ДЛЯ ПОГОДЫ (Open-Meteo) И ЧАСОВЫХ ПОЯСОВ ----------
 async def get_weather_by_coords(lat: float, lon: float) -> str:
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
@@ -395,6 +451,7 @@ async def get_weather_by_coords(lat: float, lon: float) -> str:
         return "Не удалось получить прогноз погоды."
 
 async def get_timezone_by_coords(lat: float, lon: float) -> str:
+    """Получает название часового пояса по координатам через World Time API. Если не удалось – возвращает UTC+3."""
     url = f"http://worldtimeapi.org/api/timezone/{lat}/{lon}"
     try:
         async with aiohttp.ClientSession() as session:
@@ -405,7 +462,7 @@ async def get_timezone_by_coords(lat: float, lon: float) -> str:
                 else:
                     return "Europe/Moscow"
     except Exception:
-        return "Europe/Moscow"
+        return "Europe/Moscow"  # fallback
 
 async def get_city_coords(city_name: str) -> tuple:
     url = "https://geocoding-api.open-meteo.com/v1/search"
@@ -513,115 +570,3 @@ def generate_pdf_matrix(user_id: int, name: str, destiny: int, matrix_text: str)
     except Exception as e:
         print(f"Ошибка генерации PDF: {e}")
         return None
-# Вставьте этот код в конец файла utils.py (или замените весь файл, но я даю только добавления)
-# Если вы заменяете весь файл – используйте полную версию из предыдущих сообщений, но я даю только изменения.
-
-import datetime
-
-# ---------- ФУНКЦИИ ДЛЯ ПОДПИСКИ ----------
-def format_subscription_remaining(end_date_str: str) -> str:
-    """Возвращает строку: «осталось X дней» или «осталось X часов»."""
-    if not end_date_str:
-        return "не активна"
-    try:
-        end = datetime.datetime.fromisoformat(end_date_str)
-        now = datetime.datetime.now()
-        diff = end - now
-        if diff.total_seconds() <= 0:
-            return "истекла"
-        days = diff.days
-        if days >= 1:
-            return f"осталось {days} дн."
-        else:
-            hours = int(diff.total_seconds() // 3600)
-            if hours == 0:
-                return "менее часа"
-            return f"осталось {hours} ч."
-    except:
-        return "ошибка"
-
-def get_user_subscription_status(user_id: int) -> bool:
-    """Возвращает True, если подписка активна (и не истекла). Если истекла – отключает в БД."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT subscription_active, subscription_end FROM users WHERE user_id=?", (user_id,))
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        return False
-    active, end_str = row
-    if not active:
-        conn.close()
-        return False
-    if end_str:
-        try:
-            end_date = datetime.datetime.fromisoformat(end_str)
-            if end_date < datetime.datetime.now():
-                cursor.execute("UPDATE users SET subscription_active = 0 WHERE user_id = ?", (user_id,))
-                conn.commit()
-                conn.close()
-                return False
-        except:
-            pass
-    conn.close()
-    return True
-
-# ---------- ДОБАВЛЯЕМ ФУНКЦИЮ ДЛЯ ПРОВЕРКИ ВСЕХ ПОДПИСОК (ЗАПУСКАЕТСЯ ИЗ ПЛАНИРОВЩИКА) ----------
-async def check_and_expire_subscriptions():
-    """Раз в день проверяет все подписки и отключает истекшие."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, subscription_end FROM users WHERE subscription_active=1 AND subscription_end IS NOT NULL")
-    rows = cursor.fetchall()
-    now = datetime.datetime.now()
-    for user_id, end_str in rows:
-        try:
-            end_date = datetime.datetime.fromisoformat(end_str)
-            if end_date < now:
-                cursor.execute("UPDATE users SET subscription_active = 0 WHERE user_id = ?", (user_id,))
-        except:
-            pass
-    conn.commit()
-    conn.close()
-# Вставьте в конец файла или замените, если нужно
-# Я даю только добавления, но для простоты я выдам полный файл чуть позже, если нужно.
-# Пока добавьте эти функции в конец существующего utils.py:
-
-import datetime
-
-def format_subscription_remaining(end_date_str: str) -> str:
-    if not end_date_str:
-        return "не активна"
-    try:
-        end = datetime.datetime.fromisoformat(end_date_str)
-        now = datetime.datetime.now()
-        diff = end - now
-        if diff.total_seconds() <= 0:
-            return "истекла"
-        days = diff.days
-        if days >= 1:
-            return f"осталось {days} дн."
-        else:
-            hours = int(diff.total_seconds() // 3600)
-            if hours == 0:
-                return "менее часа"
-            return f"осталось {hours} ч."
-    except:
-        return "ошибка"
-
-async def check_and_expire_subscriptions():
-    from database import get_connection
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, subscription_end FROM users WHERE subscription_active=1 AND subscription_end IS NOT NULL")
-    rows = cursor.fetchall()
-    now = datetime.datetime.now()
-    for user_id, end_str in rows:
-        try:
-            end_date = datetime.datetime.fromisoformat(end_str)
-            if end_date < now:
-                cursor.execute("UPDATE users SET subscription_active = 0 WHERE user_id = ?", (user_id,))
-        except:
-            pass
-    conn.commit()
-    conn.close()

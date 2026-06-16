@@ -8,6 +8,7 @@ from handlers.common import register_common_handlers
 from handlers.horoscope import register_horoscope_handlers
 from handlers.astro import register_astro_handlers
 from handlers.groups import register_groups_handlers
+from handlers.help import register_help_handlers
 
 def register_handlers(dp, bot, admin_ids, bot_version):
     register_start_handlers(dp, bot, admin_ids, bot_version)
@@ -20,3 +21,4 @@ def register_handlers(dp, bot, admin_ids, bot_version):
     register_horoscope_handlers(dp, bot, admin_ids)
     register_astro_handlers(dp, bot, admin_ids)
     register_groups_handlers(dp, bot, admin_ids)
+    register_help_handlers(dp, bot, admin_ids)
