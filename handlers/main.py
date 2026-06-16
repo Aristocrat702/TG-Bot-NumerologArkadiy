@@ -5,7 +5,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from keyboards import main_menu, share_button, quick_topics_menu, menu_button
+from keyboards import main_menu, quick_topics_menu, menu_button
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
 from utils import (
@@ -58,7 +58,6 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             save_cached_response(user_id, cache_key, response)
         pdf_share_menu = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📄 Скачать PDF", callback_data="download_pdf")],
-            [InlineKeyboardButton(text="📤 Поделиться результатом", callback_data="share_result")],
             [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
         ])
         await bot.send_message(user_id, f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=pdf_share_menu)
@@ -88,7 +87,6 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         if cached:
             pdf_share_menu = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="📄 Скачать PDF", callback_data="download_pdf")],
-                [InlineKeyboardButton(text="📤 Поделиться результатом", callback_data="share_result")],
                 [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
             ])
             await message.answer(f"🔮 *Матрица судьбы*\n\n{cached}", parse_mode="Markdown", reply_markup=pdf_share_menu)
@@ -156,7 +154,7 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             response = await get_yandex_gpt_response(prompt, user_id)
             await status_msg.delete()
             last_answer[user_id] = response
-            await message.answer(f"❤️ *Совместимость*\n\n{response}", parse_mode="Markdown", reply_markup=share_button)
+            await message.answer(f"❤️ *Совместимость*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
             await state.clear()
         except Exception:
             await message.answer("Неверный формат даты. Введите ДД.ММ.ГГГГ", reply_markup=menu_button)
@@ -186,7 +184,7 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         response = await get_yandex_gpt_response(prompt, user_id)
         await status_msg.delete()
         last_answer[user_id] = response
-        await message.answer(f"🎁 *Карта дня*\n\n{response}{weather_str}", parse_mode="Markdown", reply_markup=share_button)
+        await message.answer(f"🎁 *Карта дня*\n\n{response}{weather_str}", parse_mode="Markdown", reply_markup=menu_button)
 
     @dp.message(F.text == "💬 ЗАДАТЬ ВОПРОС")
     async def ask_question(message: types.Message, state: FSMContext):
@@ -223,7 +221,7 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await status_msg.delete()
             last_answer[user_id] = response
             add_xp(user_id, "ask_question")
-            await message.answer(response, parse_mode=None, reply_markup=share_button)
+            await message.answer(response, parse_mode=None, reply_markup=menu_button)
             await state.clear()
             return
 

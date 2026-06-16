@@ -55,7 +55,6 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         user_id = message.from_user.id
         conn = get_connection()
         cursor = conn.cursor()
-        # Запрашиваем все колонки, включая новые (они будут добавлены в БД)
         cursor.execute("SELECT name, birth_date, destiny_number, subscription_active, subscription_end, phone, city, timezone, birth_time, birth_place FROM users WHERE user_id=?", (user_id,))
         row = cursor.fetchone()
         conn.close()
@@ -424,6 +423,42 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             "Подробнее – в профиле бота."
         )
         await callback.message.answer(text, parse_mode="Markdown")
+        await callback.answer()
+
+    # ---------- ПОМОЩЬ ----------
+    @dp.callback_query(F.data == "help")
+    async def show_help(callback: types.CallbackQuery):
+        text = (
+            "❓ *Помощь по боту «Аркадий Викторович»*\n\n"
+            "🌟 *Основные команды:*\n"
+            "• /start – запустить бота\n"
+            "• /menu – главное меню\n"
+            "• /mynumber – узнать ваше число судьбы\n"
+            "• /setcity – указать ваш город\n"
+            "• /setbirth – указать время и место рождения\n"
+            "• /cancel – отменить текущее действие\n\n"
+            "🧠 *Разделы:*\n"
+            "• 🔮 МОЯ МАТРИЦА – полная матрица судьбы (по подписке)\n"
+            "• 🔢 МОЁ ЧИСЛО – характеристика числа судьбы\n"
+            "• ❤️ СОВМЕСТИМОСТЬ – совместимость с партнёром\n"
+            "• 🎁 КАРТА ДНЯ – прогноз на день\n"
+            "• 💬 ЗАДАТЬ ВОПРОС – вопросы по нумерологии/психологии\n"
+            "• 🧠 ПСИХОЛОГИЯ – тесты, дневник настроения\n"
+            "• 🌟 АСТРОЛОГИЯ – натальная карта, транзиты, соляр\n"
+            "• 👤 МОЙ ПРОФИЛЬ – управление подпиской, рефералы, настройки\n\n"
+            "💎 *Подписка (249 ₽/мес):*\n"
+            "• Полная матрица судьбы\n"
+            "• Безлимитные вопросы\n"
+            "• Ежедневная карта дня\n"
+            "• Гороскоп на месяц\n"
+            "• Еженедельные мотивирующие фразы\n\n"
+            "📌 *Для групп:*\n"
+            "Добавьте бота в чат и активируйте командой /start_bot.\n"
+            "Настройте тип контента: /set_chat_type daily_motivation (мотивация), horoscope (гороскоп), advice (совет).\n\n"
+            "👥 *Поддержка:* @Aristocrat102\n"
+            "Версия бота: 2.1.0"
+        )
+        await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
         await callback.answer()
 
     @dp.pre_checkout_query()

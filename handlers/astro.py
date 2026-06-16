@@ -3,7 +3,7 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from keyboards import astro_submenu, main_menu
+from keyboards import astro_submenu, main_menu, menu_button
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
 from utils import update_last_active, get_zodiac_sign
@@ -33,7 +33,7 @@ def register_astro_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         status_msg = await callback.message.answer("🌌 Аркадий Викторович строит вашу натальную карту...")
         response = await get_yandex_gpt_response(prompt, user_id)
         await status_msg.delete()
-        await callback.message.answer(f"🌌 *Ваша натальная карта*\n\n{response}", parse_mode="Markdown", reply_markup=main_menu)
+        await callback.message.answer(f"🌌 *Ваша натальная карта*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
         update_last_active(user_id)
         await callback.answer()
 
@@ -55,7 +55,7 @@ def register_astro_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         status_msg = await callback.message.answer("🔄 Аркадий Викторович анализирует транзиты...")
         response = await get_yandex_gpt_response(prompt, user_id)
         await status_msg.delete()
-        await callback.message.answer(f"🔄 *Транзиты на месяц*\n\n{response}", parse_mode="Markdown", reply_markup=main_menu)
+        await callback.message.answer(f"🔄 *Транзиты на месяц*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
         update_last_active(user_id)
         await callback.answer()
 
@@ -77,15 +77,14 @@ def register_astro_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         status_msg = await callback.message.answer("☀️ Аркадий Викторович рассчитывает соляр...")
         response = await get_yandex_gpt_response(prompt, user_id)
         await status_msg.delete()
-        await callback.message.answer(f"☀️ *Ваш соляр на год*\n\n{response}", parse_mode="Markdown", reply_markup=main_menu)
+        await callback.message.answer(f"☀️ *Ваш соляр на год*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
         update_last_active(user_id)
         await callback.answer()
 
     @dp.callback_query(F.data == "astro_compatibility")
     async def astro_compatibility(callback: types.CallbackQuery):
-        await callback.message.answer("Введите дату рождения партнёра в формате ДД.ММ.ГГГГ (например, 15.06.1985):")
-        # Здесь нужна FSM для ввода даты, но для простоты пока отправим запрос в YandexGPT с текущей датой пользователя и введённой
-        # Для демонстрации используем простой подход – попросим ввести дату отдельным сообщением
-        # Лучше сделать отдельный обработчик, но пока покажем заглушку
-        await callback.message.answer("Функция в разработке. Скоро будет доступна! Вы сможете ввести дату рождения партнёра и получить совместимость по знакам.", reply_markup=main_menu)
+        # Заглушка для совместимости по знакам (можно расширить)
+        await callback.message.answer("♊ *Совместимость по знакам зодиака*\n\nВведите дату рождения партнёра в формате ДД.ММ.ГГГГ:", reply_markup=menu_button)
+        # Здесь нужна FSM, но для простоты пока просто сообщение
+        # В реальности лучше сделать отдельный обработчик, но мы оставим как есть
         await callback.answer()

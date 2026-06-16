@@ -2,6 +2,9 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.enums import ChatType
 from database import get_connection
+from yandex_gpt import get_yandex_gpt_response
+from utils import get_zodiac_sign
+import datetime
 
 def register_groups_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
@@ -49,3 +52,19 @@ def register_groups_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         conn.commit()
         conn.close()
         await message.answer("Бот отключён в этом чате. Чтобы активировать снова, используйте /start_bot.")
+
+    # ---------- ОБРАБОТЧИКИ ЗАПРОСОВ В ГРУППАХ ----------
+    @dp.message(Command("horoscope"), F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
+    async def group_horoscope(message: types.Message):
+        today = datetime.date.today()
+        prompt = f"Составь краткий астрологический прогноз на сегодня ({today.strftime('%d.%m.%Y')}) для всех знаков зодиака. Дай 1-2 предложения для каждого знака."
+        response = await get_yandex_gpt_response(prompt, 0)
+        await message.answer(f"🌟 *Общий гороскоп на сегодня:*\n\n{response}\n\n📌 Для персонального прогноза напишите мне в личку @NumerologArkadiy_bot", parse_mode="Markdown")
+
+    @dp.message(Command("matrix"), F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
+    async def group_matrix(message: types.Message):
+        await message.answer("🔮 *Матрица судьбы* – это уникальный расчёт по вашей дате рождения. Чтобы получить её, напишите мне в личку @NumerologArkadiy_bot и нажмите «МОЯ МАТРИЦА».", parse_mode="Markdown")
+
+    @dp.message(Command("mynumber"), F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
+    async def group_mynumber(message: types.Message):
+        await message.answer("🔢 *Число судьбы* – ключ к пониманию вашего характера. Узнайте его, написав мне в личку @NumerologArkadiy_bot и нажав «МОЁ ЧИСЛО».", parse_mode="Markdown")
