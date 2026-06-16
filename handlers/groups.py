@@ -1,6 +1,6 @@
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import ChatType
+from aiogram.enums import ChatType
 from database import get_connection
 
 def register_groups_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
@@ -8,7 +8,6 @@ def register_groups_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.message(Command("start_bot"), F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
     async def start_bot_in_group(message: types.Message):
         chat_id = message.chat.id
-        # Проверяем, есть ли чат в БД
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT chat_id FROM group_chats WHERE chat_id=?", (chat_id,))
