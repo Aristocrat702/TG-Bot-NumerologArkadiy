@@ -32,7 +32,7 @@ astro_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# Меню профиля (добавлена кнопка "Помощь")
+# Меню профиля
 profile_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="✏️ СМЕНИТЬ ИМЯ", callback_data="change_name")],
     [InlineKeyboardButton(text="🎁 БЕСПЛАТНЫЕ ДНИ", callback_data="referral_info"),
@@ -93,5 +93,6 @@ async def set_main_menu(bot: Bot):
         BotCommand(command="cancel", description="Отменить текущее действие"),
         BotCommand(command="mynumber", description="Показать ваше число судьбы"),
         BotCommand(command="setcity", description="Указать ваш город"),
-        BotCommand(command="setbirth", description="Указать время и место рождения")
+        BotCommand(command="setbirth", description="Указать время и место рождения"),
+        BotCommand(command="help", description="Помощь по боту")
     ])

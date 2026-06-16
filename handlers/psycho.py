@@ -68,12 +68,11 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     async def psychology_menu(message: types.Message):
         await message.answer("🧠 *Психологический раздел*\n\nВыберите, что вас интересует:", parse_mode="Markdown", reply_markup=psycho_submenu)
 
-    # ---------- ПСИХОЛОГИЧЕСКИЙ ТЕСТ (вертикальные кнопки) ----------
+    # ---------- ПСИХОЛОГИЧЕСКИЙ ТЕСТ ----------
     @dp.callback_query(F.data == "psycho_test")
     async def start_psycho_test(callback: types.CallbackQuery, state: FSMContext):
         await state.update_data(psycho_step=0, psycho_answers=[])
         q = PSYCHO_QUESTIONS[0]
-        # Вертикальное расположение кнопок (каждая на новой строке)
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text=opt, callback_data=f"psycho_ans_{i}")] for i, opt in enumerate(q["options"])
         ])
@@ -120,7 +119,7 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await state.clear()
         await callback.answer()
 
-    # ---------- ТЕСТ «СТИЛЬ И УДАЧА» (вертикальные кнопки) ----------
+    # ---------- ТЕСТ «СТИЛЬ И УДАЧА» ----------
     @dp.callback_query(F.data == "style_test")
     async def start_style_test(callback: types.CallbackQuery, state: FSMContext):
         await state.update_data(style_step=0, style_answers=[])
@@ -157,37 +156,7 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             destiny = row[0] if row else "неизвестно"
             name = row[1] if row else "пользователь"
             birth_date = row[2] if row else ""
-            # Определяем знак зодиака (упрощённо)
-            zodiac = ""
-            if birth_date:
-                try:
-                    day, month, _ = map(int, birth_date.split('.'))
-                    if (month == 3 and day >= 21) or (month == 4 and day <= 19):
-                        zodiac = "Овен"
-                    elif (month == 4 and day >= 20) or (month == 5 and day <= 20):
-                        zodiac = "Телец"
-                    elif (month == 5 and day >= 21) or (month == 6 and day <= 20):
-                        zodiac = "Близнецы"
-                    elif (month == 6 and day >= 21) or (month == 7 and day <= 22):
-                        zodiac = "Рак"
-                    elif (month == 7 and day >= 23) or (month == 8 and day <= 22):
-                        zodiac = "Лев"
-                    elif (month == 8 and day >= 23) or (month == 9 and day <= 22):
-                        zodiac = "Дева"
-                    elif (month == 9 and day >= 23) or (month == 10 and day <= 22):
-                        zodiac = "Весы"
-                    elif (month == 10 and day >= 23) or (month == 11 and day <= 21):
-                        zodiac = "Скорпион"
-                    elif (month == 11 and day >= 22) or (month == 12 and day <= 21):
-                        zodiac = "Стрелец"
-                    elif (month == 12 and day >= 22) or (month == 1 and day <= 19):
-                        zodiac = "Козерог"
-                    elif (month == 1 and day >= 20) or (month == 2 and day <= 18):
-                        zodiac = "Водолей"
-                    elif (month == 2 and day >= 19) or (month == 3 and day <= 20):
-                        zodiac = "Рыбы"
-                except:
-                    zodiac = "не определён"
+            zodiac = get_zodiac_sign(birth_date) if birth_date else "не определён"
             prompt = (
                 f"Пользователь {name} с числом судьбы {destiny} и знаком зодиака {zodiac} "
                 f"ответил на вопросы о стиле: {answers}. "
@@ -199,6 +168,7 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             status_msg = await callback.message.answer("🔮 Аркадий анализирует ваш стиль...")
             response = await get_yandex_gpt_response(prompt, user_id)
             await status_msg.delete()
+            # Сохраняем результат в БД (в ту же таблицу psycho_results)
             save_psycho_result(user_id, f"[СТИЛЬ] {response}")
             await callback.message.answer(f"🎨 *Ваш персональный стиль*\n\n{response}", parse_mode="Markdown", reply_markup=main_menu)
             await state.clear()

@@ -16,6 +16,7 @@ from utils import (
 )
 from settings import LEVELS, PAYMENTS_TOKEN
 
+# Ручная корректировка часовых поясов
 MANUAL_TIMEZONES = {
     "стерлитамак": "Asia/Yekaterinburg",
     "екатеринбург": "Asia/Yekaterinburg",
@@ -47,6 +48,8 @@ class UserStates(StatesGroup):
     waiting_gift_username = State()
     waiting_birth_time = State()
     waiting_birth_place = State()
+    waiting_new_phone = State()
+    waiting_new_city = State()
 
 def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
@@ -67,6 +70,7 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         sub_active = row[3]
         sub_end_raw = row[4] if row[4] else None
         remaining_str = format_subscription_remaining(sub_end_raw) if sub_end_raw else "—"
+        end_date_str = sub_end_raw[:10] if sub_end_raw else "—"
         phone = row[5] if row[5] else "—"
         city = row[6] if row[6] else "—"
         birth_time = row[8] if row[8] else "—"
@@ -82,6 +86,7 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                 f"│ 🔢 Число: {destiny}\n"
                 f"│ 💳 Подписка: {'Активна' if sub_active else 'Неактивна'}\n"
                 f"│ ⏳ {remaining_str}\n"
+                f"│ 📅 До: {end_date_str}\n"
                 f"│ 🎁 Бесплатных вопросов: {remaining_q}/5\n"
                 f"│ 🏆 Уровень: {level} «{level_name}»\n"
                 f"│ 📞 Телефон: {phone}\n"
@@ -146,14 +151,14 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             "⚙️ *Настройки*\n\n"
             "• Отписаться от ежедневной рассылки – /unsubscribe_daily\n"
             "• Подписаться на рассылку – /subscribe_daily\n"
-            "• Добавить номер телефона (для восстановления подписки)\n"
-            "• Указать город (для прогноза погоды) – /setcity\n"
+            "• Добавить или заменить номер телефона (для восстановления подписки)\n"
+            "• Добавить или заменить город (для прогноза погоды)\n"
             "• Указать время и место рождения (для астрологии) – /setbirth\n\n"
-            "Нажмите кнопку ниже, чтобы добавить номер телефона или указать город.",
+            "Нажмите кнопку ниже, чтобы добавить или заменить данные.",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="📱 Добавить номер телефона", callback_data="add_phone")],
-                [InlineKeyboardButton(text="🌍 Указать город", callback_data="add_city")],
+                [InlineKeyboardButton(text="📱 Добавить/заменить телефон", callback_data="add_phone")],
+                [InlineKeyboardButton(text="🌍 Добавить/заменить город", callback_data="add_city")],
                 [InlineKeyboardButton(text="🕒 Указать время рождения", callback_data="add_birth_time")],
                 [InlineKeyboardButton(text="📍 Указать место рождения", callback_data="add_birth_place")],
                 [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
@@ -165,7 +170,7 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     async def add_phone_start(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.answer(
             "Отправьте ваш номер телефона, нажав на кнопку ниже. Он нужен для восстановления подписки и важных уведомлений. "
-            "Номер не передаётся третьим лицам.",
+            "Если номер уже есть, он будет заменён.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="📱 Отправить номер", callback_data="request_phone")],
                 [InlineKeyboardButton(text="🔙 Назад", callback_data="settings")]
@@ -194,13 +199,13 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         cursor.execute("UPDATE users SET phone = ? WHERE user_id = ?", (phone, user_id))
         conn.commit()
         conn.close()
-        await message.answer("Спасибо! Номер телефона сохранён.", reply_markup=main_menu)
+        await message.answer("Спасибо! Номер телефона сохранён (или обновлён).", reply_markup=main_menu)
         await state.clear()
 
     @dp.callback_query(F.data == "add_city")
     async def add_city_start(callback: types.CallbackQuery, state: FSMContext):
         await callback.message.answer(
-            "Напишите название вашего города (например, Москва или Санкт-Петербург). Это нужно для точного прогноза погоды в карте дня и будильнике.",
+            "Напишите название вашего города (например, Москва или Санкт-Петербург). Это нужно для точного прогноза погоды. Если город уже указан, он будет заменён.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="🔙 Назад", callback_data="settings")]
             ])
@@ -425,7 +430,6 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await callback.message.answer(text, parse_mode="Markdown")
         await callback.answer()
 
-    # ---------- ПОМОЩЬ ----------
     @dp.callback_query(F.data == "help")
     async def show_help(callback: types.CallbackQuery):
         text = (
@@ -434,7 +438,7 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             "• /start – запустить бота\n"
             "• /menu – главное меню\n"
             "• /mynumber – узнать ваше число судьбы\n"
-            "• /setcity – указать ваш город\n"
+            "• /setcity – указать город\n"
             "• /setbirth – указать время и место рождения\n"
             "• /cancel – отменить текущее действие\n\n"
             "🧠 *Разделы:*\n"

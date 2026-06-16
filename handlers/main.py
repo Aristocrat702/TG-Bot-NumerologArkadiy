@@ -67,7 +67,11 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     async def matrix_prompt(message: types.Message):
         user_id = message.from_user.id
         if not get_user_subscription_status(user_id):
-            await message.answer("Полная матрица судьбы доступна только по подписке. Оформите подписку в профиле.", reply_markup=menu_button)
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="⭐ Купить подписку", callback_data="buy_subscription")],
+                [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
+            ])
+            await message.answer("Полная матрица судьбы доступна только по подписке. Оформите подписку в профиле.", reply_markup=kb)
             return
         if user_id in pending_matrix:
             await message.answer("Матрица уже формируется, подождите немного. Как только будет готова – я пришлю.")
