@@ -1,7 +1,7 @@
 ﻿from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram import Bot
 
-# Главное меню
+# Главное меню (без изменений)
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🔮 МОЯ МАТРИЦА"), KeyboardButton(text="🔢 МОЁ ЧИСЛО")],
@@ -32,23 +32,22 @@ astro_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# Меню профиля
+# Меню профиля (удалена кнопка «ОТМЕНИТЬ ПОДПИСКУ», переименованы кнопки)
 profile_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="✏️ СМЕНИТЬ ИМЯ", callback_data="change_name")],
     [InlineKeyboardButton(text="🎁 БЕСПЛАТНЫЕ ДНИ", callback_data="referral_info"),
      InlineKeyboardButton(text="🏆 ДОСТИЖЕНИЯ", callback_data="achievements")],
     [InlineKeyboardButton(text="⭐ КУПИТЬ ПОДПИСКУ", callback_data="buy_subscription"),
-     InlineKeyboardButton(text="🎁 ПОДАРИТЬ ПОДПИСКУ", callback_data="gift_subscription")],
-    [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings"),
-     InlineKeyboardButton(text="❌ ОТМЕНИТЬ ПОДПИСКУ", callback_data="cancel_sub")],
+     InlineKeyboardButton(text="🎁 ПОДАРИТЬ", callback_data="gift_subscription")],
+    [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings")],
     [InlineKeyboardButton(text="📜 ИСТОРИЯ ЗАПРОСОВ", callback_data="history")],
     [InlineKeyboardButton(text="🎟️ ВВЕСТИ ПРОМОКОД", callback_data="enter_promo")],
-    [InlineKeyboardButton(text="👥 ДЛЯ ГРУПП", callback_data="add_to_group")],
+    [InlineKeyboardButton(text="👥 ПРИГЛАСИТЬ В ГРУППУ", callback_data="add_to_group")],
     [InlineKeyboardButton(text="❓ ПОМОЩЬ", callback_data="help")],
     [InlineKeyboardButton(text="✖️ ЗАКРЫТЬ", callback_data="close")]
 ])
 
-# Меню быстрых тем
+# Быстрые темы
 quick_topics_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="💰 Деньги", callback_data="quick_topic_money"),
      InlineKeyboardButton(text="❤️ Любовь", callback_data="quick_topic_love")],
@@ -71,7 +70,7 @@ challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# Админ-меню (с кнопкой «СПИСОК ГРУПП»)
+# Админ-меню (с кнопкой управления группами)
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📊 СТАТИСТИКА"), KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ")],
@@ -80,20 +79,15 @@ admin_menu = ReplyKeyboardMarkup(
         [KeyboardButton(text="📤 ЭКСПОРТ БАЗЫ"), KeyboardButton(text="🚫 БЛЭК-ЛИСТ")],
         [KeyboardButton(text="💬 ОТВЕТИТЬ"), KeyboardButton(text="💰 ЦЕНА ПОДПИСКИ")],
         [KeyboardButton(text="🏆 ЛИДЕРБОРД"), KeyboardButton(text="📋 ЛОГИ")],
-        [KeyboardButton(text="👤 ИНФО ПОЛЬЗОВАТЕЛЯ"), KeyboardButton(text="👥 СПИСОК ГРУПП")],
+        [KeyboardButton(text="👤 ИНФО ПОЛЬЗОВАТЕЛЯ"), KeyboardButton(text="👥 УПРАВЛЕНИЕ ГРУППАМИ")],
         [KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
     ],
     resize_keyboard=True
 )
 
 async def set_main_menu(bot: Bot):
+    # Убираем все команды из меню, кроме /start (и /admin скрыто)
     await bot.set_my_commands([
         BotCommand(command="start", description="Запустить бота"),
-        BotCommand(command="admin", description="Админ-панель (только для админа)"),
-        BotCommand(command="menu", description="Показать главное меню"),
-        BotCommand(command="cancel", description="Отменить текущее действие"),
-        BotCommand(command="mynumber", description="Показать ваше число судьбы"),
-        BotCommand(command="setcity", description="Указать ваш город"),
-        BotCommand(command="setbirth", description="Указать время и место рождения"),
-        BotCommand(command="help", description="Помощь по боту")
+        # /admin не показываем, доступ только по прямому вводу
     ])

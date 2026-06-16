@@ -42,7 +42,7 @@ dp = Dispatcher(storage=storage)
 
 async def on_startup():
     init_db()
-    await set_main_menu(bot)
+    await set_main_menu(bot)  # устанавливаем только /start
     register_handlers(dp, bot, ADMIN_IDS, BOT_VERSION)
     register_admin_handlers(dp, bot, ADMIN_IDS)
     start_scheduler(bot, ADMIN_IDS[0] if ADMIN_IDS else None, BOT_VERSION)

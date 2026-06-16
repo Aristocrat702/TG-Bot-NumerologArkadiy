@@ -30,7 +30,9 @@ def init_db():
             xp INTEGER DEFAULT 0,
             level INTEGER DEFAULT 1,
             city TEXT,
-            timezone TEXT
+            timezone TEXT,
+            birth_time TEXT,
+            birth_place TEXT
         )
     ''')
     cursor.execute('''
@@ -130,16 +132,26 @@ def init_db():
         )
     ''')
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS alarms (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            alarm_time TEXT,
-            message TEXT,
-            is_active BOOLEAN DEFAULT 1,
+        CREATE TABLE IF NOT EXISTS group_chats (
+            chat_id INTEGER PRIMARY KEY,
+            type TEXT DEFAULT 'thoughts',
+            frequency INTEGER DEFAULT 2,
+            is_active BOOLEAN DEFAULT 0,
             created_at TEXT
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS group_sent_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id INTEGER,
+            sent_at TEXT,
+            content_type TEXT,
+            message_hash TEXT,
+            message_text TEXT
         )
     ''')
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('system_prompt', 'Вы — Аркадий Викторович...')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('subscription_price', '249')")
+    cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('global_frequency', '2')")
     conn.commit()
     conn.close()

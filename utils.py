@@ -5,13 +5,16 @@ import time
 import asyncio
 import aiohttp
 import pytz
+import hashlib
+import random
 from database import get_connection
 from settings import LEVELS, XP_REWARDS, CRISIS_HELP_LINKS, LOGS_DIR
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 import io
+from yandex_gpt import get_yandex_gpt_response
 
-# ---------- Основные функции ----------
+# ---------- ОСНОВНЫЕ ФУНКЦИИ (БЫЛИ РАНЕЕ) ----------
 def is_admin(user_id: int, admin_ids: list) -> bool:
     return user_id in admin_ids
 
@@ -65,7 +68,6 @@ def add_subscription_days(user_id: int, days: int, check_referral: bool = False,
         add_referral_bonus(user_id)
 
 def get_user_subscription_status(user_id: int) -> bool:
-    """Возвращает True, если подписка активна (и не истекла). Если истекла – отключает в БД."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT subscription_active, subscription_end FROM users WHERE user_id=?", (user_id,))
@@ -89,44 +91,6 @@ def get_user_subscription_status(user_id: int) -> bool:
             pass
     conn.close()
     return True
-
-def format_subscription_remaining(end_date_str: str) -> str:
-    """Возвращает строку: «осталось X дней» или «осталось X часов»."""
-    if not end_date_str:
-        return "не активна"
-    try:
-        end = datetime.datetime.fromisoformat(end_date_str)
-        now = datetime.datetime.now()
-        diff = end - now
-        if diff.total_seconds() <= 0:
-            return "истекла"
-        days = diff.days
-        if days >= 1:
-            return f"осталось {days} дн."
-        else:
-            hours = int(diff.total_seconds() // 3600)
-            if hours == 0:
-                return "менее часа"
-            return f"осталось {hours} ч."
-    except:
-        return "ошибка"
-
-async def check_and_expire_subscriptions():
-    """Раз в день проверяет все подписки и отключает истекшие."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, subscription_end FROM users WHERE subscription_active=1 AND subscription_end IS NOT NULL")
-    rows = cursor.fetchall()
-    now = datetime.datetime.now()
-    for user_id, end_str in rows:
-        try:
-            end_date = datetime.datetime.fromisoformat(end_str)
-            if end_date < now:
-                cursor.execute("UPDATE users SET subscription_active = 0 WHERE user_id = ?", (user_id,))
-        except:
-            pass
-    conn.commit()
-    conn.close()
 
 def generate_referral_link(user_id: int, bot_username: str = "NumerologArkadiy_bot") -> str:
     return f"https://t.me/{bot_username}?start=ref_{user_id}"
@@ -423,7 +387,7 @@ async def check_crisis(message_text: str, user_id: int, bot, admin_ids):
             return f"Друг мой, я слышу, что вам тяжело. Пожалуйста, обратитесь за профессиональной помощью: {CRISIS_HELP_LINKS.get('url', '')}. Вы не один."
     return None
 
-# ---------- ФУНКЦИИ ДЛЯ ПОГОДЫ (Open-Meteo) И ЧАСОВЫХ ПОЯСОВ ----------
+# ---------- ФУНКЦИИ ДЛЯ ПОГОДЫ И ЧАСОВЫХ ПОЯСОВ ----------
 async def get_weather_by_coords(lat: float, lon: float) -> str:
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
@@ -451,7 +415,6 @@ async def get_weather_by_coords(lat: float, lon: float) -> str:
         return "Не удалось получить прогноз погоды."
 
 async def get_timezone_by_coords(lat: float, lon: float) -> str:
-    """Получает название часового пояса по координатам через World Time API. Если не удалось – возвращает UTC+3."""
     url = f"http://worldtimeapi.org/api/timezone/{lat}/{lon}"
     try:
         async with aiohttp.ClientSession() as session:
@@ -462,7 +425,7 @@ async def get_timezone_by_coords(lat: float, lon: float) -> str:
                 else:
                     return "Europe/Moscow"
     except Exception:
-        return "Europe/Moscow"  # fallback
+        return "Europe/Moscow"
 
 async def get_city_coords(city_name: str) -> tuple:
     url = "https://geocoding-api.open-meteo.com/v1/search"
@@ -509,7 +472,43 @@ def translate_timezone(tz_name: str) -> str:
     }
     return tz_map.get(tz_name, tz_name)
 
-# ---------- ФУНКЦИЯ ДЛЯ ОПРЕДЕЛЕНИЯ ЗНАКА ЗОДИАКА ----------
+# ---------- ФУНКЦИИ ДЛЯ ГРУПП (НОВЫЕ) ----------
+def format_subscription_remaining(end_date_str: str) -> str:
+    if not end_date_str:
+        return "не активна"
+    try:
+        end = datetime.datetime.fromisoformat(end_date_str)
+        now = datetime.datetime.now()
+        diff = end - now
+        if diff.total_seconds() <= 0:
+            return "истекла"
+        days = diff.days
+        if days >= 1:
+            return f"осталось {days} дн."
+        else:
+            hours = int(diff.total_seconds() // 3600)
+            if hours == 0:
+                return "менее часа"
+            return f"осталось {hours} ч."
+    except:
+        return "ошибка"
+
+async def check_and_expire_subscriptions():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, subscription_end FROM users WHERE subscription_active=1 AND subscription_end IS NOT NULL")
+    rows = cursor.fetchall()
+    now = datetime.datetime.now()
+    for user_id, end_str in rows:
+        try:
+            end_date = datetime.datetime.fromisoformat(end_str)
+            if end_date < now:
+                cursor.execute("UPDATE users SET subscription_active = 0 WHERE user_id = ?", (user_id,))
+        except:
+            pass
+    conn.commit()
+    conn.close()
+
 def get_zodiac_sign(birth_date: str) -> str:
     try:
         day, month, _ = map(int, birth_date.split('.'))
@@ -540,7 +539,76 @@ def get_zodiac_sign(birth_date: str) -> str:
     except:
         return "не определён"
 
-# ---------- Генерация PDF-отчёта ----------
+# ---------- ГЕНЕРАЦИЯ КОНТЕНТА ДЛЯ ГРУПП ----------
+TOPICS = [
+    ("psychology", 35),
+    ("relationships", 25),
+    ("support", 25),
+    ("self_knowledge", 10),
+    ("numerology", 3),
+    ("astrology", 2),
+]
+
+NIGHT_MESSAGES = [
+    "Спокойной ночи, друзья! Пусть сны будут ясными, а завтрашний день – добрым.",
+    "Уходя, оставляю вам тишину. Отдыхайте. Завтра будет новый день.",
+    "Звёзды уже зажглись. Я тоже гашу свет. До встречи завтра.",
+    "Ночь – время для восстановления. Спите спокойно."
+]
+
+MORNING_MESSAGES = [
+    "Доброе утро! Новый день – новые возможности. Я с вами.",
+    "Просыпайтесь! Мир ждёт вас. Сегодня мы разберёмся с тем, что вчера казалось сложным.",
+    "Утро – время для планов. Пусть сегодняшний день будет удачным.",
+    "Доброе утро! Начните день с улыбки. Я рядом."
+]
+
+def generate_night_message() -> str:
+    return random.choice(NIGHT_MESSAGES)
+
+def generate_morning_message() -> str:
+    return random.choice(MORNING_MESSAGES)
+
+async def generate_group_message(chat_id: int, is_long: bool = False) -> str:
+    topics, weights = zip(*TOPICS)
+    topic = random.choices(topics, weights=weights, k=1)[0]
+
+    if is_long:
+        length_desc = "развёрнутое (8–10 предложений), цепляющее, с интригой"
+    else:
+        length_desc = "короткое (2–3 предложения), интригующее"
+
+    prompt = (
+        f"Ты — Аркадий Викторович, мудрый собеседник. Напиши сообщение для группы людей на тему '{topic}'. "
+        f"Сообщение должно быть {length_desc}. "
+        "Оно должно быть тёплым, поддерживающим, без сложных терминов. "
+        "Если тема психология, отношения или поддержка – сделай акцент на эмоциях, советах, аффирмациях. "
+        "Если нумерология или астрология – дай краткий, но интересный факт. "
+        "Сообщение должно быть уникальным, не повторять предыдущие формулировки. "
+        "Не используй штампы, избегай политики и религии. "
+        "Заканчивай интригой или вопросом."
+    )
+
+    response = await get_yandex_gpt_response(prompt, 0)
+
+    # Проверка уникальности
+    conn = get_connection()
+    cursor = conn.cursor()
+    msg_hash = hashlib.sha256(response.encode()).hexdigest()
+    week_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
+    cursor.execute("SELECT 1 FROM group_sent_log WHERE message_hash = ? AND sent_at >= ?", (msg_hash, week_ago))
+    if cursor.fetchone():
+        for attempt in range(3):
+            new_prompt = prompt + f" (попытка {attempt+1}, используй другой подход)"
+            response = await get_yandex_gpt_response(new_prompt, 0)
+            msg_hash = hashlib.sha256(response.encode()).hexdigest()
+            cursor.execute("SELECT 1 FROM group_sent_log WHERE message_hash = ? AND sent_at >= ?", (msg_hash, week_ago))
+            if not cursor.fetchone():
+                break
+    conn.close()
+    return response
+
+# ---------- ГЕНЕРАЦИЯ PDF ----------
 def generate_pdf_matrix(user_id: int, name: str, destiny: int, matrix_text: str) -> bytes:
     try:
         buffer = io.BytesIO()
