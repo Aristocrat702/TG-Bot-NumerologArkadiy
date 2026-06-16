@@ -6,9 +6,66 @@ from yandex_gpt import get_yandex_gpt_response
 from utils import get_zodiac_sign
 import datetime
 import re
+import asyncio
+import logging
 
-# Словарь для ограничения запросов в группах (user_id, chat_id) -> дата последнего запроса
-group_requests = {}
+# ---------- РАБОТА С БАЗОЙ ДАННЫХ ДЛЯ ГРУПП ----------
+def init_group_db():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS group_chats (
+            chat_id INTEGER PRIMARY KEY,
+            type TEXT DEFAULT 'daily_motivation',
+            is_active BOOLEAN DEFAULT 1,
+            created_at TEXT
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS group_user_requests (
+            user_id INTEGER,
+            chat_id INTEGER,
+            request_date TEXT,
+            count INTEGER DEFAULT 0,
+            PRIMARY KEY (user_id, chat_id, request_date)
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# Инициализация при загрузке
+init_group_db()
+
+async def can_make_request(user_id: int, chat_id: int) -> bool:
+    """Проверяет, может ли пользователь сделать запрос в группе (лимит 5 в день)."""
+    today = datetime.date.today().isoformat()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT count FROM group_user_requests WHERE user_id=? AND chat_id=? AND request_date=?", (user_id, chat_id, today))
+    row = cursor.fetchone()
+    if not row:
+        # Создаём запись с нулевым счётчиком
+        cursor.execute("INSERT INTO group_user_requests (user_id, chat_id, request_date, count) VALUES (?, ?, ?, 0)", (user_id, chat_id, today))
+        conn.commit()
+        conn.close()
+        return True
+    count = row[0]
+    conn.close()
+    return count < 5
+
+async def increment_request(user_id: int, chat_id: int) -> int:
+    """Увеличивает счётчик запросов и возвращает новое значение."""
+    today = datetime.date.today().isoformat()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE group_user_requests SET count = count + 1 WHERE user_id=? AND chat_id=? AND request_date=?", (user_id, chat_id, today))
+    if cursor.rowcount == 0:
+        cursor.execute("INSERT INTO group_user_requests (user_id, chat_id, request_date, count) VALUES (?, ?, ?, 1)", (user_id, chat_id, today))
+    conn.commit()
+    cursor.execute("SELECT count FROM group_user_requests WHERE user_id=? AND chat_id=? AND request_date=?", (user_id, chat_id, today))
+    new_count = cursor.fetchone()[0]
+    conn.close()
+    return new_count
 
 def register_groups_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
@@ -70,59 +127,81 @@ def register_groups_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         row = cursor.fetchone()
         conn.close()
         if not row or not row[0]:
-            return  # бот не активирован в чате
+            return  # бот не активирован
 
-        # Проверяем лимит запросов (1 раз в день на пользователя)
-        key = (user_id, chat_id)
-        today = datetime.date.today()
-        if key in group_requests and group_requests[key] == today:
-            return  # уже отвечали сегодня
+        # Проверяем лимит
+        if not await can_make_request(user_id, chat_id):
+            await message.reply("📌 Сегодня вы исчерпали лимит запросов в этой группе. Напишите мне в личку @NumerologArkadiy_bot для неограниченных консультаций.", parse_mode="Markdown")
+            return
 
-        # Определяем, о чём спрашивают
+        # Определяем тему запроса
+        response = None
         if re.search(r'\b(гороскоп|horoscope)\b', text):
-            # Общий гороскоп на сегодня
             today = datetime.date.today()
             prompt = f"Составь краткий астрологический прогноз на сегодня ({today.strftime('%d.%m.%Y')}) для всех знаков зодиака. Дай 1-2 предложения для каждого знака."
-            response = await get_yandex_gpt_response(prompt, 0)
-            if "Ошибка" in response or len(response) < 20:
-                response = "Сегодня благоприятный день для начинаний. Обратите внимание на свои цели."
-            await message.reply(f"🌟 *Общий гороскоп на сегодня:*\n\n{response}\n\n📌 Для персонального прогноза напишите мне в личку @NumerologArkadiy_bot", parse_mode="Markdown")
-            group_requests[key] = today
-            return
+            resp = await get_yandex_gpt_response(prompt, 0)
+            if "Ошибка" in resp or len(resp) < 20:
+                resp = "Сегодня благоприятный день для начинаний. Обратите внимание на свои цели."
+            response = f"🌟 *Общий гороскоп на сегодня:*\n\n{resp}"
+        elif re.search(r'\b(матрица|матрицу|matrix)\b', text):
+            response = "🔮 *Матрица судьбы* – это уникальный расчёт по вашей дате рождения. Чтобы получить её, напишите мне в личку @NumerologArkadiy_bot и нажмите «МОЯ МАТРИЦА»."
+        elif re.search(r'\b(число|числа|судьба|судьбы|mynumber)\b', text):
+            response = "🔢 *Число судьбы* – ключ к пониманию вашего характера. Узнайте его, написав мне в личку @NumerologArkadiy_bot и нажав «МОЁ ЧИСЛО»."
+        elif re.search(r'(аркадий|arkadiy|бот)', text):
+            response = "👋 Я — Аркадий Викторович. Я помогаю с нумерологией, психологией и астрологией. Напишите мне в личку @NumerologArkadiy_bot, и я расскажу о вас всё по числам и звёздам!"
 
-        if re.search(r'\b(матрица|матрицу|matrix)\b', text):
-            await message.reply("🔮 *Матрица судьбы* – это уникальный расчёт по вашей дате рождения. Чтобы получить её, напишите мне в личку @NumerologArkadiy_bot и нажмите «МОЯ МАТРИЦА».", parse_mode="Markdown")
-            group_requests[key] = today
-            return
+        if response:
+            # Добавляем призыв в конце
+            call_to_action = "\n\n📌 *Хотите узнать больше о себе?* Переходите в личный бот @NumerologArkadiy_bot – там я дам полную матрицу, гороскоп на месяц и отвечу на любые вопросы."
+            await message.reply(response + call_to_action, parse_mode="Markdown")
+            # Увеличиваем счётчик
+            count = await increment_request(user_id, chat_id)
+            # Если осталось мало запросов, напоминаем
+            remaining = 5 - count
+            if remaining <= 2:
+                await message.reply(f"💡 У вас осталось {remaining} запроса на сегодня в этой группе. Используйте их с умом, а для полного доступа переходите в личный бот.", parse_mode="Markdown")
 
-        if re.search(r'\b(число|числа|судьба|судьбы|mynumber)\b', text):
-            await message.reply("🔢 *Число судьбы* – ключ к пониманию вашего характера. Узнайте его, написав мне в личку @NumerologArkadiy_bot и нажав «МОЁ ЧИСЛО».", parse_mode="Markdown")
-            group_requests[key] = today
-            return
-
-        # Если упоминают имя бота или «Аркадий» – можно дать общую подсказку
-        if re.search(r'(аркадий|arkadiy|бот)', text):
-            await message.reply("👋 Я — Аркадий Викторович. Я помогаю с нумерологией, психологией и астрологией. Напишите мне в личку @NumerologArkadiy_bot, и я расскажу о вас всё по числам и звёздам!", parse_mode="Markdown")
-            group_requests[key] = today
-            return
-
-        # Если запрос не распознан – ничего не делаем
-
-    # ---------- КОМАНДЫ ДЛЯ ГРУПП (оставляем для явного вызова) ----------
+    # ---------- КОМАНДЫ ДЛЯ ГРУПП (с тем же лимитом и призывом) ----------
     @dp.message(Command("horoscope"), F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
     async def group_horoscope_command(message: types.Message):
-        # Дублируем логику, чтобы команда тоже работала
+        chat_id = message.chat.id
+        user_id = message.from_user.id
+        if not await can_make_request(user_id, chat_id):
+            await message.reply("📌 Сегодня вы исчерпали лимит запросов в этой группе. Напишите мне в личку @NumerologArkadiy_bot.", parse_mode="Markdown")
+            return
         today = datetime.date.today()
         prompt = f"Составь краткий астрологический прогноз на сегодня ({today.strftime('%d.%m.%Y')}) для всех знаков зодиака. Дай 1-2 предложения для каждого знака."
-        response = await get_yandex_gpt_response(prompt, 0)
-        if "Ошибка" in response or len(response) < 20:
-            response = "Сегодня благоприятный день для начинаний. Обратите внимание на свои цели."
-        await message.answer(f"🌟 *Общий гороскоп на сегодня:*\n\n{response}\n\n📌 Для персонального прогноза напишите мне в личку @NumerologArkadiy_bot", parse_mode="Markdown")
+        resp = await get_yandex_gpt_response(prompt, 0)
+        if "Ошибка" in resp or len(resp) < 20:
+            resp = "Сегодня благоприятный день для начинаний. Обратите внимание на свои цели."
+        response = f"🌟 *Общий гороскоп на сегодня:*\n\n{resp}"
+        call_to_action = "\n\n📌 *Хотите узнать больше о себе?* Переходите в личный бот @NumerologArkadiy_bot – там я дам полную матрицу, гороскоп на месяц и отвечу на любые вопросы."
+        await message.answer(response + call_to_action, parse_mode="Markdown")
+        count = await increment_request(user_id, chat_id)
+        remaining = 5 - count
+        if remaining <= 2:
+            await message.reply(f"💡 У вас осталось {remaining} запроса на сегодня в этой группе. Используйте их с умом.", parse_mode="Markdown")
 
     @dp.message(Command("matrix"), F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
     async def group_matrix_command(message: types.Message):
-        await message.answer("🔮 *Матрица судьбы* – это уникальный расчёт по вашей дате рождения. Чтобы получить её, напишите мне в личку @NumerologArkadiy_bot и нажмите «МОЯ МАТРИЦА».", parse_mode="Markdown")
+        chat_id = message.chat.id
+        user_id = message.from_user.id
+        if not await can_make_request(user_id, chat_id):
+            await message.reply("📌 Сегодня вы исчерпали лимит запросов в этой группе. Напишите мне в личку @NumerologArkadiy_bot.", parse_mode="Markdown")
+            return
+        response = "🔮 *Матрица судьбы* – это уникальный расчёт по вашей дате рождения. Чтобы получить её, напишите мне в личку @NumerologArkadiy_bot и нажмите «МОЯ МАТРИЦА»."
+        call_to_action = "\n\n📌 *Узнайте свою полную матрицу в личном боте!* @NumerologArkadiy_bot"
+        await message.answer(response + call_to_action, parse_mode="Markdown")
+        await increment_request(user_id, chat_id)
 
     @dp.message(Command("mynumber"), F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
     async def group_mynumber_command(message: types.Message):
-        await message.answer("🔢 *Число судьбы* – ключ к пониманию вашего характера. Узнайте его, написав мне в личку @NumerologArkadiy_bot и нажав «МОЁ ЧИСЛО».", parse_mode="Markdown")
+        chat_id = message.chat.id
+        user_id = message.from_user.id
+        if not await can_make_request(user_id, chat_id):
+            await message.reply("📌 Сегодня вы исчерпали лимит запросов в этой группе. Напишите мне в личку @NumerologArkadiy_bot.", parse_mode="Markdown")
+            return
+        response = "🔢 *Число судьбы* – ключ к пониманию вашего характера. Узнайте его, написав мне в личку @NumerologArkadiy_bot и нажав «МОЁ ЧИСЛО»."
+        call_to_action = "\n\n📌 *Рассчитайте своё число судьбы в личном боте!* @NumerologArkadiy_bot"
+        await message.answer(response + call_to_action, parse_mode="Markdown")
+        await increment_request(user_id, chat_id)
