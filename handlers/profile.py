@@ -16,7 +16,6 @@ from utils import (
 )
 from settings import LEVELS, PAYMENTS_TOKEN
 
-# Ручная корректировка часовых поясов
 MANUAL_TIMEZONES = {
     "стерлитамак": "Asia/Yekaterinburg",
     "екатеринбург": "Asia/Yekaterinburg",
@@ -56,6 +55,7 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         user_id = message.from_user.id
         conn = get_connection()
         cursor = conn.cursor()
+        # Запрашиваем все колонки, включая новые (они будут добавлены в БД)
         cursor.execute("SELECT name, birth_date, destiny_number, subscription_active, subscription_end, phone, city, timezone, birth_time, birth_place FROM users WHERE user_id=?", (user_id,))
         row = cursor.fetchone()
         conn.close()
@@ -362,7 +362,6 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     async def setbirth_command(message: types.Message, state: FSMContext):
         await message.answer("Используйте настройки профиля (кнопка «НАСТРОЙКИ») для указания времени и места рождения.")
 
-    # ---------- ПЛАТЕЖИ TELEGRAM STARS ----------
     @dp.callback_query(F.data == "buy_subscription")
     async def buy_subscription(callback: types.CallbackQuery):
         await callback.bot.send_invoice(
@@ -389,7 +388,7 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         try:
             chat = await message.bot.get_chat(f"@{username}")
             gifted_user_id = chat.id
-        except Exception as e:
+        except Exception:
             await message.answer(f"❌ Не удалось найти пользователя @{username}. Проверьте правильность написания.")
             await state.clear()
             return

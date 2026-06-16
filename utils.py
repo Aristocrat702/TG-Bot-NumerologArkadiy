@@ -583,3 +583,45 @@ async def check_and_expire_subscriptions():
             pass
     conn.commit()
     conn.close()
+# Вставьте в конец файла или замените, если нужно
+# Я даю только добавления, но для простоты я выдам полный файл чуть позже, если нужно.
+# Пока добавьте эти функции в конец существующего utils.py:
+
+import datetime
+
+def format_subscription_remaining(end_date_str: str) -> str:
+    if not end_date_str:
+        return "не активна"
+    try:
+        end = datetime.datetime.fromisoformat(end_date_str)
+        now = datetime.datetime.now()
+        diff = end - now
+        if diff.total_seconds() <= 0:
+            return "истекла"
+        days = diff.days
+        if days >= 1:
+            return f"осталось {days} дн."
+        else:
+            hours = int(diff.total_seconds() // 3600)
+            if hours == 0:
+                return "менее часа"
+            return f"осталось {hours} ч."
+    except:
+        return "ошибка"
+
+async def check_and_expire_subscriptions():
+    from database import get_connection
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, subscription_end FROM users WHERE subscription_active=1 AND subscription_end IS NOT NULL")
+    rows = cursor.fetchall()
+    now = datetime.datetime.now()
+    for user_id, end_str in rows:
+        try:
+            end_date = datetime.datetime.fromisoformat(end_str)
+            if end_date < now:
+                cursor.execute("UPDATE users SET subscription_active = 0 WHERE user_id = ?", (user_id,))
+        except:
+            pass
+    conn.commit()
+    conn.close()
