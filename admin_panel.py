@@ -12,7 +12,7 @@ from database import get_connection
 from utils import (
     is_admin, add_subscription_days, add_to_blacklist,
     remove_from_blacklist, backup_database, get_bot_config,
-    set_bot_config, admin_log, get_dialog_history
+    set_bot_config, admin_log
 )
 
 class AdminStates(StatesGroup):
@@ -425,195 +425,75 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await message.answer("Ошибка. Введите числовой user_id.")
         await state.clear()
 
-    @dp.message(F.text == "💰 ЦЕНА ПОДПИСКИ")
-    async def change_price(message: types.Message, state: FSMContext):
-        if not is_admin(message.from_user.id, admin_ids):
-            return
-        await message.answer("Введите новую цену подписки в рублях (только число):")
-        await state.set_state(AdminStates.waiting_new_price)
-
-    @dp.message(AdminStates.waiting_new_price)
-    async def set_price(message: types.Message, state: FSMContext):
-        if not is_admin(message.from_user.id, admin_ids):
-            return
-        try:
-            price = int(message.text.strip())
-            set_bot_config("subscription_price", str(price))
-            admin_log(message.from_user.id, "change_price", f"new_price={price}")
-            await message.answer(f"Цена подписки изменена на {price} ₽")
-        except:
-            await message.answer("Ошибка. Введите число.")
-        await state.clear()
-
-    @dp.message(F.text == "🔧 ПРОМПТ")
-    async def edit_prompt(message: types.Message, state: FSMContext):
-        if not is_admin(message.from_user.id, admin_ids):
-            return
-        current = get_bot_config("system_prompt", "Промпт не задан")
-        await message.answer(f"Текущий промпт:\n\n{current}\n\nОтправьте новый промпт (или /cancel_prompt)")
-        await state.set_state(AdminStates.waiting_new_prompt)
-
-    @dp.message(Command("cancel_prompt"))
-    async def cancel_prompt(message: types.Message, state: FSMContext):
-        await state.clear()
-        await message.answer("Редактирование отменено.")
-
-    @dp.message(AdminStates.waiting_new_prompt)
-    async def save_new_prompt(message: types.Message, state: FSMContext):
-        if not is_admin(message.from_user.id, admin_ids):
-            return
-        new_prompt = message.text
-        set_bot_config("system_prompt", new_prompt)
-        admin_log(message.from_user.id, "edit_prompt", "prompt_updated")
-        await message.answer("Промпт обновлён. Изменения вступят в силу после перезапуска бота.")
-        await state.clear()
-
-    @dp.message(F.text == "💬 ОТВЕТИТЬ")
-    async def reply_to_user_start(message: types.Message, state: FSMContext):
-        if not is_admin(message.from_user.id, admin_ids):
-            return
-        await message.answer("Введите user_id пользователя, которому хотите ответить:")
-        await state.set_state(AdminStates.waiting_reply_user_id)
-
-    @dp.message(AdminStates.waiting_reply_user_id)
-    async def reply_get_user_id(message: types.Message, state: FSMContext):
-        try:
-            user_id = int(message.text.strip())
-            await state.update_data(reply_user_id=user_id)
-            await message.answer("Введите текст ответа (можно с форматированием):")
-            await state.set_state(AdminStates.waiting_reply_text)
-        except:
-            await message.answer("Ошибка. Введите числовой user_id.")
-
-    @dp.message(AdminStates.waiting_reply_text)
-    async def reply_send_message(message: types.Message, state: FSMContext):
-        data = await state.get_data()
-        user_id = data.get("reply_user_id")
-        text = message.text
-        try:
-            await bot.send_message(user_id, f"✉️ Сообщение от администратора:\n\n{text}")
-            admin_log(message.from_user.id, "reply_to_user", f"user_id={user_id}")
-            await message.answer(f"Сообщение отправлено пользователю {user_id}.")
-        except Exception as e:
-            await message.answer(f"Ошибка при отправке: {e}")
-        await state.clear()
-
+    # ---------- УПРАВЛЕНИЕ ГРУППАМИ (ТОЛЬКО ДЛЯ АДМИНА) ----------
     @dp.message(F.text == "👥 УПРАВЛЕНИЕ ГРУППАМИ")
     async def groups_management_menu(message: types.Message):
         if not is_admin(message.from_user.id, admin_ids):
             return
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🌐 ГЛОБАЛЬНАЯ ЧАСТОТА", callback_data="admin_global_freq")],
-            [InlineKeyboardButton(text="📋 СПИСОК ГРУПП", callback_data="admin_list_groups")],
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")]
+            [InlineKeyboardButton(text="🌐 ГЛОБАЛЬНАЯ ЧАСТОТА", callback_data="admin_global_frequency")],
+            [InlineKeyboardButton(text="📋 СПИСОК ВСЕХ ГРУПП", callback_data="admin_list_all_groups")],
+            [InlineKeyboardButton(text="🔙 НАЗАД", callback_data="admin_back")]
         ])
         await message.answer("👥 *Управление группами*\n\nВыберите действие:", parse_mode="Markdown", reply_markup=kb)
 
-    @dp.callback_query(F.data == "admin_global_freq")
-    async def admin_global_freq(callback: types.CallbackQuery):
+    @dp.callback_query(F.data == "admin_global_frequency")
+    async def set_global_frequency(callback: types.CallbackQuery):
         if not is_admin(callback.from_user.id, admin_ids):
+            await callback.answer("Нет доступа.")
             return
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="1 сообщение в час", callback_data="admin_set_global_1")],
-            [InlineKeyboardButton(text="2 сообщения в час", callback_data="admin_set_global_2")],
-            [InlineKeyboardButton(text="3 сообщения в час", callback_data="admin_set_global_3")],
-            [InlineKeyboardButton(text="4 сообщения в час", callback_data="admin_set_global_4")],
+            [InlineKeyboardButton(text="1 сообщение в час", callback_data="admin_set_global_freq_1")],
+            [InlineKeyboardButton(text="2 сообщения в час", callback_data="admin_set_global_freq_2")],
+            [InlineKeyboardButton(text="3 сообщения в час", callback_data="admin_set_global_freq_3")],
+            [InlineKeyboardButton(text="4 сообщения в час", callback_data="admin_set_global_freq_4")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_groups_back")]
         ])
-        await callback.message.edit_text("🌐 *Глобальная частота*\n\nВыберите количество сообщений в час для всех групп:", parse_mode="Markdown", reply_markup=kb)
+        await callback.message.edit_text("🌐 *Глобальная частота*\n\nВыберите количество сообщений в час для всех групп (по умолчанию 2):", parse_mode="Markdown", reply_markup=kb)
         await callback.answer()
 
-    @dp.callback_query(F.data.startswith("admin_set_global_"))
-    async def admin_set_global(callback: types.CallbackQuery):
+    @dp.callback_query(F.data.startswith("admin_set_global_freq_"))
+    async def set_global_frequency_value(callback: types.CallbackQuery):
         if not is_admin(callback.from_user.id, admin_ids):
+            await callback.answer("Нет доступа.")
             return
         freq = int(callback.data.split("_")[-1])
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("UPDATE bot_config SET value = ? WHERE key = 'global_frequency'", (str(freq),))
-        if cursor.rowcount == 0:
-            cursor.execute("INSERT INTO bot_config (key, value) VALUES ('global_frequency', ?)", (str(freq),))
+        cursor.execute("UPDATE group_chats SET frequency = ?", (freq,))
         conn.commit()
         conn.close()
-        await callback.message.edit_text(f"✅ Глобальная частота установлена: {freq} сообщ./час")
+        await callback.message.edit_text(f"✅ Глобальная частота установлена: {freq} сообщения в час для всех групп.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="admin_groups_back")]]))
         await callback.answer()
 
-    @dp.callback_query(F.data == "admin_list_groups")
-    async def admin_list_groups(callback: types.CallbackQuery):
+    @dp.callback_query(F.data == "admin_list_all_groups")
+    async def list_all_groups(callback: types.CallbackQuery):
         if not is_admin(callback.from_user.id, admin_ids):
+            await callback.answer("Нет доступа.")
             return
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT chat_id, frequency, is_active FROM group_chats ORDER BY created_at DESC")
+        cursor.execute("SELECT chat_id, is_active, frequency, created_at FROM group_chats ORDER BY created_at DESC")
         rows = cursor.fetchall()
         conn.close()
         if not rows:
-            await callback.message.edit_text("Нет активированных групп.")
+            await callback.message.edit_text("Нет активных групп.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="admin_groups_back")]]))
+            await callback.answer()
             return
         text = "📋 *Список групп:*\n\n"
-        for chat_id, freq, is_active in rows:
+        for row in rows:
+            chat_id, is_active, freq, created_at = row
             status = "✅ Активна" if is_active else "❌ Неактивна"
-            text += f"Чат ID: {chat_id}\nЧастота: {freq} сообщ./час\nСтатус: {status}\n"
-            kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="➕", callback_data=f"admin_group_freq_inc_{chat_id}"),
-                 InlineKeyboardButton(text="➖", callback_data=f"admin_group_freq_dec_{chat_id}"),
-                 InlineKeyboardButton(text="🔄 Сброс", callback_data=f"admin_group_freq_reset_{chat_id}")],
-            ])
-            await callback.message.answer(text, parse_mode="Markdown", reply_markup=kb)
+            text += f"Чат: {chat_id}\nСтатус: {status}\nЧастота: {freq} сообщ/час\nДата: {created_at[:10]}\n\n"
+        # Добавляем кнопку для каждой группы (пока только первая группа для примера)
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_groups_back")]
+        ])
+        await callback.message.edit_text(text, parse_mode="Markdown", reply_markup=kb)
         await callback.answer()
 
-    @dp.callback_query(F.data.startswith("admin_group_freq_inc_"))
-    async def admin_group_freq_inc(callback: types.CallbackQuery):
-        if not is_admin(callback.from_user.id, admin_ids):
-            return
-        chat_id = int(callback.data.split("_")[-1])
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT frequency FROM group_chats WHERE chat_id=?", (chat_id,))
-        row = cursor.fetchone()
-        if row:
-            new_freq = min(row[0] + 1, 4)
-            cursor.execute("UPDATE group_chats SET frequency = ? WHERE chat_id = ?", (new_freq, chat_id))
-            conn.commit()
-            await callback.answer(f"Частота для группы {chat_id} увеличена до {new_freq}")
-        conn.close()
-        await admin_list_groups(callback)
-
-    @dp.callback_query(F.data.startswith("admin_group_freq_dec_"))
-    async def admin_group_freq_dec(callback: types.CallbackQuery):
-        if not is_admin(callback.from_user.id, admin_ids):
-            return
-        chat_id = int(callback.data.split("_")[-1])
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT frequency FROM group_chats WHERE chat_id=?", (chat_id,))
-        row = cursor.fetchone()
-        if row:
-            new_freq = max(row[0] - 1, 1)
-            cursor.execute("UPDATE group_chats SET frequency = ? WHERE chat_id = ?", (new_freq, chat_id))
-            conn.commit()
-            await callback.answer(f"Частота для группы {chat_id} уменьшена до {new_freq}")
-        conn.close()
-        await admin_list_groups(callback)
-
-    @dp.callback_query(F.data.startswith("admin_group_freq_reset_"))
-    async def admin_group_freq_reset(callback: types.CallbackQuery):
-        if not is_admin(callback.from_user.id, admin_ids):
-            return
-        chat_id = int(callback.data.split("_")[-1])
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM bot_config WHERE key='global_frequency'")
-        row = cursor.fetchone()
-        global_freq = int(row[0]) if row else 2
-        cursor.execute("UPDATE group_chats SET frequency = ? WHERE chat_id = ?", (global_freq, chat_id))
-        conn.commit()
-        conn.close()
-        await callback.answer(f"Частота для группы {chat_id} сброшена до глобальной ({global_freq})")
-        await admin_list_groups(callback)
-
     @dp.callback_query(F.data == "admin_groups_back")
-    async def admin_groups_back(callback: types.CallbackQuery):
+    async def groups_back(callback: types.CallbackQuery):
         await groups_management_menu(callback.message)
         await callback.answer()
 

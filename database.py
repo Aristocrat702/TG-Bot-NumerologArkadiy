@@ -11,6 +11,7 @@ def get_connection():
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
+    # Таблица пользователей
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -35,6 +36,7 @@ def init_db():
             birth_place TEXT
         )
     ''')
+    # Кэш сообщений
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS messages_cache (
             user_id INTEGER,
@@ -44,6 +46,7 @@ def init_db():
             PRIMARY KEY (user_id, request_type)
         )
     ''')
+    # История диалогов
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS dialog_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,6 +56,7 @@ def init_db():
             timestamp TEXT
         )
     ''')
+    # Промокоды
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS promocodes (
             code TEXT PRIMARY KEY,
@@ -65,6 +69,7 @@ def init_db():
             created_at TEXT
         )
     ''')
+    # Активации промокодов
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS promocode_activations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,6 +79,7 @@ def init_db():
             result_text TEXT
         )
     ''')
+    # Чёрный список
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS blacklist (
             user_id INTEGER PRIMARY KEY,
@@ -81,12 +87,14 @@ def init_db():
             blocked_at TEXT
         )
     ''')
+    # Настройки бота
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS bot_config (
             key TEXT PRIMARY KEY,
             value TEXT
         )
     ''')
+    # Достижения
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS achievements (
             user_id INTEGER,
@@ -95,6 +103,7 @@ def init_db():
             PRIMARY KEY (user_id, achievement)
         )
     ''')
+    # Челлендж
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS challenges (
             user_id INTEGER,
@@ -105,6 +114,7 @@ def init_db():
             PRIMARY KEY (user_id, day)
         )
     ''')
+    # Дневник настроения
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS mood_log (
             user_id INTEGER,
@@ -114,6 +124,7 @@ def init_db():
             PRIMARY KEY (user_id, log_date)
         )
     ''')
+    # Логи администратора
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS admin_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -123,6 +134,7 @@ def init_db():
             created_at TEXT
         )
     ''')
+    # Результаты психотестов
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS psycho_results (
             user_id INTEGER,
@@ -131,27 +143,27 @@ def init_db():
             PRIMARY KEY (user_id, created_at)
         )
     ''')
+    # Группы (новое)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS group_chats (
             chat_id INTEGER PRIMARY KEY,
-            type TEXT DEFAULT 'thoughts',
-            frequency INTEGER DEFAULT 2,
             is_active BOOLEAN DEFAULT 0,
-            created_at TEXT
+            created_at TEXT,
+            frequency INTEGER DEFAULT 2
         )
     ''')
+    # Лог отправленных сообщений в группы (для уникальности)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS group_sent_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chat_id INTEGER,
             sent_at TEXT,
-            content_type TEXT,
             message_hash TEXT,
-            message_text TEXT
+            content_type TEXT
         )
     ''')
+    # Начальные настройки
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('system_prompt', 'Вы — Аркадий Викторович...')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('subscription_price', '249')")
-    cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('global_frequency', '2')")
     conn.commit()
     conn.close()

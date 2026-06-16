@@ -16,7 +16,6 @@ from admin_panel import register_admin_handlers
 from keyboards import set_main_menu
 from scheduler import start_scheduler
 from settings import BOT_VERSION, LOGS_DIR, HEALTHCHECK_PORT
-import sys
 
 os.makedirs(LOGS_DIR, exist_ok=True)
 
@@ -42,7 +41,7 @@ dp = Dispatcher(storage=storage)
 
 async def on_startup():
     init_db()
-    await set_main_menu(bot)  # устанавливаем только /start
+    await set_main_menu(bot)
     register_handlers(dp, bot, ADMIN_IDS, BOT_VERSION)
     register_admin_handlers(dp, bot, ADMIN_IDS)
     start_scheduler(bot, ADMIN_IDS[0] if ADMIN_IDS else None, BOT_VERSION)

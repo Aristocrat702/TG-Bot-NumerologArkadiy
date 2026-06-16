@@ -1,7 +1,7 @@
 ﻿from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram import Bot
 
-# Главное меню (без изменений)
+# Главное меню
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🔮 МОЯ МАТРИЦА"), KeyboardButton(text="🔢 МОЁ ЧИСЛО")],
@@ -89,5 +89,5 @@ async def set_main_menu(bot: Bot):
     # Убираем все команды из меню, кроме /start (и /admin скрыто)
     await bot.set_my_commands([
         BotCommand(command="start", description="Запустить бота"),
-        # /admin не показываем, доступ только по прямому вводу
+        # /admin не показываем
     ])
