@@ -414,10 +414,13 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "add_to_group")
     async def add_to_group_info(callback: types.CallbackQuery):
+        bot_username = (await bot.get_me()).username
+        invite_link = f"https://t.me/{bot_username}?startgroup=start"
         text = (
             "👥 *Как добавить бота в групповой чат или канал:*\n\n"
-            "1. Добавьте бота @NumerologArkadiy_bot в ваш чат.\n"
-            "2. Дайте права администратора (для публикации сообщений).\n"
+            "1. Нажмите на ссылку ниже, чтобы добавить бота в чат:\n"
+            f"👉 [Добавить бота в группу]({invite_link})\n\n"
+            "2. Дайте боту права администратора (для публикации сообщений).\n"
             "3. Напишите в чате команду `/start_bot`, чтобы активировать бота.\n"
             "4. Настройте тип контента командой `/set_chat_type <тип>`:\n"
             "   • `daily_motivation` – ежедневная мотивация\n"
@@ -427,7 +430,7 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             "Любой участник чата может запросить свой гороскоп или матрицу, написав боту в личку.\n"
             "Подробнее – в профиле бота."
         )
-        await callback.message.answer(text, parse_mode="Markdown")
+        await callback.message.answer(text, parse_mode="Markdown", disable_web_page_preview=True)
         await callback.answer()
 
     @dp.callback_query(F.data == "help")

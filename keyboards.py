@@ -71,7 +71,7 @@ challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# Админ-меню
+# Админ-меню (с кнопкой «СПИСОК ГРУПП»)
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📊 СТАТИСТИКА"), KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ")],
@@ -80,7 +80,8 @@ admin_menu = ReplyKeyboardMarkup(
         [KeyboardButton(text="📤 ЭКСПОРТ БАЗЫ"), KeyboardButton(text="🚫 БЛЭК-ЛИСТ")],
         [KeyboardButton(text="💬 ОТВЕТИТЬ"), KeyboardButton(text="💰 ЦЕНА ПОДПИСКИ")],
         [KeyboardButton(text="🏆 ЛИДЕРБОРД"), KeyboardButton(text="📋 ЛОГИ")],
-        [KeyboardButton(text="👤 ИНФО ПОЛЬЗОВАТЕЛЯ"), KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
+        [KeyboardButton(text="👤 ИНФО ПОЛЬЗОВАТЕЛЯ"), KeyboardButton(text="👥 СПИСОК ГРУПП")],
+        [KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
     ],
     resize_keyboard=True
 )

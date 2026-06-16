@@ -6,6 +6,7 @@ import datetime
 import asyncio
 import logging
 import pytz
+import random
 from utils import (
     backup_database, add_subscription_days, get_challenge_progress,
     get_zodiac_sign, get_cached_response, save_cached_response,
@@ -168,7 +169,73 @@ async def send_monthly_horoscope(bot: Bot):
                 logging.error(f"Не удалось отправить месячный гороскоп {user_id}: {e}")
         await asyncio.sleep(0.1)
 
-# ---------- НОВЫЕ ЗАДАЧИ ----------
+# ---------- ЗАДАЧА ДЛЯ ГРУПП ----------
+async def send_group_messages(bot: Bot):
+    """Отправляет контент в группы согласно их настройкам (случайное время, несколько раз в день)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT chat_id, type, frequency FROM group_chats WHERE is_active=1")
+    groups = cursor.fetchall()
+    conn.close()
+
+    # Список мыслей Аркадия
+    THOUGHTS = [
+        "Числа не врут, но и вы не обманывайте себя. Слушайте душу.",
+        "Ваше число судьбы – это компас. Следуйте ему без страха.",
+        "Ошибки – это тоже цифры, которые ведут к правильному ответу.",
+        "Не бойтесь начинать с нуля. Ноль – это начало нового цикла.",
+        "Каждое утро вы перезагружаете свою личную статистику. Используйте это.",
+        "Гармония приходит, когда внутреннее число совпадает с внешним действием.",
+        "Счастье – это не случайность, а сумма правильных решений.",
+        "Ваш путь уникален, как отпечаток пальца. Не сравнивайте.",
+        "Смелость – это когда ваш страх умножают на веру в себя.",
+        "Маленькие победы складываются в большую судьбу.",
+        "Доверяйте числам, но не забывайте слушать сердце.",
+        "Каждый день – новая возможность переписать свою историю.",
+        "Ваша энергия притягивает то, о чём вы думаете.",
+        "Не бойтесь ошибаться – ошибки ведут к мудрости.",
+        "Ваше число сегодня: удача на вашей стороне."
+    ]
+
+    for chat_id, content_type, frequency in groups:
+        # Проверяем, сколько сообщений уже отправлено сегодня
+        today = datetime.date.today().isoformat()
+        conn2 = get_connection()
+        cursor2 = conn2.cursor()
+        cursor2.execute("SELECT COUNT(*) FROM group_sent_log WHERE chat_id=? AND sent_at LIKE ?", (chat_id, f"{today}%"))
+        sent_count = cursor2.fetchone()[0]
+        conn2.close()
+        if sent_count >= frequency:
+            continue
+
+        # Генерируем контент
+        if content_type == "thoughts":
+            thought = random.choice(THOUGHTS)
+            text = f"🧠 *Аркадий Викторович*\n\n{thought}"
+        elif content_type == "horoscope":
+            text = "🌟 *Гороскоп на сегодня:*\n\nБлагоприятный день для новых начинаний. Обратите внимание на детали."
+        elif content_type == "advice":
+            text = "💡 *Совет дня:*\n\nНе бойтесь просить о помощи, когда это необходимо."
+        else:
+            continue
+
+        # Добавляем подпись (ненавязчиво, только имя)
+        text += f"\n\n— *Аркадий Викторович*"
+
+        try:
+            await bot.send_message(chat_id, text, parse_mode="Markdown")
+            # Логируем отправку
+            conn3 = get_connection()
+            cursor3 = conn3.cursor()
+            cursor3.execute("INSERT INTO group_sent_log (chat_id, sent_at, content_type) VALUES (?, ?, ?)",
+                            (chat_id, datetime.datetime.now().isoformat(), content_type))
+            conn3.commit()
+            conn3.close()
+        except Exception as e:
+            logging.error(f"Ошибка отправки в группу {chat_id}: {e}")
+        await asyncio.sleep(0.5)
+
+# ---------- МОТИВАЦИЯ И НАПОМИНАНИЯ ----------
 async def send_motivation(bot: Bot):
     """Ежедневно в 11:00 отправляет подписчикам мотивирующую фразу."""
     today_str = datetime.date.today().isoformat()
@@ -228,28 +295,6 @@ async def check_subscription_expiry(bot: Bot):
         except:
             pass
 
-async def send_group_messages(bot: Bot):
-    """Отправляет контент в группы согласно их настройкам (в 9:00 МСК)."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT chat_id, type FROM group_chats WHERE is_active=1")
-    chats = cursor.fetchall()
-    conn.close()
-    for chat_id, content_type in chats:
-        if content_type == "daily_motivation":
-            text = "🧠 *Аркадий говорит:*\n\nКаждый день – новая возможность. Доверяйте числам и себе."
-        elif content_type == "horoscope":
-            text = "🌟 *Гороскоп на сегодня:*\n\nБлагоприятный день для новых начинаний. Обратите внимание на детали."
-        elif content_type == "advice":
-            text = "💡 *Совет дня:*\n\nНе бойтесь просить о помощи, когда это необходимо."
-        else:
-            continue
-        try:
-            await bot.send_message(chat_id, text, parse_mode="Markdown")
-        except Exception as e:
-            logging.error(f"Ошибка отправки в группу {chat_id}: {e}")
-        await asyncio.sleep(0.1)
-
 # ---------- ЗАПУСК ПЛАНИРОВЩИКА ----------
 def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     if admin_id is None:
@@ -262,10 +307,10 @@ def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     scheduler.add_job(send_challenge_reminders, 'cron', hour=10, minute=0, args=[bot], timezone='Europe/Moscow')
     scheduler.add_job(send_daily_horoscope, 'interval', minutes=30, args=[bot])
     scheduler.add_job(send_monthly_horoscope, 'cron', day='1', hour=10, minute=0, args=[bot], timezone='Europe/Moscow')
-    # Новые задачи
     scheduler.add_job(send_motivation, 'cron', hour=11, minute=0, args=[bot], timezone='Europe/Moscow')
     scheduler.add_job(check_subscription_expiry, 'cron', hour=10, minute=0, args=[bot], timezone='Europe/Moscow')
-    scheduler.add_job(send_group_messages, 'cron', hour=9, minute=0, args=[bot], timezone='Europe/Moscow')
-    scheduler.add_job(check_and_expire_subscriptions, 'cron', hour=2, minute=0)  # каждую ночь проверяем и отключаем истекшие
+    scheduler.add_job(check_and_expire_subscriptions, 'cron', hour=2, minute=0)
+    # Задача для групп – запускается каждые 30 минут
+    scheduler.add_job(send_group_messages, 'interval', minutes=30, args=[bot])
     scheduler.start()
     logging.info(f"Планировщик заданий запущен, версия бота {bot_version}")

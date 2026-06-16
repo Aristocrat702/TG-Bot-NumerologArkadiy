@@ -49,7 +49,6 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         total = cursor.fetchone()[0]
         cursor.execute("SELECT COUNT(*) FROM users WHERE subscription_active=1")
         active = cursor.fetchone()[0]
-        # Статистика по группам
         cursor.execute("SELECT COUNT(*) FROM group_chats WHERE is_active=1")
         active_groups = cursor.fetchone()[0]
         cursor.execute("SELECT COUNT(*) FROM group_chats")
@@ -498,6 +497,26 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         except Exception as e:
             await message.answer(f"Ошибка при отправке: {e}")
         await state.clear()
+
+    # ---------- СПИСОК ГРУПП ----------
+    @dp.message(F.text == "👥 СПИСОК ГРУПП")
+    async def list_groups(message: types.Message):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT chat_id, type, frequency, is_active, created_at FROM group_chats ORDER BY created_at DESC")
+        rows = cursor.fetchall()
+        conn.close()
+        if not rows:
+            await message.answer("Нет активированных групп.")
+            return
+        text = "👥 *Список групп, где активирован бот:*\n\n"
+        for row in rows:
+            chat_id, chat_type, freq, is_active, created_at = row
+            status = "✅ Активна" if is_active else "❌ Неактивна"
+            text += f"Чат ID: {chat_id}\nТип: {chat_type}\nЧастота: {freq} сообщений/день\nСтатус: {status}\nДата активации: {created_at[:10]}\n\n"
+        await message.answer(text, parse_mode="Markdown")
 
     @dp.message(F.text == "⬅️ ВЫЙТИ ИЗ АДМИНКИ")
     async def exit_admin(message: types.Message, state: FSMContext):
