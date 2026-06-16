@@ -6,14 +6,19 @@ import datetime
 import asyncio
 import logging
 import pytz
-from utils import backup_database, add_subscription_days, get_challenge_progress, get_zodiac_sign, get_cached_response, save_cached_response
-from keyboards import main_menu
+from utils import (
+    backup_database, add_subscription_days, get_challenge_progress,
+    get_zodiac_sign, get_cached_response, save_cached_response,
+    format_subscription_remaining, check_and_expire_subscriptions
+)
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from keyboards import main_menu
 
 scheduler = AsyncIOScheduler()
 
-# ---------- Существующие задачи (карта дня, лидерборд, бэкап, челлендж, будильник, гороскопы) ----------
+# ---------- СУЩЕСТВУЮЩИЕ ЗАДАЧИ ----------
 async def send_daily_card(bot: Bot):
+    """Отправляет карту дня подписчикам в 9:00 МСК."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT user_id, destiny_number FROM users WHERE subscription_active=1 AND send_daily=1")
@@ -31,6 +36,7 @@ async def send_daily_card(bot: Bot):
         await asyncio.sleep(0.1)
 
 async def weekly_leaderboard(bot: Bot, admin_id: int):
+    """Воскресенье 20:00 – топ активных подписчиков."""
     week_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
     conn = get_connection()
     cursor = conn.cursor()
@@ -57,10 +63,12 @@ async def weekly_leaderboard(bot: Bot, admin_id: int):
     await bot.send_message(admin_id, text)
 
 async def daily_backup():
+    """Ежедневный бэкап БД в 3:00 МСК."""
     backup_database()
     logging.info("Резервное копирование базы данных выполнено")
 
 async def send_challenge_reminders(bot: Bot):
+    """Напоминания по челленджу в 10:00 МСК."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT DISTINCT user_id FROM challenges WHERE completed=0")
@@ -84,41 +92,8 @@ async def send_challenge_reminders(bot: Bot):
                 await bot.send_message(uid, f"🔥 Напоминание по челленджу: задание дня {day}: {tasks.get(day, 'Выполните любой шаг')}\n\nНажмите кнопку «Выполнил» в профиле, когда сделаете.")
                 break
 
-async def send_alarms(bot: Bot):
-    from utils import get_city_coords, get_weather_by_coords
-    conn = get_connection()
-    cursor = conn.cursor()
-    now = datetime.datetime.now().strftime("%H:%M")
-    cursor.execute("SELECT user_id, alarm_time FROM alarms WHERE is_active=1 AND alarm_time=?", (now,))
-    alarms = cursor.fetchall()
-    conn.close()
-    for (user_id, alarm_time) in alarms:
-        conn2 = get_connection()
-        cursor2 = conn2.cursor()
-        cursor2.execute("SELECT city, destiny_number FROM users WHERE user_id=?", (user_id,))
-        row = cursor2.fetchone()
-        conn2.close()
-        city = row[0] if row else None
-        destiny = row[1] if row else "?"
-        weather_str = ""
-        if city:
-            lat, lon = await get_city_coords(city)
-            if lat and lon:
-                weather_str = await get_weather_by_coords(lat, lon)
-                weather_str = f"\n\n🌤️ *Погода в {city}:* {weather_str}"
-        moon_phase = "🌙 Луна в растущей фазе."
-        prompt = f"Для человека с числом судьбы {destiny} в городе {city}. Дай короткий мотивирующий совет на день (1-2 предложения)."
-        advice = await get_yandex_gpt_response(prompt, user_id)
-        text = f"⏰ *Умный будильник!*\n\n{advice}{weather_str}\n\n{moon_phase}\n\nХорошего дня!"
-        await bot.send_message(user_id, text, parse_mode="Markdown")
-        conn3 = get_connection()
-        cursor3 = conn3.cursor()
-        cursor3.execute("UPDATE alarms SET is_active=0 WHERE user_id=? AND alarm_time=?", (user_id, alarm_time))
-        conn3.commit()
-        conn3.close()
-        await asyncio.sleep(0.1)
-
 async def send_daily_horoscope(bot: Bot):
+    """Гороскоп на день в 9:00 по местному времени пользователя."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT user_id, birth_date, destiny_number, timezone FROM users WHERE send_daily=1")
@@ -155,6 +130,7 @@ async def send_daily_horoscope(bot: Bot):
         await asyncio.sleep(0.1)
 
 async def send_monthly_horoscope(bot: Bot):
+    """Гороскоп на месяц 1-го числа в 10:00 по местному времени (только подписчики)."""
     if datetime.date.today().day != 1:
         return
     conn = get_connection()
@@ -193,9 +169,8 @@ async def send_monthly_horoscope(bot: Bot):
         await asyncio.sleep(0.1)
 
 # ---------- НОВЫЕ ЗАДАЧИ ----------
-
 async def send_motivation(bot: Bot):
-    """Ежедневно в 11:00 отправляет подписчикам мотивирующую фразу (генерирует YandexGPT)."""
+    """Ежедневно в 11:00 отправляет подписчикам мотивирующую фразу."""
     today_str = datetime.date.today().isoformat()
     cache_key = f"motivation_{today_str}"
     cached = get_cached_response(0, cache_key)
@@ -205,7 +180,6 @@ async def send_motivation(bot: Bot):
         prompt = "Придумай короткую, мудрую, мотивирующую фразу или аффирмацию в стиле Аркадия Викторовича (нумеролога и психолога). Не более 2 предложений. Не используй шаблонные фразы."
         phrase = await get_yandex_gpt_response(prompt, 0)
         if "Ошибка" in phrase or len(phrase) < 10:
-            # fallback список
             fallback = [
                 "Числа не врут, но и вы не обманывайте себя. Слушайте душу.",
                 "Ваше число судьбы – это компас. Следуйте ему без страха.",
@@ -221,7 +195,6 @@ async def send_motivation(bot: Bot):
             import random
             phrase = random.choice(fallback)
         save_cached_response(0, cache_key, phrase)
-    
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT user_id FROM users WHERE subscription_active=1 AND send_daily=1")
@@ -235,7 +208,7 @@ async def send_motivation(bot: Bot):
         await asyncio.sleep(0.1)
 
 async def check_subscription_expiry(bot: Bot):
-    """Раз в день проверяет подписки и за 3 дня до окончания отправляет напоминание."""
+    """Проверяет подписки и за 3 дня до окончания отправляет напоминание."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT user_id, subscription_end FROM users WHERE subscription_active=1 AND subscription_end IS NOT NULL")
@@ -255,19 +228,44 @@ async def check_subscription_expiry(bot: Bot):
         except:
             pass
 
+async def send_group_messages(bot: Bot):
+    """Отправляет контент в группы согласно их настройкам (в 9:00 МСК)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT chat_id, type FROM group_chats WHERE is_active=1")
+    chats = cursor.fetchall()
+    conn.close()
+    for chat_id, content_type in chats:
+        if content_type == "daily_motivation":
+            text = "🧠 *Аркадий говорит:*\n\nКаждый день – новая возможность. Доверяйте числам и себе."
+        elif content_type == "horoscope":
+            text = "🌟 *Гороскоп на сегодня:*\n\nБлагоприятный день для новых начинаний. Обратите внимание на детали."
+        elif content_type == "advice":
+            text = "💡 *Совет дня:*\n\nНе бойтесь просить о помощи, когда это необходимо."
+        else:
+            continue
+        try:
+            await bot.send_message(chat_id, text, parse_mode="Markdown")
+        except Exception as e:
+            logging.error(f"Ошибка отправки в группу {chat_id}: {e}")
+        await asyncio.sleep(0.1)
+
+# ---------- ЗАПУСК ПЛАНИРОВЩИКА ----------
 def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     if admin_id is None:
         logging.warning("admin_id не передан, лидерборд работать не будет")
+    # Существующие задачи
     scheduler.add_job(send_daily_card, 'cron', hour=9, minute=0, args=[bot], timezone='Europe/Moscow')
     if admin_id:
         scheduler.add_job(weekly_leaderboard, 'cron', day_of_week='sun', hour=20, minute=0, args=[bot, admin_id], timezone='Europe/Moscow')
     scheduler.add_job(daily_backup, 'cron', hour=3, minute=0, timezone='Europe/Moscow')
     scheduler.add_job(send_challenge_reminders, 'cron', hour=10, minute=0, args=[bot], timezone='Europe/Moscow')
-    scheduler.add_job(send_alarms, 'interval', minutes=1, args=[bot])
     scheduler.add_job(send_daily_horoscope, 'interval', minutes=30, args=[bot])
     scheduler.add_job(send_monthly_horoscope, 'cron', day='1', hour=10, minute=0, args=[bot], timezone='Europe/Moscow')
     # Новые задачи
     scheduler.add_job(send_motivation, 'cron', hour=11, minute=0, args=[bot], timezone='Europe/Moscow')
     scheduler.add_job(check_subscription_expiry, 'cron', hour=10, minute=0, args=[bot], timezone='Europe/Moscow')
+    scheduler.add_job(send_group_messages, 'cron', hour=9, minute=0, args=[bot], timezone='Europe/Moscow')
+    scheduler.add_job(check_and_expire_subscriptions, 'cron', hour=2, minute=0)  # каждую ночь проверяем и отключаем истекшие
     scheduler.start()
     logging.info(f"Планировщик заданий запущен, версия бота {bot_version}")

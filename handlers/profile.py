@@ -11,11 +11,12 @@ from utils import (
     generate_referral_link, get_referral_stats, get_free_questions_remaining,
     get_achievements, add_subscription_days, update_last_active,
     get_user_subscription_status, calculate_level,
-    get_city_coords, get_timezone_by_coords, translate_timezone
+    get_city_coords, get_timezone_by_coords, translate_timezone,
+    format_subscription_remaining
 )
 from settings import LEVELS, PAYMENTS_TOKEN
 
-# Ручная корректировка часовых поясов для городов
+# Ручная корректировка часовых поясов
 MANUAL_TIMEZONES = {
     "стерлитамак": "Asia/Yekaterinburg",
     "екатеринбург": "Asia/Yekaterinburg",
@@ -45,6 +46,8 @@ class UserStates(StatesGroup):
     waiting_phone = State()
     waiting_city = State()
     waiting_gift_username = State()
+    waiting_birth_time = State()
+    waiting_birth_place = State()
 
 def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
@@ -53,7 +56,7 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         user_id = message.from_user.id
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT name, birth_date, destiny_number, subscription_active, subscription_end, phone, city, timezone FROM users WHERE user_id=?", (user_id,))
+        cursor.execute("SELECT name, birth_date, destiny_number, subscription_active, subscription_end, phone, city, timezone, birth_time, birth_place FROM users WHERE user_id=?", (user_id,))
         row = cursor.fetchone()
         conn.close()
         if not row:
@@ -62,20 +65,25 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         name = row[0] or "—"
         birth = row[1] or "—"
         destiny = row[2] or "?"
-        sub_status = "Активна" if row[3] else "Неактивна"
-        sub_end = row[4] if row[4] else "—"
+        sub_active = row[3]
+        sub_end_raw = row[4] if row[4] else None
+        remaining_str = format_subscription_remaining(sub_end_raw) if sub_end_raw else "—"
         phone = row[5] if row[5] else "—"
         city = row[6] if row[6] else "—"
-        remaining = get_free_questions_remaining(user_id)
+        birth_time = row[8] if row[8] else "—"
+        birth_place = row[9] if row[9] else "—"
+        remaining_q = get_free_questions_remaining(user_id)
         level, xp, next_xp = calculate_level(user_id)
         level_name = LEVELS.get(level, {}).get("name", "Новичок")
         text = (f"┌─────────────────────┐\n"
                 f"│ 👤 Имя: {name}\n"
                 f"│ 🎂 Дата: {birth}\n"
+                f"│ 🕒 Время рождения: {birth_time}\n"
+                f"│ 📍 Место: {birth_place}\n"
                 f"│ 🔢 Число: {destiny}\n"
-                f"│ 💳 Подписка: {sub_status}\n"
-                f"│ 📅 До: {sub_end}\n"
-                f"│ 🎁 Бесплатных вопросов: {remaining}/5\n"
+                f"│ 💳 Подписка: {'Активна' if sub_active else 'Неактивна'}\n"
+                f"│ ⏳ {remaining_str}\n"
+                f"│ 🎁 Бесплатных вопросов: {remaining_q}/5\n"
                 f"│ 🏆 Уровень: {level} «{level_name}»\n"
                 f"│ 📞 Телефон: {phone}\n"
                 f"│ 🌍 Город: {city}\n"
@@ -140,12 +148,15 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             "• Отписаться от ежедневной рассылки – /unsubscribe_daily\n"
             "• Подписаться на рассылку – /subscribe_daily\n"
             "• Добавить номер телефона (для восстановления подписки)\n"
-            "• Указать город (для прогноза погоды) – /setcity\n\n"
+            "• Указать город (для прогноза погоды) – /setcity\n"
+            "• Указать время и место рождения (для астрологии) – /setbirth\n\n"
             "Нажмите кнопку ниже, чтобы добавить номер телефона или указать город.",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="📱 Добавить номер телефона", callback_data="add_phone")],
                 [InlineKeyboardButton(text="🌍 Указать город", callback_data="add_city")],
+                [InlineKeyboardButton(text="🕒 Указать время рождения", callback_data="add_birth_time")],
+                [InlineKeyboardButton(text="📍 Указать место рождения", callback_data="add_birth_place")],
                 [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
             ])
         )
@@ -230,8 +241,54 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await status_msg.edit_text("❌ Не удалось определить город. Попробуйте написать его на русском или английском языке более точно (например, 'Санкт-Петербург').")
         await state.clear()
 
+    @dp.callback_query(F.data == "add_birth_time")
+    async def add_birth_time_start(callback: types.CallbackQuery, state: FSMContext):
+        await callback.message.answer("Введите время рождения в формате ЧЧ:ММ (например, 15:30). Если не знаете – напишите «неизвестно».")
+        await state.set_state(UserStates.waiting_birth_time)
+        await callback.answer()
+
+    @dp.message(UserStates.waiting_birth_time)
+    async def save_birth_time(message: types.Message, state: FSMContext):
+        user_id = message.from_user.id
+        time_str = message.text.strip()
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET birth_time = ? WHERE user_id = ?", (time_str, user_id))
+        conn.commit()
+        conn.close()
+        await message.answer(f"✅ Время рождения сохранено: {time_str}")
+        await state.clear()
+
+    @dp.callback_query(F.data == "add_birth_place")
+    async def add_birth_place_start(callback: types.CallbackQuery, state: FSMContext):
+        await callback.message.answer("Введите город и страну рождения (например, Москва, Россия).")
+        await state.set_state(UserStates.waiting_birth_place)
+        await callback.answer()
+
+    @dp.message(UserStates.waiting_birth_place)
+    async def save_birth_place(message: types.Message, state: FSMContext):
+        user_id = message.from_user.id
+        place = message.text.strip()
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET birth_place = ? WHERE user_id = ?", (place, user_id))
+        conn.commit()
+        conn.close()
+        await message.answer(f"✅ Место рождения сохранено: {place}")
+        await state.clear()
+
     @dp.callback_query(F.data == "cancel_sub")
     async def cancel_subscription(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Да, отменить", callback_data="confirm_cancel_sub")],
+            [InlineKeyboardButton(text="❌ Нет, оставить", callback_data="back_to_menu")]
+        ])
+        await callback.message.answer("Вы уверены, что хотите отменить подписку? Доступ будет прекращён после окончания оплаченного периода.", reply_markup=kb)
+        await callback.answer()
+
+    @dp.callback_query(F.data == "confirm_cancel_sub")
+    async def confirm_cancel_sub(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         conn = get_connection()
         cursor = conn.cursor()
@@ -301,6 +358,10 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         else:
             await message.answer("🌍 Город не указан. Укажите его через /setcity или в настройках профиля.")
 
+    @dp.message(Command("setbirth"))
+    async def setbirth_command(message: types.Message, state: FSMContext):
+        await message.answer("Используйте настройки профиля (кнопка «НАСТРОЙКИ») для указания времени и места рождения.")
+
     # ---------- ПЛАТЕЖИ TELEGRAM STARS ----------
     @dp.callback_query(F.data == "buy_subscription")
     async def buy_subscription(callback: types.CallbackQuery):
@@ -309,7 +370,7 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             title="Подписка на бота «Аркадий Викторович»",
             description="Месяц полного доступа: матрица судьбы, безлимитные вопросы, прогнозы, гороскопы и психологические практики.",
             payload="subscription_month",
-            provider_token=PAYMENTS_TOKEN,  # для Stars может быть пустым
+            provider_token=PAYMENTS_TOKEN,
             currency="XTR",
             prices=[LabeledPrice(label="Месяц", amount=249)],
             start_parameter="subscription"
@@ -347,6 +408,24 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.callback_query(F.data == "renew_subscription")
     async def renew_subscription(callback: types.CallbackQuery):
         await buy_subscription(callback)
+
+    @dp.callback_query(F.data == "add_to_group")
+    async def add_to_group_info(callback: types.CallbackQuery):
+        text = (
+            "👥 *Как добавить бота в групповой чат или канал:*\n\n"
+            "1. Добавьте бота @NumerologArkadiy_bot в ваш чат.\n"
+            "2. Дайте права администратора (для публикации сообщений).\n"
+            "3. Напишите в чате команду `/start_bot`, чтобы активировать бота.\n"
+            "4. Настройте тип контента командой `/set_chat_type <тип>`:\n"
+            "   • `daily_motivation` – ежедневная мотивация\n"
+            "   • `horoscope` – гороскоп на день\n"
+            "   • `advice` – психологический совет\n"
+            "5. Бот будет публиковать выбранный контент каждый день в 9:00.\n\n"
+            "Любой участник чата может запросить свой гороскоп или матрицу, написав боту в личку.\n"
+            "Подробнее – в профиле бота."
+        )
+        await callback.message.answer(text, parse_mode="Markdown")
+        await callback.answer()
 
     @dp.pre_checkout_query()
     async def pre_checkout(query: PreCheckoutQuery):

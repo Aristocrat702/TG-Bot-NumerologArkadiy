@@ -513,3 +513,73 @@ def generate_pdf_matrix(user_id: int, name: str, destiny: int, matrix_text: str)
     except Exception as e:
         print(f"Ошибка генерации PDF: {e}")
         return None
+# Вставьте этот код в конец файла utils.py (или замените весь файл, но я даю только добавления)
+# Если вы заменяете весь файл – используйте полную версию из предыдущих сообщений, но я даю только изменения.
+
+import datetime
+
+# ---------- ФУНКЦИИ ДЛЯ ПОДПИСКИ ----------
+def format_subscription_remaining(end_date_str: str) -> str:
+    """Возвращает строку: «осталось X дней» или «осталось X часов»."""
+    if not end_date_str:
+        return "не активна"
+    try:
+        end = datetime.datetime.fromisoformat(end_date_str)
+        now = datetime.datetime.now()
+        diff = end - now
+        if diff.total_seconds() <= 0:
+            return "истекла"
+        days = diff.days
+        if days >= 1:
+            return f"осталось {days} дн."
+        else:
+            hours = int(diff.total_seconds() // 3600)
+            if hours == 0:
+                return "менее часа"
+            return f"осталось {hours} ч."
+    except:
+        return "ошибка"
+
+def get_user_subscription_status(user_id: int) -> bool:
+    """Возвращает True, если подписка активна (и не истекла). Если истекла – отключает в БД."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT subscription_active, subscription_end FROM users WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return False
+    active, end_str = row
+    if not active:
+        conn.close()
+        return False
+    if end_str:
+        try:
+            end_date = datetime.datetime.fromisoformat(end_str)
+            if end_date < datetime.datetime.now():
+                cursor.execute("UPDATE users SET subscription_active = 0 WHERE user_id = ?", (user_id,))
+                conn.commit()
+                conn.close()
+                return False
+        except:
+            pass
+    conn.close()
+    return True
+
+# ---------- ДОБАВЛЯЕМ ФУНКЦИЮ ДЛЯ ПРОВЕРКИ ВСЕХ ПОДПИСОК (ЗАПУСКАЕТСЯ ИЗ ПЛАНИРОВЩИКА) ----------
+async def check_and_expire_subscriptions():
+    """Раз в день проверяет все подписки и отключает истекшие."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, subscription_end FROM users WHERE subscription_active=1 AND subscription_end IS NOT NULL")
+    rows = cursor.fetchall()
+    now = datetime.datetime.now()
+    for user_id, end_str in rows:
+        try:
+            end_date = datetime.datetime.fromisoformat(end_str)
+            if end_date < now:
+                cursor.execute("UPDATE users SET subscription_active = 0 WHERE user_id = ?", (user_id,))
+        except:
+            pass
+    conn.commit()
+    conn.close()

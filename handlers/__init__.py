@@ -5,8 +5,9 @@ from handlers.main import register_main_handlers
 from handlers.challenge import register_challenge_handlers
 from handlers.promo import register_promo_handlers
 from handlers.common import register_common_handlers
-from handlers.alarm import register_alarm_handlers
 from handlers.horoscope import register_horoscope_handlers
+from handlers.astro import register_astro_handlers
+from handlers.groups import register_groups_handlers
 
 def register_handlers(dp, bot, admin_ids, bot_version):
     register_start_handlers(dp, bot, admin_ids, bot_version)
@@ -16,5 +17,6 @@ def register_handlers(dp, bot, admin_ids, bot_version):
     register_challenge_handlers(dp, bot, admin_ids)
     register_promo_handlers(dp, bot, admin_ids)
     register_common_handlers(dp, bot, admin_ids)
-    register_alarm_handlers(dp, bot, admin_ids)
     register_horoscope_handlers(dp, bot, admin_ids)
+    register_astro_handlers(dp, bot, admin_ids)
+    register_groups_handlers(dp, bot, admin_ids)
