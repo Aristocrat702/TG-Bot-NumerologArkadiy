@@ -24,7 +24,7 @@ def register_astro_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             return
         await message.answer("🌟 *Астрологический раздел*\n\nВыберите, что вас интересует:", parse_mode="Markdown", reply_markup=astro_submenu)
 
-    # ---------- НАТАЛЬНАЯ КАРТА (с монетизацией) ----------
+    # ---------- НАТАЛЬНАЯ КАРТА ----------
     @dp.callback_query(F.data == "astro_natal")
     async def natal_chart(callback: types.CallbackQuery):
         if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -60,7 +60,7 @@ def register_astro_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         update_last_active(user_id)
         await callback.answer()
 
-    # ---------- ТРАНЗИТЫ (с монетизацией) ----------
+    # ---------- ТРАНЗИТЫ ----------
     @dp.callback_query(F.data == "astro_transits")
     async def transits(callback: types.CallbackQuery):
         if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -95,7 +95,7 @@ def register_astro_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         update_last_active(user_id)
         await callback.answer()
 
-    # ---------- СОЛЯР (с монетизацией) ----------
+    # ---------- СОЛЯР ----------
     @dp.callback_query(F.data == "astro_solar")
     async def solar(callback: types.CallbackQuery):
         if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -130,7 +130,7 @@ def register_astro_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         update_last_active(user_id)
         await callback.answer()
 
-    # ---------- СОВМЕСТИМОСТЬ ПО ЗНАКАМ (остаётся бесплатной) ----------
+    # ---------- СОВМЕСТИМОСТЬ ПО ЗНАКАМ ----------
     @dp.callback_query(F.data == "astro_compatibility")
     async def astro_compatibility(callback: types.CallbackQuery, state: FSMContext):
         if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
