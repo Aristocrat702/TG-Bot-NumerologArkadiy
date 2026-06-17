@@ -50,6 +50,11 @@ def calculate_destiny_number(birth_date: str) -> int:
         total = sum(int(d) for d in str(total))
     return total
 
+# ----- АЛИАС ДЛЯ СОВМЕСТИМОСТИ С СТАРЫМ КОДОМ -----
+def get_birth_number(birth_date: str) -> int:
+    """Синоним для calculate_destiny_number (используется в старых импортах)."""
+    return calculate_destiny_number(birth_date)
+
 def add_subscription_days(user_id: int, days: int, check_referral: bool = False, admin_id: int = 0):
     conn = get_connection()
     cursor = conn.cursor()
@@ -287,7 +292,7 @@ def backup_database():
     for f in glob.glob(f"{backup_dir}/arkadiy_bot_*.db"):
         if os.path.getmtime(f) < time.time() - 7*86400:
             os.remove(f)
-    # asyncio.create_task(upload_to_yadisk(dst))  # закомментировано, т.к. не реализовано
+    # asyncio.create_task(upload_to_yadisk(dst))  # закомментировано
     return dst
 
 async def upload_to_yadisk(file_path):
