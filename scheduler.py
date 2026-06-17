@@ -35,7 +35,6 @@ def is_night_time() -> bool:
 
 # ---------- ГРУППОВАЯ РАССЫЛКА ----------
 async def send_group_messages(bot: Bot):
-    # Логируем вызов задачи
     logging.info("🔔 send_group_messages вызвана")
     
     if is_night_time():
@@ -128,12 +127,17 @@ async def generate_unique_message(chat_id: int, is_long: bool = False) -> str:
         "Помните: вы – главный герой своей жизни. Действуйте!"
     ])
 
-# ---------- НОЧНЫЕ И УТРЕННИЕ ПРИВЕТСТВИЯ (ГРУППЫ) ----------
-async def send_night_greetings(bot: Bot):
+# ---------- НОЧНОЕ ПРИВЕТСТВИЕ (один раз в сутки) ----------
+async def send_night_greeting(bot: Bot):
+    """Отправляет прощальное сообщение в группы в 22:55 (только один раз в день)."""
     now_utc = datetime.datetime.now(datetime.timezone.utc)
     now_msk = now_utc + datetime.timedelta(hours=MSK_OFFSET)
     hour = now_msk.hour
     minute = now_msk.minute
+
+    # Проверяем, что время соответствует 22:55-22:59 (чтобы не пропустить)
+    if hour != 22 or minute < 55 or minute > 59:
+        return
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -141,28 +145,84 @@ async def send_night_greetings(bot: Bot):
     groups = cursor.fetchall()
     conn.close()
 
-    if hour == 22 and minute >= 55:
+    today = datetime.date.today().isoformat()
+    for (chat_id,) in groups:
+        # Проверяем, было ли уже отправлено ночное сообщение сегодня
+        conn2 = get_connection()
+        cursor2 = conn2.cursor()
+        cursor2.execute(
+            "SELECT 1 FROM group_sent_log WHERE chat_id=? AND content_type='night_greeting' AND sent_at LIKE ?",
+            (chat_id, f"{today}%")
+        )
+        if cursor2.fetchone():
+            conn2.close()
+            continue  # уже отправляли сегодня
+
         msg = random.choice([
             "Спокойной ночи, друзья! Пусть сны будут ясными, а завтрашний день – добрым.",
             "Уходя, оставляю вам тишину. Отдыхайте. Завтра будет новый день.",
             "Звёзды уже зажглись. Я тоже гашу свет. До встречи завтра."
         ])
-        for (chat_id,) in groups:
-            try:
-                await bot.send_message(chat_id, msg, parse_mode="Markdown")
-            except:
-                pass
-    elif hour == 8 and minute <= 5:
+        try:
+            await bot.send_message(chat_id, msg, parse_mode="Markdown")
+            # Сохраняем факт отправки
+            cursor2.execute(
+                "INSERT INTO group_sent_log (chat_id, sent_at, message_hash, content_type) VALUES (?, ?, ?, ?)",
+                (chat_id, datetime.datetime.now().isoformat(), hashlib.sha256(msg.encode()).hexdigest(), "night_greeting")
+            )
+            conn2.commit()
+            logging.info(f"🌙 Отправлено ночное приветствие в группу {chat_id}")
+        except Exception as e:
+            logging.error(f"Ошибка отправки ночного приветствия в группу {chat_id}: {e}")
+        conn2.close()
+        await asyncio.sleep(0.3)
+
+# ---------- УТРЕННЕЕ ПРИВЕТСТВИЕ (один раз в сутки) ----------
+async def send_morning_greeting(bot: Bot):
+    """Отправляет утреннее приветствие в группы в 08:05 (только один раз в день)."""
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    now_msk = now_utc + datetime.timedelta(hours=MSK_OFFSET)
+    hour = now_msk.hour
+    minute = now_msk.minute
+
+    if hour != 8 or minute < 5 or minute > 9:
+        return
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT chat_id FROM group_chats WHERE is_active=1")
+    groups = cursor.fetchall()
+    conn.close()
+
+    today = datetime.date.today().isoformat()
+    for (chat_id,) in groups:
+        conn2 = get_connection()
+        cursor2 = conn2.cursor()
+        cursor2.execute(
+            "SELECT 1 FROM group_sent_log WHERE chat_id=? AND content_type='morning_greeting' AND sent_at LIKE ?",
+            (chat_id, f"{today}%")
+        )
+        if cursor2.fetchone():
+            conn2.close()
+            continue
+
         msg = random.choice([
             "Доброе утро! Новый день – новые возможности. Я с вами.",
             "Просыпайтесь! Мир ждёт вас. Сегодня мы разберёмся с тем, что вчера казалось сложным.",
             "Утро – время для планов. Пусть сегодняшний день будет удачным."
         ])
-        for (chat_id,) in groups:
-            try:
-                await bot.send_message(chat_id, msg, parse_mode="Markdown")
-            except:
-                pass
+        try:
+            await bot.send_message(chat_id, msg, parse_mode="Markdown")
+            cursor2.execute(
+                "INSERT INTO group_sent_log (chat_id, sent_at, message_hash, content_type) VALUES (?, ?, ?, ?)",
+                (chat_id, datetime.datetime.now().isoformat(), hashlib.sha256(msg.encode()).hexdigest(), "morning_greeting")
+            )
+            conn2.commit()
+            logging.info(f"☀️ Отправлено утреннее приветствие в группу {chat_id}")
+        except Exception as e:
+            logging.error(f"Ошибка отправки утреннего приветствия в группу {chat_id}: {e}")
+        conn2.close()
+        await asyncio.sleep(0.3)
 
 # ---------- PUSH-УВЕДОМЛЕНИЯ (ВСЕМ ПОЛЬЗОВАТЕЛЯМ) ----------
 async def send_push_notification(bot: Bot, notification_type: str, generator_func):
@@ -265,10 +325,12 @@ async def weekly_leaderboard(bot: Bot, admin_id: int = None):
 def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     scheduler.remove_all_jobs()
 
-    # Групповая рассылка
+    # Групповая рассылка (каждые 30 минут)
     scheduler.add_job(send_group_messages, IntervalTrigger(minutes=30), args=[bot], id="send_group_messages")
-    # Ночные приветствия
-    scheduler.add_job(send_night_greetings, IntervalTrigger(minutes=1), args=[bot], id="send_night_greetings")
+    
+    # Ночное и утреннее приветствия (по расписанию, с проверкой дублей)
+    scheduler.add_job(send_night_greeting, CronTrigger(hour=22, minute=55), args=[bot], id="night_greeting")
+    scheduler.add_job(send_morning_greeting, CronTrigger(hour=8, minute=5), args=[bot], id="morning_greeting")
 
     # Ежедневные push-уведомления
     scheduler.add_job(send_morning_notifications, CronTrigger(hour=8, minute=0), args=[bot], id="morning_push")
@@ -289,4 +351,4 @@ def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     scheduler.add_job(weekly_leaderboard, CronTrigger(day_of_week='sun', hour=20, minute=0), args=[bot, admin_id], id="weekly_lb")
 
     scheduler.start()
-    logging.info(f"Планировщик запущен с адаптивными уведомлениями, версия {bot_version}")
+    logging.info(f"Планировщик запущен, версия {bot_version}")
