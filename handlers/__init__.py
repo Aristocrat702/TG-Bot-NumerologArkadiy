@@ -1,24 +1,27 @@
-from handlers.start import register_start_handlers
-from handlers.profile import register_profile_handlers
-from handlers.psycho import register_psycho_handlers
-from handlers.main import register_main_handlers
-from handlers.challenge import register_challenge_handlers
-from handlers.promo import register_promo_handlers
-from handlers.common import register_common_handlers
-from handlers.horoscope import register_horoscope_handlers
-from handlers.astro import register_astro_handlers
-from handlers.groups import register_groups_handlers
-from handlers.help import register_help_handlers
+from aiogram import Dispatcher
+from .start import router as start_router
+from .profile import router as profile_router
+from .psycho import router as psycho_router
+from .main import router as main_router
+from .challenge import router as challenge_router
+from .promo import router as promo_router
+from .common import router as common_router
+from .horoscope import router as horoscope_router
+from .astro import router as astro_router
+from .groups import router as groups_router
+from .help import router as help_router
+from .alarm import router as alarm_router
 
-def register_handlers(dp, bot, admin_ids, bot_version):
-    register_start_handlers(dp, bot, admin_ids, bot_version)
-    register_profile_handlers(dp, bot, admin_ids)
-    register_psycho_handlers(dp, bot, admin_ids)
-    register_main_handlers(dp, bot, admin_ids)
-    register_challenge_handlers(dp, bot, admin_ids)
-    register_promo_handlers(dp, bot, admin_ids)
-    register_common_handlers(dp, bot, admin_ids)
-    register_horoscope_handlers(dp, bot, admin_ids)
-    register_astro_handlers(dp, bot, admin_ids)
-    register_groups_handlers(dp, bot, admin_ids)
-    register_help_handlers(dp, bot, admin_ids)
+def register_handlers(dp: Dispatcher, bot, admin_ids, bot_version):
+    dp.include_router(start_router)
+    dp.include_router(profile_router)
+    dp.include_router(psycho_router)
+    dp.include_router(main_router)
+    dp.include_router(challenge_router)
+    dp.include_router(promo_router)
+    dp.include_router(common_router)
+    dp.include_router(horoscope_router)
+    dp.include_router(astro_router)
+    dp.include_router(groups_router)
+    dp.include_router(help_router)
+    dp.include_router(alarm_router)
