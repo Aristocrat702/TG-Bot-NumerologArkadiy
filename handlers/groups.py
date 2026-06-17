@@ -1,4 +1,4 @@
-from aiogram import Router, types, F
+from aiogram import Bot, Dispatcher, types, F, Router
 from aiogram.filters import Command
 from aiogram.enums import ChatType
 from database import get_connection
@@ -7,48 +7,50 @@ import logging
 
 router = Router()
 
-def init_group_db():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS group_chats (
-            chat_id INTEGER PRIMARY KEY,
-            is_active BOOLEAN DEFAULT 0,
-            created_at TEXT,
-            frequency INTEGER DEFAULT 2
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS group_sent_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id INTEGER,
-            sent_at TEXT,
-            message_hash TEXT,
-            content_type TEXT
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-init_group_db()
-
 @router.message(Command("startarkadiy"), F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
-async def start_bot_in_group(message: types.Message):
+async def start_bot_in_group(message: types.Message, bot: Bot):
     chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    # Проверяем, является ли пользователь администратором
+    try:
+        member = await bot.get_chat_member(chat_id, user_id)
+        if member.status not in ("administrator", "creator"):
+            await message.answer("❌ Только администратор группы может активировать бота.")
+            return
+    except Exception as e:
+        logging.error(f"Ошибка проверки прав: {e}")
+        await message.answer("❌ Не удалось проверить ваши права.")
+        return
+    
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT chat_id FROM group_chats WHERE chat_id=?", (chat_id,))
     if cursor.fetchone():
         await message.answer("Бот уже активирован в этом чате.")
     else:
-        cursor.execute("INSERT INTO group_chats (chat_id, is_active, created_at, frequency) VALUES (?, 1, ?, 2)", (chat_id, datetime.datetime.now().isoformat()))
+        cursor.execute("INSERT INTO group_chats (chat_id, is_active, created_at, frequency) VALUES (?, 1, ?, 2)", 
+                       (chat_id, datetime.datetime.now().isoformat()))
         conn.commit()
         await message.answer("✅ Бот активирован! Я буду присылать полезные мысли в этот чат.")
     conn.close()
 
 @router.message(Command("stoparkadiy"), F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
-async def stop_bot_in_group(message: types.Message):
+async def stop_bot_in_group(message: types.Message, bot: Bot):
     chat_id = message.chat.id
+    user_id = message.from_user.id
+    
+    # Проверяем права администратора
+    try:
+        member = await bot.get_chat_member(chat_id, user_id)
+        if member.status not in ("administrator", "creator"):
+            await message.answer("❌ Только администратор группы может отключить бота.")
+            return
+    except Exception as e:
+        logging.error(f"Ошибка проверки прав: {e}")
+        await message.answer("❌ Не удалось проверить ваши права.")
+        return
+    
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE group_chats SET is_active = 0 WHERE chat_id = ?", (chat_id,))
