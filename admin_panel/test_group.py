@@ -3,7 +3,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database import get_connection
-from keyboards import admin_menu, cancel_button
+from keyboards import admin_menu
 from utils import is_admin, admin_log
 import random
 
@@ -29,7 +29,6 @@ def register_test_group_handlers(dp, bot, admin_ids):
 
         kb = InlineKeyboardMarkup(inline_keyboard=[])
         for chat_id, _ in groups[:10]:
-            # Получаем название чата
             try:
                 chat = await bot.get_chat(chat_id)
                 chat_name = chat.title or chat.first_name or str(chat_id)
@@ -48,12 +47,7 @@ def register_test_group_handlers(dp, bot, admin_ids):
         await state.update_data(chat_id=chat_id)
 
         # Генерируем аффирмацию и сохраняем в состояние
-        affirmations = [
-            "✨ Доброе утро, друзья! Пусть сегодняшний день принесёт вам вдохновение и лёгкость. Помните: даже маленький шаг меняет маршрут. Улыбнитесь – и мир улыбнётся вам в ответ.",
-            "🌿 Иногда лучшее, что можно сделать для себя – просто остановиться и перевести дыхание. Вы уже делаете достаточно. Сегодня разрешите себе быть неидеальным. Это нормально.",
-            "🔥 Ваше время – это ваша сила. Каждое утро – новый шанс начать сначала. Доверьтесь себе, и у вас всё получится. Мы рядом!"
-        ]
-        message_text = random.choice(affirmations)
+        message_text = await generate_affirmation()
         await state.update_data(message_text=message_text)
 
         # Получаем название чата
@@ -63,15 +57,51 @@ def register_test_group_handlers(dp, bot, admin_ids):
         except:
             chat_name = f"Чат {chat_id}"
 
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Отправить", callback_data="test_group_send")],
+            [InlineKeyboardButton(text="🔄 Заменить сообщение", callback_data="test_group_regenerate")],
+            [InlineKeyboardButton(text="❌ Отмена", callback_data="admin_cancel_action")]
+        ])
+
         await callback.message.answer(
-            f"📤 *Тестовое сообщение для группы {chat_name} ({chat_id}):*\n\n{message_text}\n\nОтправить?",
+            f"📤 *Тестовое сообщение для группы {chat_name} ({chat_id}):*\n\n{message_text}\n\nЧто делаем?",
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="✅ Отправить", callback_data="test_group_send")],
-                [InlineKeyboardButton(text="❌ Отмена", callback_data="admin_cancel_action")]
-            ])
+            reply_markup=kb
         )
         await state.set_state(TestGroupStates.waiting_confirm)
+        await callback.answer()
+
+    @dp.callback_query(F.data == "test_group_regenerate", TestGroupStates.waiting_confirm)
+    async def test_group_regenerate(callback: types.CallbackQuery, state: FSMContext):
+        """Генерирует новую аффирмацию и обновляет сообщение."""
+        data = await state.get_data()
+        chat_id = data.get("chat_id")
+        if not chat_id:
+            await callback.message.answer("Ошибка: не указан чат.")
+            await state.clear()
+            await callback.answer()
+            return
+
+        new_message = await generate_affirmation()
+        await state.update_data(message_text=new_message)
+
+        try:
+            chat = await bot.get_chat(chat_id)
+            chat_name = chat.title or chat.first_name or str(chat_id)
+        except:
+            chat_name = f"Чат {chat_id}"
+
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Отправить", callback_data="test_group_send")],
+            [InlineKeyboardButton(text="🔄 Заменить сообщение", callback_data="test_group_regenerate")],
+            [InlineKeyboardButton(text="❌ Отмена", callback_data="admin_cancel_action")]
+        ])
+
+        await callback.message.edit_text(
+            f"📤 *Тестовое сообщение для группы {chat_name} ({chat_id}):*\n\n{new_message}\n\nЧто делаем?",
+            parse_mode="Markdown",
+            reply_markup=kb
+        )
         await callback.answer()
 
     @dp.callback_query(F.data == "test_group_send", TestGroupStates.waiting_confirm)
@@ -94,3 +124,22 @@ def register_test_group_handlers(dp, bot, admin_ids):
 
         await state.clear()
         await callback.answer()
+
+    @dp.callback_query(F.data == "admin_cancel_action")
+    async def admin_cancel_action(callback: types.CallbackQuery, state: FSMContext):
+        """Универсальная отмена для админ-панели – очищает состояние и удаляет сообщения."""
+        if not is_admin(callback.from_user.id, admin_ids):
+            await callback.answer("Нет доступа.")
+            return
+        await state.clear()
+        await callback.message.delete()
+        await callback.message.answer("❌ Действие отменено. Возврат в админ-панель.", reply_markup=admin_menu)
+        await callback.answer()
+
+async def generate_affirmation() -> str:
+    affirmations = [
+        "✨ Доброе утро, друзья! Пусть сегодняшний день принесёт вам вдохновение и лёгкость. Помните: даже маленький шаг меняет маршрут. Улыбнитесь – и мир улыбнётся вам в ответ.",
+        "🌿 Иногда лучшее, что можно сделать для себя – просто остановиться и перевести дыхание. Вы уже делаете достаточно. Сегодня разрешите себе быть неидеальным. Это нормально.",
+        "🔥 Ваше время – это ваша сила. Каждое утро – новый шанс начать сначала. Доверьтесь себе, и у вас всё получится. Мы рядом!"
+    ]
+    return random.choice(affirmations)
