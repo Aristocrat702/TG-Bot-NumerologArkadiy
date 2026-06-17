@@ -172,15 +172,13 @@ async def send_push_notification(bot: Bot, notification_type: str, generator_fun
     for user_id, destiny, sub_active in users:
         is_subscriber = bool(sub_active)
         try:
-            # Получаем контент через генератор
-            content = await generator_func(user_id, destiny or 1, is_subscriber)
-            if not content:
+            text, reply_markup = await generator_func(user_id, destiny or 1, is_subscriber)
+            if not text:
                 continue
-            # Отправляем
-            await bot.send_message(user_id, content, parse_mode="Markdown")
+            await bot.send_message(user_id, text, parse_mode="Markdown", reply_markup=reply_markup)
         except Exception as e:
             logging.error(f"Ошибка отправки уведомления {notification_type} пользователю {user_id}: {e}")
-        await asyncio.sleep(0.3)  # чтобы не перегружать API
+        await asyncio.sleep(0.3)
 
 # ---------- ЗАДАЧИ ДЛЯ PUSH-УВЕДОМЛЕНИЙ ----------
 async def send_morning_notifications(bot: Bot):
