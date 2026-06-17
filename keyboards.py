@@ -1,7 +1,7 @@
 ﻿from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram import Bot
 
-# Главное меню (без отмены)
+# Главное меню (без изменений)
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🔮 МОЯ МАТРИЦА"), KeyboardButton(text="🔢 МОЁ ЧИСЛО")],
@@ -12,7 +12,7 @@ main_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Подменю психологии
+# Подменю психологии (без изменений)
 psycho_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🧠 ПСИХОТЕСТ", callback_data="psycho_test")],
     [InlineKeyboardButton(text="😊 ДНЕВНИК НАСТРОЕНИЯ", callback_data="mood_diary")],
@@ -21,7 +21,7 @@ psycho_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 НАЗАД", callback_data="psycho_back")]
 ])
 
-# Подменю астрологии
+# Подменю астрологии (без изменений)
 astro_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🌌 Натальная карта", callback_data="astro_natal")],
     [InlineKeyboardButton(text="🔄 Транзиты", callback_data="astro_transits")],
@@ -32,22 +32,21 @@ astro_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# Меню профиля
+# ===== НОВОЕ МЕНЮ ПРОФИЛЯ (без "СМЕНИТЬ ИМЯ") =====
 profile_menu = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="✏️ СМЕНИТЬ ИМЯ", callback_data="change_name")],
-    [InlineKeyboardButton(text="🎁 БЕСПЛАТНЫЕ ДНИ", callback_data="referral_info"),
+    [InlineKeyboardButton(text="🎁 РЕФЕРАЛЫ", callback_data="referral_info"),
      InlineKeyboardButton(text="🏆 ДОСТИЖЕНИЯ", callback_data="achievements")],
     [InlineKeyboardButton(text="⭐ КУПИТЬ ПОДПИСКУ", callback_data="buy_subscription"),
-     InlineKeyboardButton(text="🎁 ПОДАРИТЬ", callback_data="gift_subscription")],
+     InlineKeyboardButton(text="🎁 ПОДАРИТЬ ПОДПИСКУ", callback_data="gift_subscription")],
     [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings")],
     [InlineKeyboardButton(text="📜 ИСТОРИЯ ЗАПРОСОВ", callback_data="history")],
     [InlineKeyboardButton(text="🎟️ ВВЕСТИ ПРОМОКОД", callback_data="enter_promo")],
-    [InlineKeyboardButton(text="👥 ПРИГЛАСИТЬ В ГРУППУ", callback_data="add_to_group")],
-    [InlineKeyboardButton(text="❓ ПОМОЩЬ", callback_data="help")],
+    [InlineKeyboardButton(text="👥 ДОБАВИТЬ В ГРУППУ", callback_data="add_to_group")],
+    [InlineKeyboardButton(text="ℹ️ О БОТЕ", callback_data="help")],
     [InlineKeyboardButton(text="✖️ ЗАКРЫТЬ", callback_data="close")]
 ])
 
-# Быстрые темы
+# Быстрые темы (без изменений)
 quick_topics_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="💰 Деньги", callback_data="quick_topic_money"),
      InlineKeyboardButton(text="❤️ Любовь", callback_data="quick_topic_love")],
@@ -59,19 +58,18 @@ quick_topics_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
 ])
 
-# Универсальная кнопка "Главное меню"
 menu_button = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
 ])
 
-# Меню челленджа
+# Меню челленджа (без изменений)
 challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔥 Начать челлендж 7 дней", callback_data="start_challenge")],
     [InlineKeyboardButton(text="📊 Мой прогресс", callback_data="challenge_progress")],
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# Админ-меню (без кнопки отмены)
+# Админ-меню (без изменений)
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📊 СТАТИСТИКА"), KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ")],
@@ -86,9 +84,8 @@ admin_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# ===== НОВАЯ ФУНКЦИЯ ДЛЯ INLINE-КНОПКИ ОТМЕНЫ =====
+# Функция для inline-кнопки отмены
 def cancel_button(callback_data: str = "cancel_action") -> InlineKeyboardMarkup:
-    """Возвращает inline-клавиатуру с кнопкой «❌ Отмена»."""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="❌ Отмена", callback_data=callback_data)]
     ])

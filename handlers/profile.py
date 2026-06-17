@@ -106,7 +106,28 @@ async def show_profile(message: types.Message):
             f"└─────────────────────┘")
     await message.answer(text, reply_markup=profile_menu)
 
-# ---------- СМЕНА ИМЕНИ ----------
+# ---------- НАСТРОЙКИ (с кнопкой "Сменить имя") ----------
+@router.callback_query(F.data == "settings")
+async def settings_menu(callback: types.CallbackQuery):
+    if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+        await callback.message.answer("Доступно только в личном чате.")
+        await callback.answer()
+        return
+    await callback.message.answer(
+        "⚙️ *Настройки*\n\nВыберите, что хотите изменить:",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✏️ Сменить имя", callback_data="change_name")],
+            [InlineKeyboardButton(text="📱 Добавить/заменить телефон", callback_data="add_phone")],
+            [InlineKeyboardButton(text="🌍 Добавить/заменить город", callback_data="add_city")],
+            [InlineKeyboardButton(text="🕒 Указать время рождения", callback_data="add_birth_time")],
+            [InlineKeyboardButton(text="📍 Указать место рождения", callback_data="add_birth_place")],
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
+        ])
+    )
+    await callback.answer()
+
+# ---------- СМЕНА ИМЕНИ (теперь вызывается из настроек) ----------
 @router.callback_query(F.data == "change_name")
 async def change_name_start(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -136,7 +157,7 @@ async def change_name_save(message: types.Message, state: FSMContext):
     await message.answer(f"Имя изменено на {new_name}.", reply_markup=main_menu)
     await state.clear()
 
-# ---------- РЕФЕРАЛЬНАЯ ИНФОРМАЦИЯ ----------
+# ---------- РЕФЕРАЛЫ ----------
 @router.callback_query(F.data == "referral_info")
 async def referral_info(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -147,7 +168,7 @@ async def referral_info(callback: types.CallbackQuery):
     link = generate_referral_link(user_id)
     stats = get_referral_stats(user_id)
     text = (
-        "🎁 *Бесплатные дни*\n\n"
+        "🎁 *Реферальная программа*\n\n"
         "Отправьте другу ссылку. Как только друг оформит подписку, вы получите +7 дней полного доступа в подарок.\n\n"
         f"Ваша ссылка: {link}\n\n"
         f"Приведено друзей с подпиской: *{stats['paid']}*\n"
@@ -173,32 +194,6 @@ async def show_achievements(callback: types.CallbackQuery):
         for ach, date in achievements:
             text += f"• {ach} ({date[:10]})\n"
     await callback.message.answer(text, reply_markup=menu_button)
-    await callback.answer()
-
-# ---------- НАСТРОЙКИ ----------
-@router.callback_query(F.data == "settings")
-async def settings_menu(callback: types.CallbackQuery):
-    if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
-        await callback.message.answer("Доступно только в личном чате.")
-        await callback.answer()
-        return
-    await callback.message.answer(
-        "⚙️ *Настройки*\n\n"
-        "• Отписаться от ежедневной рассылки – /unsubscribe_daily\n"
-        "• Подписаться на рассылку – /subscribe_daily\n"
-        "• Добавить или заменить номер телефона\n"
-        "• Добавить или заменить город\n"
-        "• Указать время и место рождения\n\n"
-        "Нажмите кнопку ниже, чтобы добавить или заменить данные.",
-        parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📱 Добавить/заменить телефон", callback_data="add_phone")],
-            [InlineKeyboardButton(text="🌍 Добавить/заменить город", callback_data="add_city")],
-            [InlineKeyboardButton(text="🕒 Указать время рождения", callback_data="add_birth_time")],
-            [InlineKeyboardButton(text="📍 Указать место рождения", callback_data="add_birth_place")],
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
-        ])
-    )
     await callback.answer()
 
 # ---------- ТЕЛЕФОН ----------
@@ -385,7 +380,7 @@ async def add_to_group_info(callback: types.CallbackQuery):
     await callback.message.answer(text, parse_mode="Markdown", disable_web_page_preview=True)
     await callback.answer()
 
-# ---------- ПОМОЩЬ ----------
+# ---------- О БОТЕ (НОВАЯ УСИЛЕННАЯ ПОМОЩЬ) ----------
 @router.callback_query(F.data == "help")
 async def show_help(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -393,33 +388,33 @@ async def show_help(callback: types.CallbackQuery):
         await callback.answer()
         return
     text = (
-        "❓ *Помощь по боту «Аркадий Викторович»*\n\n"
-        "🌟 *Основные команды:*\n"
-        "• /start – запустить бота\n"
-        "• /menu – главное меню\n"
-        "• /mynumber – узнать ваше число судьбы\n"
-        "• /setcity – указать город\n"
-        "• /setbirth – указать время и место рождения\n"
-        "• /cancel – отменить текущее действие\n\n"
-        "🧠 *Разделы:*\n"
-        "• 🔮 МОЯ МАТРИЦА – полная матрица судьбы (по подписке)\n"
-        "• 🔢 МОЁ ЧИСЛО – характеристика числа судьбы\n"
-        "• ❤️ СОВМЕСТИМОСТЬ – совместимость с партнёром\n"
-        "• 🎁 КАРТА ДНЯ – прогноз на день\n"
-        "• 💬 ЗАДАТЬ ВОПРОС – вопросы по нумерологии/психологии\n"
-        "• 🧠 ПСИХОЛОГИЯ – тесты, дневник настроения\n"
-        "• 🌟 АСТРОЛОГИЯ – натальная карта, транзиты, соляр\n"
-        "• 👤 МОЙ ПРОФИЛЬ – управление подпиской, рефералы, настройки\n\n"
-        "💎 *Подписка (249 ₽/мес):*\n"
-        "• Полная матрица судьбы\n"
-        "• Безлимитные вопросы\n"
-        "• Ежедневная карта дня\n"
-        "• Гороскоп на месяц\n"
-        "• Еженедельные мотивирующие фразы\n\n"
-        "👥 *Для групп:*\n"
-        "Добавьте бота в чат и активируйте командой /startarkadiy.\n"
-        "Для отключения – /stoparkadiy.\n\n"
-        "👥 *Поддержка:* @Aristocrat102\n"
+        "ℹ️ *О боте «Аркадий Викторович»*\n\n"
+        "Я — ваш личный нумеролог, психолог и астролог. Вот что я умею:\n\n"
+        "🧠 *Бесплатные возможности:*\n"
+        "• 🔢 Ваше число судьбы и его характеристика\n"
+        "• ❤️ Совместимость с партнёром\n"
+        "• 🎁 Карта дня с прогнозом и погодой\n"
+        "• 💬 5 бесплатных вопросов в день\n"
+        "• 🧠 Психотест и дневник настроения\n"
+        "• 🌟 Гороскоп на день\n\n"
+        "💎 *Подписка (всего 249 ₽/мес) — это ваш ключ к полному доступу:*\n"
+        "• 🔮 Полная матрица судьбы (22 аркана) с PDF-отчётом\n"
+        "• 💬 Безлимитные вопросы с развёрнутыми ответами\n"
+        "• 📅 Гороскоп на месяц и ежедневные прогнозы\n"
+        "• 🌌 Натальная карта, транзиты и соляр\n"
+        "• 📊 Персональные психологические рекомендации\n"
+        "• 🔔 Ежедневные мотивирующие фразы и аффирмации\n"
+        "• 🎁 Приоритетная поддержка\n\n"
+        "💰 *Почему это выгодно?*\n"
+        "• Всего 249 ₽ — цена одной чашки кофе, но вы получаете целый месяц профессиональных консультаций.\n"
+        "• Вы экономите время и деньги на походах к психологам и астрологам.\n"
+        "• Каждый день — новые инсайты и практики для улучшения жизни.\n\n"
+        "👥 *Для групповых чатов:*\n"
+        "• Активация: /startarkadiy\n"
+        "• Деактивация: /stoparkadiy\n"
+        "• Бот автоматически делится полезными мыслями и поддержкой.\n\n"
+        "📌 *Управление ботом — только через кнопки меню!*"
+        "\n\n👤 *Поддержка:* @Aristocrat102\n"
         "Версия бота: 2.1.0"
     )
     await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
@@ -484,7 +479,6 @@ async def gift_process(message: types.Message, state: FSMContext):
     )
     await state.clear()
 
-# ---------- ПРОДЛЕНИЕ ПОДПИСКИ (заглушка) ----------
 @router.callback_query(F.data == "renew_subscription")
 async def renew_subscription(callback: types.CallbackQuery):
     await buy_subscription(callback)
@@ -506,7 +500,7 @@ async def successful_payment(message: types.Message):
         add_subscription_days(message.from_user.id, 30, check_referral=False, admin_id=0)
         await message.answer("✅ Подписка активирована на 30 дней! Теперь вам доступны матрица судьбы, безлимитные вопросы и все премиум-функции. Спасибо, что с нами!")
 
-# ---------- КОМАНДЫ ДЛЯ ПОДПИСКИ НА РАССЫЛКУ ----------
+# ---------- КОМАНДЫ ДЛЯ ПОДПИСКИ НА РАССЫЛКУ (скрытые) ----------
 @router.message(Command("unsubscribe_daily"))
 async def unsubscribe_daily(message: types.Message):
     user_id = message.from_user.id
