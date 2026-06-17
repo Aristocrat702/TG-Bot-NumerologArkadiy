@@ -153,7 +153,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# ---------- ФУНКЦИИ ДЛЯ РАБОТЫ С ПОЛЬЗОВАТЕЛЯМИ ----------
 def get_user(user_id: int):
     conn = get_connection()
     cursor = conn.cursor()
@@ -235,9 +234,7 @@ def update_user(user_id: int, **kwargs):
         conn.close()
         return False
 
-# ---------- ДОБАВЛЕННАЯ ФУНКЦИЯ ----------
 def get_subscription_status(user_id: int) -> bool:
-    """Возвращает True, если у пользователя активна подписка."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT subscription_active, subscription_end FROM users WHERE user_id = ?", (user_id,))
