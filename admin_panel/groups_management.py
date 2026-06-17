@@ -3,7 +3,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from database import get_connection
-from keyboards import admin_menu, cancel_button
+from keyboards import admin_menu
 from utils import is_admin, admin_log
 
 class GroupSettingsStates(StatesGroup):
@@ -38,7 +38,6 @@ def register_groups_management_handlers(dp, bot, admin_ids):
             await callback.answer()
             return
 
-        text = "📋 *Список групп:*\n\n"
         for row in rows:
             chat_id, is_active, freq, created_at = row
             # Получаем информацию о чате
@@ -46,49 +45,62 @@ def register_groups_management_handlers(dp, bot, admin_ids):
                 chat = await bot.get_chat(chat_id)
                 chat_name = chat.title or chat.first_name or str(chat_id)
                 chat_username = chat.username
+                invite_link = chat.invite_link
             except Exception:
                 chat_name = f"Чат {chat_id}"
                 chat_username = None
+                invite_link = None
 
             status = "✅ Активна" if is_active else "❌ Неактивна"
-            text += f"📌 *{chat_name}*\n"
+            text = f"📌 *{chat_name}*\n"
             text += f"ID: `{chat_id}`\n"
             text += f"Статус: {status}\n"
             text += f"Частота: {freq} сообщ/час\n"
+            text += f"📅 Дата: {created_at[:10]}\n"
 
             # Ссылка для перехода
             link = None
             if chat_username:
                 link = f"https://t.me/{chat_username}"
+            elif invite_link:
+                link = invite_link
             else:
-                # Пробуем создать инвайт-ссылку (если бот админ)
+                # Пытаемся создать инвайт-ссылку
                 try:
-                    invite_link = await bot.create_chat_invite_link(chat_id, member_limit=1)
-                    link = invite_link.invite_link
+                    new_link = await bot.create_chat_invite_link(chat_id, member_limit=1)
+                    link = new_link.invite_link
                 except:
                     # Если не удалось, используем t.me/c/ для супергрупп
                     try:
                         chat_obj = await bot.get_chat(chat_id)
                         if chat_obj.type in ("supergroup", "group"):
-                            link = f"https://t.me/c/{str(chat_id)[4:]}"  # для супергрупп
+                            link = f"https://t.me/c/{str(chat_id)[4:]}"
                     except:
                         link = None
+
+            # Формируем клавиатуру
+            kb_buttons = []
             if link:
-                text += f"🔗 [Перейти в чат]({link})\n"
+                kb_buttons.append([InlineKeyboardButton(text="🔗 Перейти в чат", url=link)])
             else:
-                text += f"🔗 Ссылка недоступна. ID чата: `{chat_id}`\n"
+                kb_buttons.append([InlineKeyboardButton(text="📋 Скопировать ID", callback_data=f"copy_id_{chat_id}")])
+            kb_buttons.append([InlineKeyboardButton(text=f"📊 Частота ({freq})", callback_data=f"group_freq_{chat_id}")])
+            kb_buttons.append([InlineKeyboardButton(text="🔄 Переключить статус", callback_data=f"group_toggle_{chat_id}")])
+            kb_buttons.append([InlineKeyboardButton(text="🗑 Удалить из списка", callback_data=f"group_delete_{chat_id}")])
+            kb = InlineKeyboardMarkup(inline_keyboard=kb_buttons)
 
-            text += f"📅 Дата: {created_at[:10]}\n\n"
-
-            # Inline-кнопки для управления группой
-            kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text=f"📊 Частота ({freq})", callback_data=f"group_freq_{chat_id}")],
-                [InlineKeyboardButton(text="🔄 Переключить статус", callback_data=f"group_toggle_{chat_id}")],
-                [InlineKeyboardButton(text="🗑 Удалить из списка", callback_data=f"group_delete_{chat_id}")]
-            ])
             await callback.message.answer(text, parse_mode="Markdown", reply_markup=kb)
 
         await callback.message.answer("🔙 Вернуться в меню групп", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="admin_groups_back")]]))
+        await callback.answer()
+
+    @dp.callback_query(F.data.startswith("copy_id_"))
+    async def copy_chat_id(callback: types.CallbackQuery):
+        if not is_admin(callback.from_user.id, admin_ids):
+            await callback.answer("Нет доступа.")
+            return
+        chat_id = callback.data.split("_")[-1]
+        await callback.message.answer(f"📋 ID чата: `{chat_id}`\nСкопируйте его вручную.")
         await callback.answer()
 
     @dp.callback_query(F.data.startswith("group_freq_"))

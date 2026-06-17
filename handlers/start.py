@@ -1,10 +1,10 @@
 import datetime
-from aiogram import Bot, Dispatcher, types, F, Router
+from aiogram import Router, types, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.enums import ChatType
-from keyboards import main_menu, menu_button
+from keyboards import main_menu
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
 from utils import (
@@ -19,7 +19,6 @@ router = Router()
 class UserStates(StatesGroup):
     waiting_full_name = State()
     waiting_birth_date_from_poll = State()
-    waiting_city = State()
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
@@ -29,12 +28,11 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await message.answer("Вы заблокированы.")
         return
 
-    # Если сообщение пришло из группы – игнорируем (ничего не отвечаем)
+    # В группах полностью игнорируем команду /start
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
-        # Полностью игнорируем команду /start в группах
         return
 
-    # Реферальная ссылка (только в личных чатах)
+    # Реферальная ссылка
     args = message.text.split()
     if len(args) > 1 and args[1].startswith("ref_"):
         referrer_id = int(args[1][4:])
@@ -60,31 +58,26 @@ async def cmd_start(message: types.Message, state: FSMContext):
             conn.commit()
             conn.close()
             await message.answer(
-                f"🔔 Дорогие друзья, у нас вышло обновление версии {bot_version}!\n\n"
-                "Теперь доступно:\n"
-                "• Психологический тест (кнопки, сохранение результатов)\n"
-                "• Дневник настроения с анализом\n"
-                "• Помощь психолога (обсуждение ситуаций)\n"
+                f"🔔 Обновление до версии {bot_version}!\n"
+                "• Психологический тест\n"
+                "• Дневник настроения\n"
                 "• Уровни и опыт\n"
-                "• Совместимость с брендами, цветами, знаками зодиака\n"
-                "• И многое другое!\n\n"
+                "• Совместимость по знакам\n"
                 "Нажмите /menu, чтобы продолжить.",
                 reply_markup=main_menu
             )
         else:
             await message.answer(
-                f"🔮 С возвращением, {row[0]}! Аркадий Викторович ждёт ваших вопросов.",
+                f"🔮 С возвращением, {row[0]}!",
                 reply_markup=main_menu
             )
         await state.clear()
         return
 
-    # Новый пользователь
     first_name = message.from_user.first_name
     await message.answer(
-        f"✨ {first_name}, я — Аркадий Викторович, практикующий нумеролог и психолог с 20-летним стажем.\n\n"
-        "Давайте познакомимся. Как вас зовут? (Напишите имя)",
-        reply_markup=None
+        f"✨ {first_name}, я — Аркадий Викторович, нумеролог, психолог и астролог.\n\n"
+        "Как вас зовут? (Напишите имя)"
     )
     await state.set_state(UserStates.waiting_full_name)
 
@@ -92,13 +85,11 @@ async def cmd_start(message: types.Message, state: FSMContext):
 async def process_full_name(message: types.Message, state: FSMContext):
     name = message.text.strip()
     if len(name) < 2:
-        await message.answer("Пожалуйста, напишите настоящее имя (не менее 2 символов).")
+        await message.answer("Имя должно быть не менее 2 символов.")
         return
     await state.update_data(name=name)
     await message.answer(
-        f"Отлично, {name}! Теперь укажите вашу дату рождения в формате ДД.ММ.ГГГГ (например, 15.06.1985).\n\n"
-        "Это нужно для расчёта числа судьбы.",
-        parse_mode=None
+        f"Отлично, {name}! Теперь укажите дату рождения в формате ДД.ММ.ГГГГ (например, 15.06.1985)."
     )
     await state.set_state(UserStates.waiting_birth_date_from_poll)
 
@@ -113,7 +104,7 @@ async def process_birth_date_from_poll(message: types.Message, state: FSMContext
         birth = datetime.date(year, month, day)
         age = today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
         if age < 18:
-            await message.answer("Работаю только с совершеннолетними. Попробуйте другую дату.")
+            await message.answer("Работаю только с совершеннолетними.")
             return
         destiny = calculate_destiny_number(birth_date)
         data = await state.get_data()
@@ -133,8 +124,7 @@ async def process_birth_date_from_poll(message: types.Message, state: FSMContext
         await message.answer(
             f"🔢 Ваше число судьбы: {destiny}\n\n"
             f"Спасибо, {name}! Теперь вы можете использовать главное меню.",
-            reply_markup=main_menu,
-            parse_mode=None
+            reply_markup=main_menu
         )
         grant_achievement(user_id, "first_calculation")
         await state.clear()
