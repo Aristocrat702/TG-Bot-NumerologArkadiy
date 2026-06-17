@@ -19,7 +19,6 @@ psycho_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 НАЗАД", callback_data="psycho_back")]
 ])
 
-# ===== АСТРОЛОГИЯ – БЕЗ СОВМЕСТИМОСТИ =====
 astro_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🌌 Натальная карта", callback_data="astro_natal")],
     [InlineKeyboardButton(text="🔄 Транзиты", callback_data="astro_transits")],
@@ -29,7 +28,6 @@ astro_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ===== ПРОФИЛЬ – С ДЕНЕЖНЫМ КОДОМ =====
 profile_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🎁 РЕФЕРАЛЫ", callback_data="referral_info"),
      InlineKeyboardButton(text="🏆 ДОСТИЖЕНИЯ", callback_data="achievements")],

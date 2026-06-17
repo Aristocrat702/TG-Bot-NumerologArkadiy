@@ -16,7 +16,6 @@ from utils import (
     format_subscription_remaining, get_bot_config, set_bot_config
 )
 from settings import LEVELS, PAYMENTS_TOKEN
-from utils.notifications import get_subscription_button
 
 router = Router()
 
