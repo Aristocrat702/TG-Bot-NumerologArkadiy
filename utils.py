@@ -14,7 +14,7 @@ from reportlab.pdfgen import canvas
 import io
 from yandex_gpt import get_yandex_gpt_response
 
-# ---------- ОСНОВНЫЕ ФУНКЦИИ (БЫЛИ РАНЕЕ) ----------
+# ---------- ОСНОВНЫЕ ФУНКЦИИ ----------
 def is_admin(user_id: int, admin_ids: list) -> bool:
     return user_id in admin_ids
 

@@ -11,6 +11,7 @@ def get_connection():
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
+    # Таблица пользователей
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -171,11 +172,9 @@ def create_user(user_id: int, name: str = None, birth_date: str = None, **kwargs
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        # Проверяем, есть ли пользователь
         cursor.execute("SELECT 1 FROM users WHERE user_id = ?", (user_id,))
         exists = cursor.fetchone()
         if exists:
-            # Обновляем только переданные поля
             fields = []
             values = []
             if name is not None:
@@ -198,7 +197,6 @@ def create_user(user_id: int, name: str = None, birth_date: str = None, **kwargs
                 query = f"UPDATE users SET {', '.join(fields)} WHERE user_id = ?"
                 cursor.execute(query, values)
         else:
-            # Вставляем новую запись
             cursor.execute('''
                 INSERT INTO users (user_id, name, birth_date, destiny_number, reg_date, last_active)
                 VALUES (?, ?, ?, ?, ?, ?)
@@ -226,7 +224,6 @@ def update_user(user_id: int, **kwargs):
         fields = []
         values = []
         for key, val in kwargs.items():
-            # Белый список полей, которые можно обновлять
             if key in ("name", "birth_date", "destiny_number", "subscription_active",
                        "subscription_end", "reg_date", "last_active", "free_queries_today",
                        "send_daily", "is_sleeping", "referred_by", "phone", "bot_version",
