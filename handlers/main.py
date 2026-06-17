@@ -5,6 +5,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.enums import ChatType
 from keyboards import main_menu, quick_topics_menu, menu_button
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
@@ -26,6 +27,9 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.message(F.text == "🔢 МОЁ ЧИСЛО")
     async def show_my_number(message: types.Message):
+        if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await message.answer("Эта функция доступна только в личном чате.")
+            return
         user_id = message.from_user.id
         conn = get_connection()
         cursor = conn.cursor()
@@ -47,6 +51,7 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             if "Ошибка" not in response and "Нейросеть" not in response and "таймаут" not in response:
                 save_cached_response(user_id, f"birth_{destiny}", response)
         add_xp(user_id, "daily_visit")
+        # Отправляем клавиатуру только если не группа
         await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}",
                              reply_markup=quick_topics_menu, parse_mode=None)
 
@@ -65,6 +70,9 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.message(F.text == "🔮 МОЯ МАТРИЦА")
     async def matrix_prompt(message: types.Message):
+        if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await message.answer("Эта функция доступна только в личном чате.")
+            return
         user_id = message.from_user.id
         if not get_user_subscription_status(user_id):
             kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -101,6 +109,10 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "download_pdf")
     async def download_pdf(callback: types.CallbackQuery):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         user_id = callback.from_user.id
         conn = get_connection()
         cursor = conn.cursor()
@@ -132,11 +144,18 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.message(F.text == "❤️ СОВМЕСТИМОСТЬ")
     async def ask_partner_birth(message: types.Message, state: FSMContext):
+        if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await message.answer("Эта функция доступна только в личном чате.")
+            return
         await message.answer("Введите дату рождения партнёра в формате ДД.ММ.ГГГГ")
         await state.set_state(MainStates.waiting_partner_birth_date)
 
     @dp.message(MainStates.waiting_partner_birth_date)
     async def process_compatibility(message: types.Message, state: FSMContext):
+        if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await message.answer("Эта функция доступна только в личном чате.")
+            await state.clear()
+            return
         user_id = message.from_user.id
         partner_text = message.text.strip()
         try:
@@ -158,6 +177,7 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             response = await get_yandex_gpt_response(prompt, user_id)
             await status_msg.delete()
             last_answer[user_id] = response
+            # Отправляем без клавиатуры в группах (но здесь уже проверка есть)
             await message.answer(f"❤️ *Совместимость*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
             await state.clear()
         except Exception:
@@ -165,6 +185,9 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.message(F.text == "🎁 КАРТА ДНЯ")
     async def daily_card(message: types.Message):
+        if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await message.answer("Эта функция доступна только в личном чате.")
+            return
         user_id = message.from_user.id
         conn = get_connection()
         cursor = conn.cursor()
@@ -192,6 +215,9 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.message(F.text == "💬 ЗАДАТЬ ВОПРОС")
     async def ask_question(message: types.Message, state: FSMContext):
+        if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await message.answer("Эта функция доступна только в личном чате.")
+            return
         user_id = message.from_user.id
         if get_user_subscription_status(user_id):
             await message.answer("Напишите ваш вопрос (по нумерологии или психологии). Я отвечу максимально честно.")
@@ -207,6 +233,10 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.message(MainStates.waiting_question)
     async def process_question(message: types.Message, state: FSMContext):
+        if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await message.answer("Эта функция доступна только в личном чате.")
+            await state.clear()
+            return
         user_id = message.from_user.id
         question = message.text
         conn = get_connection()
@@ -245,6 +275,9 @@ def register_main_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.message(Command("mynumber"))
     async def mynumber_command(message: types.Message):
+        if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await message.answer("Эта команда доступна только в личном чате.")
+            return
         user_id = message.from_user.id
         conn = get_connection()
         cursor = conn.cursor()

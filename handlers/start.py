@@ -4,7 +4,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.enums import ChatType
-from keyboards import main_menu
+from keyboards import main_menu, menu_button
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
 from utils import (
@@ -23,17 +23,19 @@ def register_start_handlers(dp: Dispatcher, bot: Bot, admin_ids: list, bot_versi
 
     @dp.message(Command("start"))
     async def cmd_start(message: types.Message, state: FSMContext):
-        # Если сообщение из группы – игнорируем (не отвечаем)
-        if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
-            return
-
         user_id = message.from_user.id
         update_last_active(user_id)
         if is_blacklisted(user_id):
             await message.answer("Вы заблокированы.")
             return
 
-        # Реферальная ссылка
+        # Если сообщение пришло из группы – отвечаем кратко, без меню
+        if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await message.answer("Бот активирован. Используйте /startarkadiy для включения и /stoparkadiy для отключения.")
+            await state.clear()
+            return
+
+        # Реферальная ссылка (только в личных чатах)
         args = message.text.split()
         if len(args) > 1 and args[1].startswith("ref_"):
             referrer_id = int(args[1][4:])
@@ -51,6 +53,7 @@ def register_start_handlers(dp: Dispatcher, bot: Bot, admin_ids: list, bot_versi
         conn.close()
 
         if row and row[0] and row[1]:
+            # Проверка версии
             user_version = row[2] if row[2] else "0.0.0"
             if user_version != bot_version:
                 conn = get_connection()
@@ -72,19 +75,8 @@ def register_start_handlers(dp: Dispatcher, bot: Bot, admin_ids: list, bot_versi
                 )
             else:
                 await message.answer(
-                    f"🔮 Аркадий Викторович приветствует вас, {row[0]}!\n\n"
-                    "В главном меню вы найдёте:\n"
-                    "• Ваше число судьбы\n"
-                    "• Полную матрицу (по подписке)\n"
-                    "• Совместимость\n"
-                    "• Карту дня\n"
-                    "• Вопросы (5 бесплатных в день)\n"
-                    "• Психологический тест\n"
-                    "• Дневник настроения\n"
-                    "• Челлендж 7 дней\n\n"
-                    "Нажмите /menu, чтобы открыть меню.",
-                    reply_markup=main_menu,
-                    parse_mode=None
+                    f"🔮 С возвращением, {row[0]}! Аркадий Викторович ждёт ваших вопросов.",
+                    reply_markup=main_menu
                 )
             await state.clear()
             return

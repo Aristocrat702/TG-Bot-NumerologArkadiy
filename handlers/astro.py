@@ -1,8 +1,8 @@
 import datetime
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.enums import ChatType
 from keyboards import astro_submenu, main_menu, menu_button
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
@@ -12,10 +12,17 @@ def register_astro_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.message(F.text == "🌟 АСТРОЛОГИЯ")
     async def astro_menu(message: types.Message):
+        if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await message.answer("Эта функция доступна только в личном чате.")
+            return
         await message.answer("🌟 *Астрологический раздел*\n\nВыберите, что вас интересует:", parse_mode="Markdown", reply_markup=astro_submenu)
 
     @dp.callback_query(F.data == "astro_natal")
     async def natal_chart(callback: types.CallbackQuery):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         user_id = callback.from_user.id
         conn = get_connection()
         cursor = conn.cursor()
@@ -39,6 +46,10 @@ def register_astro_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "astro_transits")
     async def transits(callback: types.CallbackQuery):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         user_id = callback.from_user.id
         conn = get_connection()
         cursor = conn.cursor()
@@ -61,6 +72,10 @@ def register_astro_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "astro_solar")
     async def solar(callback: types.CallbackQuery):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         user_id = callback.from_user.id
         conn = get_connection()
         cursor = conn.cursor()
@@ -83,8 +98,11 @@ def register_astro_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "astro_compatibility")
     async def astro_compatibility(callback: types.CallbackQuery):
-        # Заглушка для совместимости по знакам (можно расширить)
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
+        # Заглушка для совместимости по знакам
         await callback.message.answer("♊ *Совместимость по знакам зодиака*\n\nВведите дату рождения партнёра в формате ДД.ММ.ГГГГ:", reply_markup=menu_button)
-        # Здесь нужна FSM, но для простоты пока просто сообщение
-        # В реальности лучше сделать отдельный обработчик, но мы оставим как есть
+        # Здесь нужна FSM, но для простоты оставим так
         await callback.answer()

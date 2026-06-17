@@ -3,10 +3,11 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.enums import ChatType
 from keyboards import main_menu, psycho_submenu
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
-from utils import update_last_active, save_psycho_result, get_psycho_result, log_mood, get_week_moods, add_xp
+from utils import update_last_active, save_psycho_result, get_psycho_result, log_mood, get_week_moods, add_xp, get_zodiac_sign
 
 class PsychoStates(StatesGroup):
     waiting_psycho_question = State()
@@ -14,7 +15,6 @@ class PsychoStates(StatesGroup):
     waiting_mood_comment = State()
     waiting_style_answer = State()
 
-# Вопросы для психологического теста (с вариантами ответов)
 PSYCHO_QUESTIONS = [
     {
         "text": "Как вы обычно реагируете на стресс?",
@@ -38,7 +38,6 @@ PSYCHO_QUESTIONS = [
     }
 ]
 
-# Вопросы для теста «Стиль и удача»
 STYLE_QUESTIONS = [
     {
         "text": "Какой стиль одежды вам ближе?",
@@ -66,11 +65,17 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.message(F.text == "🧠 ПСИХОЛОГИЯ")
     async def psychology_menu(message: types.Message):
+        if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await message.answer("Эта функция доступна только в личном чате.")
+            return
         await message.answer("🧠 *Психологический раздел*\n\nВыберите, что вас интересует:", parse_mode="Markdown", reply_markup=psycho_submenu)
 
-    # ---------- ПСИХОЛОГИЧЕСКИЙ ТЕСТ ----------
     @dp.callback_query(F.data == "psycho_test")
     async def start_psycho_test(callback: types.CallbackQuery, state: FSMContext):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         await state.update_data(psycho_step=0, psycho_answers=[])
         q = PSYCHO_QUESTIONS[0]
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -82,6 +87,10 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(PsychoStates.waiting_psycho_question, F.data.startswith("psycho_ans_"))
     async def process_psycho_answer(callback: types.CallbackQuery, state: FSMContext):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         data = await state.get_data()
         step = data.get("psycho_step", 0)
         answers = data.get("psycho_answers", [])
@@ -119,9 +128,12 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await state.clear()
         await callback.answer()
 
-    # ---------- ТЕСТ «СТИЛЬ И УДАЧА» ----------
     @dp.callback_query(F.data == "style_test")
     async def start_style_test(callback: types.CallbackQuery, state: FSMContext):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         await state.update_data(style_step=0, style_answers=[])
         q = STYLE_QUESTIONS[0]
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -133,6 +145,10 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(PsychoStates.waiting_style_answer, F.data.startswith("style_ans_"))
     async def process_style_answer(callback: types.CallbackQuery, state: FSMContext):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         data = await state.get_data()
         step = data.get("style_step", 0)
         answers = data.get("style_answers", [])
@@ -168,15 +184,17 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             status_msg = await callback.message.answer("🔮 Аркадий анализирует ваш стиль...")
             response = await get_yandex_gpt_response(prompt, user_id)
             await status_msg.delete()
-            # Сохраняем результат в БД (в ту же таблицу psycho_results)
             save_psycho_result(user_id, f"[СТИЛЬ] {response}")
             await callback.message.answer(f"🎨 *Ваш персональный стиль*\n\n{response}", parse_mode="Markdown", reply_markup=main_menu)
             await state.clear()
         await callback.answer()
 
-    # ---------- ДНЕВНИК НАСТРОЕНИЯ ----------
     @dp.callback_query(F.data == "mood_diary")
     async def mood_diary_menu(callback: types.CallbackQuery):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📝 Записать настроение", callback_data="mood_log")],
             [InlineKeyboardButton(text="📊 Мой график", callback_data="mood_graph")],
@@ -187,6 +205,10 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "mood_log")
     async def mood_log_start(callback: types.CallbackQuery, state: FSMContext):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="1️⃣ Ужасно", callback_data="mood_1"),
              InlineKeyboardButton(text="2️⃣ Плохо", callback_data="mood_2"),
@@ -200,6 +222,10 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(PsychoStates.waiting_mood_value, F.data.startswith("mood_"))
     async def mood_log_value(callback: types.CallbackQuery, state: FSMContext):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         mood = int(callback.data.split("_")[1])
         await state.update_data(mood=mood)
         await callback.message.answer("Напишите короткий комментарий (необязательно, можно пропустить, отправив '-'):")
@@ -208,6 +234,10 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.message(PsychoStates.waiting_mood_comment)
     async def mood_log_comment(message: types.Message, state: FSMContext):
+        if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await message.answer("Доступно только в личном чате.")
+            await state.clear()
+            return
         data = await state.get_data()
         mood = data.get("mood")
         comment = message.text.strip()
@@ -221,6 +251,10 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "mood_graph")
     async def mood_graph(callback: types.CallbackQuery):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         user_id = callback.from_user.id
         moods = get_week_moods(user_id)
         if not moods:
@@ -242,6 +276,10 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "my_psycho_result")
     async def show_my_psycho_result(callback: types.CallbackQuery):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         user_id = callback.from_user.id
         result, created_at = get_psycho_result(user_id)
         if result:
@@ -252,5 +290,9 @@ def register_psycho_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "psycho_back")
     async def psycho_back(callback: types.CallbackQuery):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         await callback.message.answer("🧠 Психологический раздел:", reply_markup=psycho_submenu)
         await callback.answer()

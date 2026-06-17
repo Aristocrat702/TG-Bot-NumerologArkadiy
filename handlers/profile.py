@@ -4,6 +4,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice, PreCheckoutQuery
+from aiogram.enums import ChatType
 from keyboards import profile_menu, main_menu, menu_button
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
@@ -12,7 +13,7 @@ from utils import (
     get_achievements, add_subscription_days, update_last_active,
     get_user_subscription_status, calculate_level,
     get_city_coords, get_timezone_by_coords, translate_timezone,
-    format_subscription_remaining
+    format_subscription_remaining, get_bot_config, set_bot_config
 )
 from settings import LEVELS, PAYMENTS_TOKEN
 
@@ -52,6 +53,10 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.message(F.text == "👤 МОЙ ПРОФИЛЬ")
     async def show_profile(message: types.Message):
+        # Проверка на группу
+        if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await message.answer("Профиль доступен только в личном чате.")
+            return
         user_id = message.from_user.id
         conn = get_connection()
         cursor = conn.cursor()
@@ -68,7 +73,6 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         sub_end_raw = row[4] if row[4] else None
         remaining_str = format_subscription_remaining(sub_end_raw) if sub_end_raw else "—"
         end_date_str = sub_end_raw[:10] if sub_end_raw else "—"
-        # Преобразуем формат даты: 2026-06-12 → 12.06.2026
         if sub_end_raw and len(sub_end_raw) >= 10:
             try:
                 d = datetime.datetime.fromisoformat(sub_end_raw[:10])
@@ -100,6 +104,10 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "change_name")
     async def change_name_start(callback: types.CallbackQuery, state: FSMContext):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         await callback.message.answer("Введите новое имя (не менее 2 символов):")
         await state.set_state(UserStates.waiting_new_name)
         await callback.answer()
@@ -122,6 +130,10 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "referral_info")
     async def referral_info(callback: types.CallbackQuery):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         user_id = callback.from_user.id
         link = generate_referral_link(user_id)
         stats = get_referral_stats(user_id)
@@ -138,6 +150,10 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "achievements")
     async def show_achievements(callback: types.CallbackQuery):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         user_id = callback.from_user.id
         achievements = get_achievements(user_id)
         if not achievements:
@@ -151,6 +167,10 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "settings")
     async def settings_menu(callback: types.CallbackQuery):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         await callback.message.answer(
             "⚙️ *Настройки*\n\n"
             "• Отписаться от ежедневной рассылки – /unsubscribe_daily\n"
@@ -172,6 +192,10 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "add_phone")
     async def add_phone_start(callback: types.CallbackQuery, state: FSMContext):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         await callback.message.answer(
             "Отправьте ваш номер телефона, нажав на кнопку ниже. Если номер уже есть, он будет заменён.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -183,6 +207,10 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "request_phone")
     async def request_phone(callback: types.CallbackQuery, state: FSMContext):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         await callback.message.answer(
             "Пожалуйста, поделитесь номером телефона, нажав кнопку ниже.",
             reply_markup=types.ReplyKeyboardMarkup(
@@ -207,6 +235,10 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "add_city")
     async def add_city_start(callback: types.CallbackQuery, state: FSMContext):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         await callback.message.answer(
             "Напишите название вашего города. Если город уже указан, он будет заменён.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -250,6 +282,10 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "add_birth_time")
     async def add_birth_time_start(callback: types.CallbackQuery, state: FSMContext):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         await callback.message.answer("Введите время рождения в формате ЧЧ:ММ (например, 15:30). Если не знаете – напишите «неизвестно».")
         await state.set_state(UserStates.waiting_birth_time)
         await callback.answer()
@@ -268,6 +304,10 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "add_birth_place")
     async def add_birth_place_start(callback: types.CallbackQuery, state: FSMContext):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         await callback.message.answer("Введите город и страну рождения (например, Москва, Россия).")
         await state.set_state(UserStates.waiting_birth_place)
         await callback.answer()
@@ -286,6 +326,10 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "history")
     async def show_history(callback: types.CallbackQuery):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         from utils import get_dialog_history
         user_id = callback.from_user.id
         history = get_dialog_history(user_id, 10)
@@ -301,6 +345,10 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "add_to_group")
     async def add_to_group_info(callback: types.CallbackQuery):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         bot_username = (await bot.get_me()).username
         invite_link = f"https://t.me/{bot_username}?startgroup=start"
         text = (
@@ -318,6 +366,10 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "help")
     async def show_help(callback: types.CallbackQuery):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         text = (
             "❓ *Помощь по боту «Аркадий Викторович»*\n\n"
             "🌟 *Основные команды:*\n"
@@ -353,20 +405,31 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "buy_subscription")
     async def buy_subscription(callback: types.CallbackQuery):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
+        # Получаем цену в рублях из БД
+        price_rub = int(get_bot_config("subscription_price_rub", "249"))
+        stars = int(price_rub * 2)  # 1 руб = 2 Stars
         await callback.bot.send_invoice(
             chat_id=callback.from_user.id,
             title="Подписка на бота «Аркадий Викторович»",
-            description="Месяц полного доступа: матрица судьбы, безлимитные вопросы, прогнозы, гороскопы и психологические практики.",
+            description=f"Месяц полного доступа: матрица судьбы, безлимитные вопросы, прогнозы. Цена: {price_rub} ₽ (≈ {stars} Stars)",
             payload="subscription_month",
             provider_token=PAYMENTS_TOKEN,
             currency="XTR",
-            prices=[LabeledPrice(label="Месяц", amount=249)],
+            prices=[LabeledPrice(label="Месяц", amount=stars)],
             start_parameter="subscription"
         )
         await callback.answer()
 
     @dp.callback_query(F.data == "gift_subscription")
     async def gift_start(callback: types.CallbackQuery, state: FSMContext):
+        if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+            await callback.message.answer("Доступно только в личном чате.")
+            await callback.answer()
+            return
         await callback.message.answer("Введите @username друга, которому хотите подарить подписку (без @):")
         await state.set_state(UserStates.waiting_gift_username)
         await callback.answer()
@@ -381,17 +444,23 @@ def register_profile_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await message.answer(f"❌ Не удалось найти пользователя @{username}. Проверьте правильность написания.")
             await state.clear()
             return
+        price_rub = int(get_bot_config("subscription_price_rub", "249"))
+        stars = int(price_rub * 2)
         await message.bot.send_invoice(
             chat_id=message.from_user.id,
             title=f"Подарочная подписка для @{username}",
-            description=f"Вы дарите месяц подписки пользователю @{username}",
+            description=f"Вы дарите месяц подписки пользователю @{username}. Цена: {price_rub} ₽ (≈ {stars} Stars)",
             payload=f"gift_{gifted_user_id}",
             provider_token=PAYMENTS_TOKEN,
             currency="XTR",
-            prices=[LabeledPrice(label="Месяц в подарок", amount=249)],
+            prices=[LabeledPrice(label="Месяц в подарок", amount=stars)],
             start_parameter="gift"
         )
         await state.clear()
+
+    @dp.callback_query(F.data == "renew_subscription")
+    async def renew_subscription(callback: types.CallbackQuery):
+        await buy_subscription(callback)
 
     @dp.pre_checkout_query()
     async def pre_checkout(query: PreCheckoutQuery):

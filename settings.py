@@ -1,32 +1,20 @@
 import os
 
-# Версия бота
-BOT_VERSION = "2.0.0"
-
-# Папки и логи
+BOT_VERSION = "2.1.0"
 LOGS_DIR = "/root/arkadiy_bot/logs"
 HEALTHCHECK_PORT = 9001
-
-# Часовой пояс по умолчанию
 DEFAULT_TIMEZONE = "Europe/Moscow"
-
-# Путь к базе данных FSM (состояний)
 FSM_STORAGE_PATH = "fsm_states.db"
-
-# Интервал напоминания о подписке (дни)
 SUBSCRIPTION_REMIND_DAYS = 3
+RATE_LIMIT_MESSAGES = 20
+PROMOCODE_ATTEMPTS_LIMIT = 5
 
-# Лимиты
-RATE_LIMIT_MESSAGES = 20  # сообщений в минуту
-PROMOCODE_ATTEMPTS_LIMIT = 5  # попыток ввода кода
-
-# Ссылки на ресурсы помощи
 CRISIS_HELP_LINKS = {
     "phone": "https://ваш-сайт/help",
     "url": "https://ваш-сайт/psychology"
 }
 
-# Настройки уровней (опыт для каждого уровня)
+# Уровни
 LEVELS = {
     1: {"name": "Искатель", "xp": 0},
     2: {"name": "Любопытный", "xp": 100},
@@ -50,7 +38,6 @@ LEVELS = {
     20: {"name": "Абсолют", "xp": 35000}
 }
 
-# Действия, за которые начисляются очки опыта
 XP_REWARDS = {
     "first_calculation": 50,
     "daily_visit": 10,
@@ -62,9 +49,8 @@ XP_REWARDS = {
     "daily_card_received": 5
 }
 
-# Настройки рассылки
-DAILY_CARD_HOUR = 9  # час рассылки карты дня по местному времени
-MIN_ACTIVE_DAYS_FOR_PHONE_REQUEST = 2  # через сколько дней активного использования просить номер телефона
+DAILY_CARD_HOUR = 9
+MIN_ACTIVE_DAYS_FOR_PHONE_REQUEST = 2
 
-# Токен для платежей Telegram Stars (может быть пустым)
-PAYMENTS_TOKEN = os.getenv("PAYMENTS_TOKEN", "")
+# Курс звёзд: 1 Star = 0.5 руб => рубли * 2 = звёзды
+STARS_TO_RUB_RATE = 2
