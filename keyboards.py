@@ -79,7 +79,7 @@ admin_menu = ReplyKeyboardMarkup(
         [KeyboardButton(text="💬 ОТВЕТИТЬ"), KeyboardButton(text="💰 ЦЕНА ПОДПИСКИ")],
         [KeyboardButton(text="🏆 ЛИДЕРБОРД"), KeyboardButton(text="📋 ЛОГИ")],
         [KeyboardButton(text="👤 ИНФО ПОЛЬЗОВАТЕЛЯ"), KeyboardButton(text="👥 УПРАВЛЕНИЕ ГРУППАМИ")],
-        [KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
+        [KeyboardButton(text="📤 ТЕСТ ГРУППЫ"), KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
     ],
     resize_keyboard=True
 )
