@@ -16,6 +16,7 @@ from utils import (
     format_subscription_remaining, get_bot_config, set_bot_config
 )
 from settings import LEVELS, PAYMENTS_TOKEN
+from utils.notifications import get_subscription_button
 
 router = Router()
 
@@ -86,7 +87,6 @@ async def show_profile(message: types.Message):
     remaining_q = get_free_questions_remaining(user_id)
     level, xp, next_xp = calculate_level(user_id)
     level_name = LEVELS.get(level, {}).get("name", "Новичок")
-    # Прогресс-бар
     progress = int((xp / next_xp) * 20) if next_xp > 0 else 0
     bar = "█" * progress + "░" * (20 - progress)
     text = (f"┌─────────────────────┐\n"
@@ -106,7 +106,7 @@ async def show_profile(message: types.Message):
             f"└─────────────────────┘")
     await message.answer(text, reply_markup=profile_menu)
 
-# ---------- НАСТРОЙКИ (с кнопкой "Сменить имя") ----------
+# ---------- НАСТРОЙКИ ----------
 @router.callback_query(F.data == "settings")
 async def settings_menu(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -127,7 +127,7 @@ async def settings_menu(callback: types.CallbackQuery):
     )
     await callback.answer()
 
-# ---------- СМЕНА ИМЕНИ (теперь вызывается из настроек) ----------
+# ---------- СМЕНА ИМЕНИ ----------
 @router.callback_query(F.data == "change_name")
 async def change_name_start(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -380,7 +380,7 @@ async def add_to_group_info(callback: types.CallbackQuery):
     await callback.message.answer(text, parse_mode="Markdown", disable_web_page_preview=True)
     await callback.answer()
 
-# ---------- О БОТЕ (НОВАЯ УСИЛЕННАЯ ПОМОЩЬ) ----------
+# ---------- О БОТЕ ----------
 @router.callback_query(F.data == "help")
 async def show_help(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -402,6 +402,7 @@ async def show_help(callback: types.CallbackQuery):
         "• 💬 Безлимитные вопросы с развёрнутыми ответами\n"
         "• 📅 Гороскоп на месяц и ежедневные прогнозы\n"
         "• 🌌 Натальная карта, транзиты и соляр\n"
+        "• 💸 Денежный код – персональная стратегия увеличения дохода\n"
         "• 📊 Персональные психологические рекомендации\n"
         "• 🔔 Ежедневные мотивирующие фразы и аффирмации\n"
         "• 🎁 Приоритетная поддержка\n\n"
@@ -500,7 +501,55 @@ async def successful_payment(message: types.Message):
         add_subscription_days(message.from_user.id, 30, check_referral=False, admin_id=0)
         await message.answer("✅ Подписка активирована на 30 дней! Теперь вам доступны матрица судьбы, безлимитные вопросы и все премиум-функции. Спасибо, что с нами!")
 
-# ---------- КОМАНДЫ ДЛЯ ПОДПИСКИ НА РАССЫЛКУ (скрытые) ----------
+# ---------- ДЕНЕЖНЫЙ КОД (только по подписке) ----------
+@router.callback_query(F.data == "money_code")
+async def money_code(callback: types.CallbackQuery):
+    if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+        await callback.message.answer("Доступно только в личном чате.")
+        await callback.answer()
+        return
+    user_id = callback.from_user.id
+    if not get_user_subscription_status(user_id):
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⭐ Купить подписку", callback_data="buy_subscription")],
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
+        ])
+        await callback.message.answer(
+            "💸 *Денежный код*\n\n"
+            "Это эксклюзивная функция, доступная только по подписке.\n"
+            "Вы получите:\n"
+            "• Ваш личный денежный код (по дате рождения и имени)\n"
+            "• Стратегию увеличения дохода\n"
+            "• Благоприятные периоды для инвестиций и крупных покупок\n"
+            "• Советы по управлению финансами\n\n"
+            "Оформите подписку, чтобы открыть этот раздел!",
+            parse_mode="Markdown",
+            reply_markup=kb
+        )
+        await callback.answer()
+        return
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, birth_date, destiny_number FROM users WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row or not row[1]:
+        await callback.message.answer("Сначала укажите дату рождения в профиле.", reply_markup=menu_button)
+        await callback.answer()
+        return
+    name = row[0] or "пользователь"
+    birth_date = row[1]
+    destiny = row[2] or "?"
+
+    status_msg = await callback.message.answer("💸 Аркадий Викторович рассчитывает ваш денежный код...")
+    prompt = f"Рассчитай денежный код для человека {name} с датой рождения {birth_date} и числом судьбы {destiny}. Дай развёрнутый ответ (8-10 предложений): что такое денежный код, как его использовать, конкретные рекомендации по улучшению финансового потока, благоприятные дни для денежных операций."
+    response = await get_yandex_gpt_response(prompt, user_id)
+    await status_msg.delete()
+    await callback.message.answer(f"💸 *Ваш денежный код*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
+    await callback.answer()
+
+# ---------- КОМАНДЫ ДЛЯ ПОДПИСКИ НА РАССЫЛКУ ----------
 @router.message(Command("unsubscribe_daily"))
 async def unsubscribe_daily(message: types.Message):
     user_id = message.from_user.id
