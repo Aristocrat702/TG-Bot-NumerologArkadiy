@@ -638,3 +638,14 @@ def generate_pdf_matrix(user_id: int, name: str, destiny: int, matrix_text: str)
     except Exception as e:
         print(f"Ошибка генерации PDF: {e}")
         return None
+def admin_log(admin_id: int, action: str, details: str = ""):
+    import datetime
+    from database import get_connection
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO admin_logs (admin_id, action, details, created_at) VALUES (?, ?, ?, ?)",
+        (admin_id, action, details, datetime.datetime.now().isoformat())
+    )
+    conn.commit()
+    conn.close()
