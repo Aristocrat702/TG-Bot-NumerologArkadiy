@@ -5,7 +5,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice, PreCheckoutQuery
 from aiogram.enums import ChatType
-from keyboards import profile_menu, main_menu, menu_button, cancel_button
+from keyboards import (
+    profile_main_menu,
+    profile_settings_menu,
+    main_menu,
+    menu_button,
+    cancel_button
+)
 from database import get_connection, get_user, update_user, get_subscription_status
 from yandex_gpt import get_yandex_gpt_response
 from utils import (
@@ -103,26 +109,29 @@ async def show_profile(message: types.Message):
             f"│ 📞 Телефон: {phone}\n"
             f"│ 🌍 Город: {city}\n"
             f"└─────────────────────┘")
-    await message.answer(text, reply_markup=profile_menu)
+    await message.answer(text, parse_mode="Markdown", reply_markup=profile_main_menu)
 
-# ---------- НАСТРОЙКИ ----------
+# ---------- ВОЗВРАТ В ПРОФИЛЬ ----------
+@router.callback_query(F.data == "back_to_profile")
+async def back_to_profile(callback: types.CallbackQuery):
+    if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+        await callback.message.answer("Доступно только в личном чате.")
+        await callback.answer()
+        return
+    await callback.message.edit_text("👤 *Мой профиль*", parse_mode="Markdown", reply_markup=profile_main_menu)
+    await callback.answer()
+
+# ---------- НАСТРОЙКИ (ПОДМЕНЮ) ----------
 @router.callback_query(F.data == "settings")
 async def settings_menu(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
         await callback.message.answer("Доступно только в личном чате.")
         await callback.answer()
         return
-    await callback.message.answer(
+    await callback.message.edit_text(
         "⚙️ *Настройки*\n\nВыберите, что хотите изменить:",
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✏️ Сменить имя", callback_data="change_name")],
-            [InlineKeyboardButton(text="📱 Добавить/заменить телефон", callback_data="add_phone")],
-            [InlineKeyboardButton(text="🌍 Добавить/заменить город", callback_data="add_city")],
-            [InlineKeyboardButton(text="🕒 Указать время рождения", callback_data="add_birth_time")],
-            [InlineKeyboardButton(text="📍 Указать место рождения", callback_data="add_birth_place")],
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
-        ])
+        reply_markup=profile_settings_menu
     )
     await callback.answer()
 
@@ -557,9 +566,7 @@ async def show_leaderboard(callback: types.CallbackQuery):
         return
     from utils.misc import get_leaderboard
     user_id = callback.from_user.id
-    # Получаем топ-10 всех пользователей
     all_users = get_leaderboard(limit=10, only_subscribers=False)
-    # Получаем топ-10 подписчиков
     subscribers = get_leaderboard(limit=10, only_subscribers=True)
 
     text = "🏆 *Рейтинг пользователей*\n\n"

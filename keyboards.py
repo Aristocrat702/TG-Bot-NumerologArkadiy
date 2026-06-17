@@ -28,19 +28,34 @@ astro_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-profile_menu = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🎁 РЕФЕРАЛЫ", callback_data="referral_info"),
-     InlineKeyboardButton(text="🏆 ДОСТИЖЕНИЯ", callback_data="achievements")],
+# ===== НОВОЕ МЕНЮ ПРОФИЛЯ (группировка) =====
+profile_main_menu = InlineKeyboardMarkup(inline_keyboard=[
+    # Основное (кнопка настроек)
+    [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings")],
+    # Финансы и подписка
     [InlineKeyboardButton(text="⭐ КУПИТЬ ПОДПИСКУ", callback_data="buy_subscription"),
      InlineKeyboardButton(text="🎁 ПОДАРИТЬ ПОДПИСКУ", callback_data="gift_subscription")],
     [InlineKeyboardButton(text="💸 ДЕНЕЖНЫЙ КОД", callback_data="money_code")],
-    [InlineKeyboardButton(text="🏆 РЕЙТИНГ", callback_data="leaderboard")],
-    [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings")],
-    [InlineKeyboardButton(text="📜 ИСТОРИЯ ЗАПРОСОВ", callback_data="history")],
-    [InlineKeyboardButton(text="🎟️ ВВЕСТИ ПРОМОКОД", callback_data="enter_promo")],
-    [InlineKeyboardButton(text="👥 ДОБАВИТЬ В ГРУППУ", callback_data="add_to_group")],
-    [InlineKeyboardButton(text="ℹ️ О БОТЕ", callback_data="help")],
-    [InlineKeyboardButton(text="✖️ ЗАКРЫТЬ", callback_data="close")]
+    # Активность и статистика
+    [InlineKeyboardButton(text="🎁 РЕФЕРАЛЫ", callback_data="referral_info"),
+     InlineKeyboardButton(text="🏆 ДОСТИЖЕНИЯ", callback_data="achievements")],
+    [InlineKeyboardButton(text="🏆 РЕЙТИНГ", callback_data="leaderboard"),
+     InlineKeyboardButton(text="📜 ИСТОРИЯ ЗАПРОСОВ", callback_data="history")],
+    # Дополнительно
+    [InlineKeyboardButton(text="🎟️ ВВЕСТИ ПРОМОКОД", callback_data="enter_promo"),
+     InlineKeyboardButton(text="👥 ДОБАВИТЬ В ГРУППУ", callback_data="add_to_group")],
+    [InlineKeyboardButton(text="ℹ️ О БОТЕ", callback_data="help"),
+     InlineKeyboardButton(text="✖️ ЗАКРЫТЬ", callback_data="close")]
+])
+
+# ===== ПОДМЕНЮ НАСТРОЕК =====
+profile_settings_menu = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="✏️ Сменить имя", callback_data="change_name")],
+    [InlineKeyboardButton(text="📱 Добавить/заменить телефон", callback_data="add_phone")],
+    [InlineKeyboardButton(text="🌍 Добавить/заменить город", callback_data="add_city")],
+    [InlineKeyboardButton(text="🕒 Указать время рождения", callback_data="add_birth_time")],
+    [InlineKeyboardButton(text="📍 Указать место рождения", callback_data="add_birth_place")],
+    [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_profile")]
 ])
 
 quick_topics_menu = InlineKeyboardMarkup(inline_keyboard=[
