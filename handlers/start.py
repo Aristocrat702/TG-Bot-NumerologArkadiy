@@ -6,6 +6,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.enums import ChatType
 from keyboards import main_menu
 from database import get_connection
+from yandex_gpt import get_yandex_gpt_response
 from utils import (
     is_blacklisted, calculate_destiny_number, grant_achievement,
     save_cached_response, get_cached_response, update_last_active,
@@ -27,11 +28,11 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await message.answer("Вы заблокированы.")
         return
 
-    # В группах полностью игнорируем команду /start
+    # В группах полностью игнорируем команду /start (ничего не отвечаем)
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
         return
 
-    # Реферальная ссылка
+    # Реферальная ссылка (только в личных чатах)
     args = message.text.split()
     if len(args) > 1 and args[1].startswith("ref_"):
         referrer_id = int(args[1][4:])
