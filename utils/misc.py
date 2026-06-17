@@ -262,6 +262,8 @@ def log_mood(user_id: int, mood: int, comment: str = ""):
     conn.commit()
     conn.close()
 
+save_mood = log_mood
+
 def get_week_moods(user_id: int):
     conn = get_connection()
     cursor = conn.cursor()
@@ -424,4 +426,27 @@ async def check_and_expire_subscriptions():
             pass
     conn.commit()
     conn.close()
-save_mood = log_mood
+
+# ---------- ЛИДЕРБОРД ----------
+def get_leaderboard(limit: int = 10, only_subscribers: bool = False) -> list:
+    """Возвращает список кортежей (user_id, name, xp, level) для топа пользователей."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if only_subscribers:
+        cursor.execute("""
+            SELECT user_id, name, xp, level
+            FROM users
+            WHERE subscription_active = 1
+            ORDER BY xp DESC
+            LIMIT ?
+        """, (limit,))
+    else:
+        cursor.execute("""
+            SELECT user_id, name, xp, level
+            FROM users
+            ORDER BY xp DESC
+            LIMIT ?
+        """, (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [(row[0], row[1] or "Без имени", row[2] or 0, row[3] or 1) for row in rows]

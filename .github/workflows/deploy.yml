@@ -1,0 +1,23 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: 89.125.151.43
+          username: root
+          password: 2P1Xo4Wo3C1gQ5c
+          port: 22
+          script: |
+            cd /root/arkadiy_bot
+            git pull origin main
+            source venv/bin/activate
+            pip install -r requirements.txt
+            systemctl restart arkadiybot

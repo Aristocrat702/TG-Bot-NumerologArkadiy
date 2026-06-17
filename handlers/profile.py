@@ -548,6 +548,40 @@ async def money_code(callback: types.CallbackQuery):
     await callback.message.answer(f"💸 *Ваш денежный код*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
     await callback.answer()
 
+# ---------- ЛИДЕРБОРД ----------
+@router.callback_query(F.data == "leaderboard")
+async def show_leaderboard(callback: types.CallbackQuery):
+    if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+        await callback.message.answer("Доступно только в личном чате.")
+        await callback.answer()
+        return
+    from utils.misc import get_leaderboard
+    user_id = callback.from_user.id
+    # Получаем топ-10 всех пользователей
+    all_users = get_leaderboard(limit=10, only_subscribers=False)
+    # Получаем топ-10 подписчиков
+    subscribers = get_leaderboard(limit=10, only_subscribers=True)
+
+    text = "🏆 *Рейтинг пользователей*\n\n"
+    text += "👥 *Все пользователи:*\n"
+    if all_users:
+        for i, (uid, name, xp, level) in enumerate(all_users, 1):
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+            text += f"{medal} {name} – {xp} XP (ур. {level})\n"
+    else:
+        text += "Нет данных.\n"
+
+    text += "\n💎 *Подписчики:*\n"
+    if subscribers:
+        for i, (uid, name, xp, level) in enumerate(subscribers, 1):
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
+            text += f"{medal} {name} – {xp} XP (ур. {level})\n"
+    else:
+        text += "Нет данных.\n"
+
+    await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
+    await callback.answer()
+
 # ---------- КОМАНДЫ ДЛЯ ПОДПИСКИ НА РАССЫЛКУ ----------
 @router.message(Command("unsubscribe_daily"))
 async def unsubscribe_daily(message: types.Message):
