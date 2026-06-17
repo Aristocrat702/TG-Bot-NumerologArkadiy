@@ -32,12 +32,12 @@ def register_groups_management_handlers(dp, bot, admin_ids):
         cursor.execute("SELECT chat_id, is_active, frequency, created_at FROM group_chats ORDER BY created_at DESC")
         rows = cursor.fetchall()
         conn.close()
-        
+
         if not rows:
-            await callback.message.edit_text("Нет активных групп.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="admin_groups_back")]]))
+            await callback.message.edit_text("📭 Нет активных групп.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="admin_groups_back")]]))
             await callback.answer()
             return
-        
+
         text = "📋 *Список групп:*\n\n"
         for row in rows:
             chat_id, is_active, freq, created_at = row
@@ -46,33 +46,48 @@ def register_groups_management_handlers(dp, bot, admin_ids):
                 chat = await bot.get_chat(chat_id)
                 chat_name = chat.title or chat.first_name or str(chat_id)
                 chat_username = chat.username
-                invite_link = chat.invite_link or "нет ссылки"
-            except Exception as e:
+            except Exception:
                 chat_name = f"Чат {chat_id}"
                 chat_username = None
-                invite_link = "недоступно"
-            
+
             status = "✅ Активна" if is_active else "❌ Неактивна"
             text += f"📌 *{chat_name}*\n"
             text += f"ID: `{chat_id}`\n"
             text += f"Статус: {status}\n"
             text += f"Частота: {freq} сообщ/час\n"
+
+            # Ссылка для перехода
+            link = None
             if chat_username:
-                text += f"Ссылка: https://t.me/{chat_username}\n"
+                link = f"https://t.me/{chat_username}"
             else:
-                text += f"Ссылка: {invite_link}\n"
-            text += f"Дата: {created_at[:10]}\n"
-            
+                # Пробуем создать инвайт-ссылку (если бот админ)
+                try:
+                    invite_link = await bot.create_chat_invite_link(chat_id, member_limit=1)
+                    link = invite_link.invite_link
+                except:
+                    # Если не удалось, используем t.me/c/ для супергрупп
+                    try:
+                        chat_obj = await bot.get_chat(chat_id)
+                        if chat_obj.type in ("supergroup", "group"):
+                            link = f"https://t.me/c/{str(chat_id)[4:]}"  # для супергрупп
+                    except:
+                        link = None
+            if link:
+                text += f"🔗 [Перейти в чат]({link})\n"
+            else:
+                text += f"🔗 Ссылка недоступна. ID чата: `{chat_id}`\n"
+
+            text += f"📅 Дата: {created_at[:10]}\n\n"
+
             # Inline-кнопки для управления группой
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text=f"📊 Частота ({freq})", callback_data=f"group_freq_{chat_id}")],
-                [InlineKeyboardButton(text="🔗 Перейти в чат", url=f"https://t.me/{chat_username}" if chat_username else invite_link if invite_link != "нет ссылки" and invite_link.startswith("http") else "https://t.me/")],
                 [InlineKeyboardButton(text="🔄 Переключить статус", callback_data=f"group_toggle_{chat_id}")],
                 [InlineKeyboardButton(text="🗑 Удалить из списка", callback_data=f"group_delete_{chat_id}")]
             ])
             await callback.message.answer(text, parse_mode="Markdown", reply_markup=kb)
-        
-        # После вывода всех групп отправляем кнопку "Назад"
+
         await callback.message.answer("🔙 Вернуться в меню групп", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="admin_groups_back")]]))
         await callback.answer()
 
@@ -84,7 +99,7 @@ def register_groups_management_handlers(dp, bot, admin_ids):
         chat_id = int(callback.data.split("_")[-1])
         await state.update_data(group_chat_id=chat_id)
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="1", callback_data="group_set_freq_1"), 
+            [InlineKeyboardButton(text="1", callback_data="group_set_freq_1"),
              InlineKeyboardButton(text="2", callback_data="group_set_freq_2"),
              InlineKeyboardButton(text="3", callback_data="group_set_freq_3"),
              InlineKeyboardButton(text="4", callback_data="group_set_freq_4")],

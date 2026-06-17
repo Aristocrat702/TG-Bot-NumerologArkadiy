@@ -1,16 +1,16 @@
 import datetime
-from aiogram import Router, types, F
+from aiogram import Bot, Dispatcher, types, F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.enums import ChatType
 from keyboards import main_menu, menu_button
-from database import get_connection, get_user, create_user, update_user
+from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
 from utils import (
     is_blacklisted, calculate_destiny_number, grant_achievement,
     save_cached_response, get_cached_response, update_last_active,
-    get_bot_config, get_birth_number, get_zodiac_sign
+    get_bot_config
 )
 from settings import BOT_VERSION
 
@@ -29,11 +29,12 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await message.answer("Вы заблокированы.")
         return
 
+    # Если сообщение пришло из группы – игнорируем (ничего не отвечаем)
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
-        await message.answer("Бот активирован. Используйте /startarkadiy для включения и /stoparkadiy для отключения.")
-        await state.clear()
+        # Полностью игнорируем команду /start в группах
         return
 
+    # Реферальная ссылка (только в личных чатах)
     args = message.text.split()
     if len(args) > 1 and args[1].startswith("ref_"):
         referrer_id = int(args[1][4:])
@@ -78,6 +79,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await state.clear()
         return
 
+    # Новый пользователь
     first_name = message.from_user.first_name
     await message.answer(
         f"✨ {first_name}, я — Аркадий Викторович, практикующий нумеролог и психолог с 20-летним стажем.\n\n"
