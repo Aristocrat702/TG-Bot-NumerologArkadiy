@@ -11,7 +11,6 @@ def get_connection():
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
-    # Таблица пользователей
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -36,7 +35,6 @@ def init_db():
             birth_place TEXT
         )
     ''')
-    # Кэш сообщений
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS messages_cache (
             user_id INTEGER,
@@ -46,7 +44,6 @@ def init_db():
             PRIMARY KEY (user_id, request_type)
         )
     ''')
-    # История диалогов
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS dialog_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,7 +53,6 @@ def init_db():
             timestamp TEXT
         )
     ''')
-    # Промокоды
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS promocodes (
             code TEXT PRIMARY KEY,
@@ -69,7 +65,6 @@ def init_db():
             created_at TEXT
         )
     ''')
-    # Активации промокодов
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS promocode_activations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,7 +74,6 @@ def init_db():
             result_text TEXT
         )
     ''')
-    # Чёрный список
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS blacklist (
             user_id INTEGER PRIMARY KEY,
@@ -87,14 +81,12 @@ def init_db():
             blocked_at TEXT
         )
     ''')
-    # Настройки бота
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS bot_config (
             key TEXT PRIMARY KEY,
             value TEXT
         )
     ''')
-    # Достижения
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS achievements (
             user_id INTEGER,
@@ -103,7 +95,6 @@ def init_db():
             PRIMARY KEY (user_id, achievement)
         )
     ''')
-    # Челлендж
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS challenges (
             user_id INTEGER,
@@ -114,7 +105,6 @@ def init_db():
             PRIMARY KEY (user_id, day)
         )
     ''')
-    # Дневник настроения
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS mood_log (
             user_id INTEGER,
@@ -124,7 +114,6 @@ def init_db():
             PRIMARY KEY (user_id, log_date)
         )
     ''')
-    # Логи администратора
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS admin_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -134,7 +123,6 @@ def init_db():
             created_at TEXT
         )
     ''')
-    # Результаты психотестов
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS psycho_results (
             user_id INTEGER,
@@ -143,7 +131,6 @@ def init_db():
             PRIMARY KEY (user_id, created_at)
         )
     ''')
-    # Группы
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS group_chats (
             chat_id INTEGER PRIMARY KEY,
@@ -152,7 +139,6 @@ def init_db():
             frequency INTEGER DEFAULT 2
         )
     ''')
-    # Лог отправленных сообщений в группы
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS group_sent_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -162,21 +148,102 @@ def init_db():
             content_type TEXT
         )
     ''')
-    # Начальные настройки
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('system_prompt', 'Вы — Аркадий Викторович...')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('subscription_price', '249')")
     conn.commit()
     conn.close()
 
-# ---------- ДОБАВЛЕННАЯ ФУНКЦИЯ get_user ----------
+# ---------- НОВЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С ПОЛЬЗОВАТЕЛЯМИ ----------
 def get_user(user_id: int):
-    """
-    Возвращает запись пользователя из таблицы users в виде словаря (Row).
-    Если пользователь не найден, возвращает None.
-    """
+    """Возвращает запись пользователя (Row) или None."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     conn.close()
     return row
+
+def create_user(user_id: int, name: str = None, birth_date: str = None, **kwargs):
+    """
+    Создаёт запись пользователя, если её нет, или обновляет существующую.
+    Возвращает True при успехе, False при ошибке.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        # Проверяем, есть ли пользователь
+        cursor.execute("SELECT 1 FROM users WHERE user_id = ?", (user_id,))
+        exists = cursor.fetchone()
+        if exists:
+            # Обновляем только переданные поля
+            fields = []
+            values = []
+            if name is not None:
+                fields.append("name = ?")
+                values.append(name)
+            if birth_date is not None:
+                fields.append("birth_date = ?")
+                values.append(birth_date)
+            if kwargs:
+                for key, val in kwargs.items():
+                    if key in ("destiny_number", "subscription_active", "subscription_end",
+                               "reg_date", "last_active", "free_queries_today",
+                               "send_daily", "is_sleeping", "referred_by", "phone",
+                               "bot_version", "xp", "level", "city", "timezone",
+                               "birth_time", "birth_place"):
+                        fields.append(f"{key} = ?")
+                        values.append(val)
+            if fields:
+                values.append(user_id)
+                query = f"UPDATE users SET {', '.join(fields)} WHERE user_id = ?"
+                cursor.execute(query, values)
+        else:
+            # Вставляем новую запись
+            cursor.execute('''
+                INSERT INTO users (user_id, name, birth_date, destiny_number, reg_date, last_active)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (user_id, name, birth_date, kwargs.get('destiny_number', 0),
+                  datetime.datetime.now().isoformat(), datetime.datetime.now().isoformat()))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Ошибка create_user: {e}")
+        conn.rollback()
+        conn.close()
+        return False
+
+def update_user(user_id: int, **kwargs):
+    """
+    Обновляет произвольные поля пользователя.
+    Пример: update_user(123, name="Новое имя", city="Москва")
+    """
+    if not kwargs:
+        return True
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        fields = []
+        values = []
+        for key, val in kwargs.items():
+            # Белый список полей, которые можно обновлять
+            if key in ("name", "birth_date", "destiny_number", "subscription_active",
+                       "subscription_end", "reg_date", "last_active", "free_queries_today",
+                       "send_daily", "is_sleeping", "referred_by", "phone", "bot_version",
+                       "xp", "level", "city", "timezone", "birth_time", "birth_place"):
+                fields.append(f"{key} = ?")
+                values.append(val)
+        if not fields:
+            conn.close()
+            return True
+        values.append(user_id)
+        query = f"UPDATE users SET {', '.join(fields)} WHERE user_id = ?"
+        cursor.execute(query, values)
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Ошибка update_user: {e}")
+        conn.rollback()
+        conn.close()
+        return False
