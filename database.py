@@ -154,7 +154,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-# ---------- НОВЫЕ ФУНКЦИИ ДЛЯ РАБОТЫ С ПОЛЬЗОВАТЕЛЯМИ ----------
+# ---------- ФУНКЦИИ ДЛЯ РАБОТЫ С ПОЛЬЗОВАТЕЛЯМИ ----------
 def get_user(user_id: int):
     """Возвращает запись пользователя (Row) или None."""
     conn = get_connection()
@@ -244,3 +244,27 @@ def update_user(user_id: int, **kwargs):
         conn.rollback()
         conn.close()
         return False
+
+# ---------- ДОБАВЛЕННАЯ ФУНКЦИЯ ДЛЯ ПРОВЕРКИ ПОДПИСКИ ----------
+def get_subscription_status(user_id: int) -> bool:
+    """
+    Возвращает True, если у пользователя активна подписка, иначе False.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT subscription_active, subscription_end FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return False
+    active, end_str = row
+    if not active:
+        return False
+    if end_str:
+        try:
+            end_date = datetime.datetime.fromisoformat(end_str)
+            if end_date < datetime.datetime.now():
+                return False
+        except:
+            pass
+    return True
