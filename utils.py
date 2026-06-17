@@ -477,7 +477,7 @@ def translate_timezone(tz_name: str) -> str:
     }
     return tz_map.get(tz_name, tz_name)
 
-# ---------- ФУНКЦИИ ДЛЯ ГРУПП (НОВЫЕ) ----------
+# ---------- ФУНКЦИИ ДЛЯ ГРУПП ----------
 def format_subscription_remaining(end_date_str: str) -> str:
     if not end_date_str:
         return "не активна"
@@ -643,3 +643,7 @@ def generate_pdf_matrix(user_id: int, name: str, destiny: int, matrix_text: str)
     except Exception as e:
         print(f"Ошибка генерации PDF: {e}")
         return None
+
+# ---------- АЛИАС ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ ----------
+# Используется в handlers/psycho.py для импорта save_mood
+save_mood = log_mood
