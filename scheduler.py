@@ -36,21 +36,17 @@ def is_night_time() -> bool:
 # ---------- ГРУППОВАЯ РАССЫЛКА ----------
 async def send_group_messages(bot: Bot):
     logging.info("🔔 send_group_messages вызвана")
-    
     if is_night_time():
         logging.info("🌙 Ночной режим – рассылка в группы пропущена")
         return
-
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT chat_id, frequency FROM group_chats WHERE is_active=1")
     groups = cursor.fetchall()
     conn.close()
-
     if not groups:
         logging.info("📭 Нет активных групп для рассылки")
         return
-
     for chat_id, frequency in groups:
         today = datetime.date.today().isoformat()
         conn2 = get_connection()
@@ -58,11 +54,9 @@ async def send_group_messages(bot: Bot):
         cursor2.execute("SELECT COUNT(*) FROM group_sent_log WHERE chat_id=? AND sent_at LIKE ?", (chat_id, f"{today}%"))
         sent_count = cursor2.fetchone()[0]
         conn2.close()
-
         max_messages = frequency * 2
         if sent_count >= max_messages:
             continue
-
         is_long = (sent_count % 4 == 0)
         msg = await generate_unique_message(chat_id, is_long)
         try:
@@ -82,23 +76,19 @@ async def generate_unique_message(chat_id: int, is_long: bool = False) -> str:
         ("astrology", 2)
     ]
     topics_list = [t for t, w in topics for _ in range(w)]
-
     for attempt in range(5):
         topic = random.choice(topics_list)
         length_desc = "развёрнутое (8–10 предложений)" if is_long else "короткое (2–3 предложения)"
         prompt = f"""
 Ты — Аркадий Викторович, мудрый собеседник, который делится полезными, тёплыми и поддерживающими мыслями.
-
 ТЕМА: {topic}
 ДЛИНА: {length_desc}
-
 ТРЕБОВАНИЯ:
 - Говори просто, человечно, без сложных терминов.
 - Если тема психология, отношения, поддержка – сделай сообщение тёплым, с вопросом или интригой в конце.
 - Избегай политики, религии, осуждения.
 - Не используй штампы вроде «вы должны».
 - Сообщение должно быть уникальным, не повторять предыдущие формулировки.
-
 Напиши только текст сообщения, без лишних вступлений.
 """
         response = await get_yandex_gpt_response(prompt, 0)
@@ -109,7 +99,6 @@ async def generate_unique_message(chat_id: int, is_long: bool = False) -> str:
                 "Иногда лучшее, что можно сделать – это просто быть рядом."
             ]
             response = random.choice(fallback)
-
         msg_hash = hashlib.sha256(response.encode()).hexdigest()
         conn = get_connection()
         cursor = conn.cursor()
@@ -121,33 +110,26 @@ async def generate_unique_message(chat_id: int, is_long: bool = False) -> str:
             conn.close()
             return response
         conn.close()
-
     return random.choice([
         "Сегодня хороший день, чтобы задуматься о своих целях. Что вы хотите изменить?",
         "Помните: вы – главный герой своей жизни. Действуйте!"
     ])
 
-# ---------- НОЧНОЕ ПРИВЕТСТВИЕ (один раз в сутки) ----------
+# ---------- НОЧНОЕ ПРИВЕТСТВИЕ (в 22:00 МСК) ----------
 async def send_night_greeting(bot: Bot):
-    """Отправляет прощальное сообщение в группы в 22:55 (только один раз в день)."""
     now_utc = datetime.datetime.now(datetime.timezone.utc)
     now_msk = now_utc + datetime.timedelta(hours=MSK_OFFSET)
     hour = now_msk.hour
     minute = now_msk.minute
-
-    # Проверяем, что время соответствует 22:55-22:59 (чтобы не пропустить)
-    if hour != 22 or minute < 55 or minute > 59:
+    if hour != 22 or minute < 0 or minute > 5:
         return
-
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT chat_id FROM group_chats WHERE is_active=1")
     groups = cursor.fetchall()
     conn.close()
-
     today = datetime.date.today().isoformat()
     for (chat_id,) in groups:
-        # Проверяем, было ли уже отправлено ночное сообщение сегодня
         conn2 = get_connection()
         cursor2 = conn2.cursor()
         cursor2.execute(
@@ -156,8 +138,7 @@ async def send_night_greeting(bot: Bot):
         )
         if cursor2.fetchone():
             conn2.close()
-            continue  # уже отправляли сегодня
-
+            continue
         msg = random.choice([
             "Спокойной ночи, друзья! Пусть сны будут ясными, а завтрашний день – добрым.",
             "Уходя, оставляю вам тишину. Отдыхайте. Завтра будет новый день.",
@@ -165,7 +146,6 @@ async def send_night_greeting(bot: Bot):
         ])
         try:
             await bot.send_message(chat_id, msg, parse_mode="Markdown")
-            # Сохраняем факт отправки
             cursor2.execute(
                 "INSERT INTO group_sent_log (chat_id, sent_at, message_hash, content_type) VALUES (?, ?, ?, ?)",
                 (chat_id, datetime.datetime.now().isoformat(), hashlib.sha256(msg.encode()).hexdigest(), "night_greeting")
@@ -177,23 +157,19 @@ async def send_night_greeting(bot: Bot):
         conn2.close()
         await asyncio.sleep(0.3)
 
-# ---------- УТРЕННЕЕ ПРИВЕТСТВИЕ (один раз в сутки) ----------
+# ---------- УТРЕННЕЕ ПРИВЕТСТВИЕ (в 08:00 МСК) ----------
 async def send_morning_greeting(bot: Bot):
-    """Отправляет утреннее приветствие в группы в 08:05 (только один раз в день)."""
     now_utc = datetime.datetime.now(datetime.timezone.utc)
     now_msk = now_utc + datetime.timedelta(hours=MSK_OFFSET)
     hour = now_msk.hour
     minute = now_msk.minute
-
-    if hour != 8 or minute < 5 or minute > 9:
+    if hour != 8 or minute < 0 or minute > 5:
         return
-
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT chat_id FROM group_chats WHERE is_active=1")
     groups = cursor.fetchall()
     conn.close()
-
     today = datetime.date.today().isoformat()
     for (chat_id,) in groups:
         conn2 = get_connection()
@@ -205,7 +181,6 @@ async def send_morning_greeting(bot: Bot):
         if cursor2.fetchone():
             conn2.close()
             continue
-
         msg = random.choice([
             "Доброе утро! Новый день – новые возможности. Я с вами.",
             "Просыпайтесь! Мир ждёт вас. Сегодня мы разберёмся с тем, что вчера казалось сложным.",
@@ -224,18 +199,16 @@ async def send_morning_greeting(bot: Bot):
         conn2.close()
         await asyncio.sleep(0.3)
 
-# ---------- PUSH-УВЕДОМЛЕНИЯ (ВСЕМ ПОЛЬЗОВАТЕЛЯМ) ----------
+# ---------- ОСТАЛЬНЫЕ ЗАДАЧИ (без изменений) ----------
 async def send_push_notification(bot: Bot, notification_type: str, generator_func):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT user_id, destiny_number, subscription_active FROM users WHERE is_sleeping = 0")
     users = cursor.fetchall()
     conn.close()
-
     if not users:
         logging.info(f"Нет пользователей для рассылки {notification_type}")
         return
-
     for user_id, destiny, sub_active in users:
         is_subscriber = bool(sub_active)
         try:
@@ -247,7 +220,6 @@ async def send_push_notification(bot: Bot, notification_type: str, generator_fun
             logging.error(f"Ошибка отправки уведомления {notification_type} пользователю {user_id}: {e}")
         await asyncio.sleep(0.3)
 
-# ---------- ЗАДАЧИ ДЛЯ PUSH-УВЕДОМЛЕНИЙ ----------
 async def send_morning_notifications(bot: Bot):
     await send_push_notification(bot, "morning", generate_morning_greeting)
 
@@ -263,18 +235,15 @@ async def send_fact_notifications(bot: Bot):
 async def send_evening_notifications(bot: Bot):
     await send_push_notification(bot, "evening", generate_evening_advice)
 
-# ---------- АДАПТИВНЫЕ УВЕДОМЛЕНИЯ ----------
 async def send_adaptive_notifications(bot: Bot):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT user_id, destiny_number, last_active, subscription_active FROM users WHERE is_sleeping = 0")
     users = cursor.fetchall()
     conn.close()
-
     if not users:
         logging.info("Нет пользователей для адаптивных уведомлений")
         return
-
     for user_id, destiny, last_active, sub_active in users:
         days = get_inactivity_days(user_id)
         is_subscriber = bool(sub_active)
@@ -293,7 +262,6 @@ async def send_adaptive_notifications(bot: Bot):
             logging.error(f"Ошибка отправки адаптивного уведомления пользователю {user_id}: {e}")
         await asyncio.sleep(0.3)
 
-# ---------- НАПОМИНАНИЕ О ПОДПИСКЕ ----------
 async def send_subscription_reminder(bot: Bot):
     conn = get_connection()
     cursor = conn.cursor()
@@ -302,7 +270,6 @@ async def send_subscription_reminder(bot: Bot):
     cursor.execute("SELECT user_id, subscription_end, destiny_number FROM users WHERE subscription_active=1 AND subscription_end IS NOT NULL")
     users = cursor.fetchall()
     conn.close()
-
     for user_id, end_str, destiny in users:
         try:
             end_date = datetime.datetime.fromisoformat(end_str)
@@ -314,7 +281,6 @@ async def send_subscription_reminder(bot: Bot):
             logging.error(f"Ошибка отправки напоминания о подписке пользователю {user_id}: {e}")
         await asyncio.sleep(0.3)
 
-# ---------- ПРОЧИЕ ЗАДАЧИ ----------
 async def check_expired_subscriptions(bot: Bot):
     logging.info("check_expired_subscriptions выполнена (заглушка)")
 
@@ -324,31 +290,24 @@ async def weekly_leaderboard(bot: Bot, admin_id: int = None):
 # ---------- ЗАПУСК ПЛАНИРОВЩИКА ----------
 def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     scheduler.remove_all_jobs()
-
-    # Групповая рассылка (каждые 30 минут)
+    # Групповая рассылка
     scheduler.add_job(send_group_messages, IntervalTrigger(minutes=30), args=[bot], id="send_group_messages")
-    
-    # Ночное и утреннее приветствия (по расписанию, с проверкой дублей)
-    scheduler.add_job(send_night_greeting, CronTrigger(hour=22, minute=55), args=[bot], id="night_greeting")
-    scheduler.add_job(send_morning_greeting, CronTrigger(hour=8, minute=5), args=[bot], id="morning_greeting")
-
-    # Ежедневные push-уведомления
+    # Ночное и утреннее приветствия (по новому времени: 22:00 и 08:00 МСК)
+    scheduler.add_job(send_night_greeting, CronTrigger(hour=22, minute=0), args=[bot], id="night_greeting")
+    scheduler.add_job(send_morning_greeting, CronTrigger(hour=8, minute=0), args=[bot], id="morning_greeting")
+    # Личные уведомления (по МСК, пока без часовых поясов)
     scheduler.add_job(send_morning_notifications, CronTrigger(hour=8, minute=0), args=[bot], id="morning_push")
     scheduler.add_job(send_motivation_notifications, CronTrigger(hour=10, minute=0), args=[bot], id="motivation_push")
     scheduler.add_job(send_daily_card_notifications, CronTrigger(hour=12, minute=0), args=[bot], id="daily_card_push")
     scheduler.add_job(send_fact_notifications, CronTrigger(hour=15, minute=0), args=[bot], id="fact_push")
     scheduler.add_job(send_evening_notifications, CronTrigger(hour=18, minute=0), args=[bot], id="evening_push")
-
-    # Адаптивные уведомления (в 20:00)
+    # Адаптивные уведомления
     scheduler.add_job(send_adaptive_notifications, CronTrigger(hour=20, minute=0), args=[bot], id="adaptive_push")
-
-    # Напоминание о подписке (в 10:00)
+    # Напоминание о подписке
     scheduler.add_job(send_subscription_reminder, CronTrigger(hour=10, minute=0), args=[bot], id="subscription_reminder")
-
-    # Остальные задачи
+    # Прочие
     scheduler.add_job(check_expired_subscriptions, CronTrigger(hour=2, minute=0), args=[bot], id="check_expired")
     scheduler.add_job(backup_database, CronTrigger(hour=3, minute=0), id="backup_db")
     scheduler.add_job(weekly_leaderboard, CronTrigger(day_of_week='sun', hour=20, minute=0), args=[bot, admin_id], id="weekly_lb")
-
     scheduler.start()
-    logging.info(f"Планировщик запущен, версия {bot_version}")
+    logging.info(f"Планировщик запущен с новым временем приветствий, версия {bot_version}")
