@@ -63,7 +63,7 @@ menu_button = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
 ])
 
-# ====== ДОБАВЛЕНО ======
+# ====== ДОБАВЛЕНО (было пропущено) ======
 challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔥 Начать челлендж 7 дней", callback_data="start_challenge")],
     [InlineKeyboardButton(text="📊 Мой прогресс", callback_data="challenge_progress")],
@@ -89,3 +89,22 @@ async def set_main_menu(bot: Bot):
     await bot.set_my_commands([
         BotCommand(command="start", description="Запустить бота"),
     ])
+# ===== ДОБАВЛЯЕМ В КОНЕЦ ФАЙЛА =====
+
+# Кнопка отмены для админ-панели (Reply)
+admin_cancel_button = KeyboardButton(text="❌ Отмена")
+
+# Обновлённое админ-меню с кнопкой отмены (используется только внутри состояний)
+admin_menu_with_cancel = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="📊 СТАТИСТИКА"), KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ")],
+        [KeyboardButton(text="✉️ РАССЫЛКА"), KeyboardButton(text="💰 ВЫДАТЬ ПОДПИСКУ")],
+        [KeyboardButton(text="🎫 ПРОМОКОДЫ"), KeyboardButton(text="🔧 ПРОМПТ")],
+        [KeyboardButton(text="📤 ЭКСПОРТ БАЗЫ"), KeyboardButton(text="🚫 БЛЭК-ЛИСТ")],
+        [KeyboardButton(text="💬 ОТВЕТИТЬ"), KeyboardButton(text="💰 ЦЕНА ПОДПИСКИ")],
+        [KeyboardButton(text="🏆 ЛИДЕРБОРД"), KeyboardButton(text="📋 ЛОГИ")],
+        [KeyboardButton(text="👤 ИНФО ПОЛЬЗОВАТЕЛЯ"), KeyboardButton(text="👥 УПРАВЛЕНИЕ ГРУППАМИ")],
+        [KeyboardButton(text="❌ Отмена"), KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
+    ],
+    resize_keyboard=True
+)

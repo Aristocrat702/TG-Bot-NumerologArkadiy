@@ -7,14 +7,14 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
-from keyboards import admin_menu, main_menu
+from keyboards import admin_menu, admin_menu_with_cancel, main_menu
 from database import get_connection
 from utils import (
     is_admin, add_subscription_days, add_to_blacklist,
     remove_from_blacklist, backup_database, get_bot_config,
     set_bot_config, admin_log, get_dialog_history
 )
-from scheduler import weekly_leaderboard  # добавлен импорт
+import scheduler
 
 class AdminStates(StatesGroup):
     waiting_promo_code = State()
@@ -32,6 +32,15 @@ class AdminStates(StatesGroup):
 
 def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
+    # ===== ОБРАБОТЧИК ОТМЕНЫ (для всех состояний) =====
+    @dp.message(F.text == "❌ Отмена")
+    async def cancel_action(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        await state.clear()
+        await message.answer("❌ Действие отменено. Возврат в админ-панель.", reply_markup=admin_menu)
+
+    # ===== ВХОД В АДМИНКУ =====
     @dp.message(Command("admin"))
     async def admin_panel(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
@@ -40,6 +49,7 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await state.clear()
         await message.answer("Админ-панель", reply_markup=admin_menu)
 
+    # ===== СТАТИСТИКА =====
     @dp.message(F.text == "📊 СТАТИСТИКА")
     async def admin_stats(message: types.Message):
         if not is_admin(message.from_user.id, admin_ids):
@@ -57,6 +67,7 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         conn.close()
         await message.answer(f"📊 *Статистика*\n\n👥 Пользователей: {total}\n💎 Активных подписок: {active}\n👥 Групп (всего): {total_groups}\n✅ Активных групп: {active_groups}", parse_mode="Markdown")
 
+    # ===== СПИСОК ЮЗЕРОВ =====
     @dp.message(F.text == "👥 СПИСОК ЮЗЕРОВ")
     async def list_users(message: types.Message):
         if not is_admin(message.from_user.id, admin_ids):
@@ -71,6 +82,7 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await message.answer(text)
         conn.close()
 
+    # ===== РАССЫЛКА =====
     @dp.message(F.text == "✉️ РАССЫЛКА")
     async def broadcast_start(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
@@ -88,14 +100,24 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.callback_query(F.data.startswith("broadcast_"), AdminStates.waiting_broadcast_segment)
     async def broadcast_select_segment(callback: types.CallbackQuery, state: FSMContext):
         segment = callback.data.split("_")[1]
+        if segment == "cancel":
+            await state.clear()
+            await callback.message.answer("Рассылка отменена.", reply_markup=admin_menu)
+            await callback.answer()
+            return
         await state.update_data(segment=segment)
-        await callback.message.answer("Отправьте сообщение для рассылки (текст, фото, документ). Для отмены /cancel")
+        await callback.message.answer("Отправьте сообщение для рассылки (текст, фото, документ). Для отмены нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
         await state.set_state(AdminStates.waiting_broadcast)
         await callback.answer()
 
     @dp.message(AdminStates.waiting_broadcast)
     async def handle_broadcast(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
+            return
+        # Если пользователь ввёл "отмена" текстом (на всякий случай)
+        if message.text and message.text.lower() in ("отмена", "cancel"):
+            await state.clear()
+            await message.answer("Рассылка отменена.", reply_markup=admin_menu)
             return
         data = await state.get_data()
         segment = data.get("segment", "all")
@@ -137,37 +159,121 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                 failed += 1
             await asyncio.sleep(0.05)
         admin_log(message.from_user.id, "broadcast", f"segment={segment}, sent={sent}, failed={failed}")
-        await message.answer(f"✅ Рассылка завершена.\nСегмент: {segment}\nОтправлено: {sent}\nОшибок: {failed}")
+        await message.answer(f"✅ Рассылка завершена.\nСегмент: {segment}\nОтправлено: {sent}\nОшибок: {failed}", reply_markup=admin_menu)
         await state.clear()
 
-    @dp.callback_query(F.data == "broadcast_cancel")
-    async def broadcast_cancel(callback: types.CallbackQuery, state: FSMContext):
-        await state.clear()
-        await callback.message.answer("Рассылка отменена.")
-        await callback.answer()
-
+    # ===== ВЫДАТЬ ПОДПИСКУ =====
     @dp.message(F.text == "💰 ВЫДАТЬ ПОДПИСКУ")
     async def give_sub(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
-        await message.answer("Введите user_id и дни через пробел (например 123456789 30)")
+        await message.answer(
+            "Введите ID, @username или имя пользователя и количество дней через пробел.\n"
+            "Примеры:\n"
+            "123456789 30\n"
+            "@username 30\n"
+            "Алексей 30\n\n"
+            "Или нажмите «❌ Отмена» для выхода.",
+            reply_markup=admin_menu_with_cancel
+        )
         await state.set_state(AdminStates.waiting_reply_user_id)
 
     @dp.message(AdminStates.waiting_reply_user_id)
     async def process_give_prompt(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
+        # Если пользователь ввёл "отмена" текстом
+        if message.text and message.text.lower() in ("отмена", "cancel"):
+            await state.clear()
+            await message.answer("Действие отменено.", reply_markup=admin_menu)
+            return
+        parts = message.text.strip().split()
+        if len(parts) < 2:
+            await message.answer("Ошибка. Введите ID/username/имя и дни через пробел.\nПример: 123456789 30\nИли нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+            return
         try:
-            uid, days = map(int, message.text.split())
-            await state.update_data(give_uid=uid, give_days=days)
+            days = int(parts[-1])
+            query = " ".join(parts[:-1])
+        except ValueError:
+            await message.answer("Количество дней должно быть числом. Повторите ввод или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+            return
+
+        user_id = None
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        if query.startswith("@"):
+            username = query[1:]
+            try:
+                chat = await bot.get_chat(f"@{username}")
+                user_id = chat.id
+            except:
+                await message.answer(f"Пользователь @{username} не найден в Telegram.", reply_markup=admin_menu_with_cancel)
+                conn.close()
+                return
+        else:
+            if query.isdigit():
+                cursor.execute("SELECT user_id, name FROM users WHERE user_id = ?", (int(query),))
+                row = cursor.fetchone()
+                if row:
+                    user_id = row[0]
+                else:
+                    await message.answer(f"Пользователь с ID {query} не найден в БД.", reply_markup=admin_menu_with_cancel)
+                    conn.close()
+                    return
+            else:
+                cursor.execute("SELECT user_id, name FROM users WHERE LOWER(name) LIKE ?", (f"%{query.lower()}%",))
+                rows = cursor.fetchall()
+                if len(rows) == 0:
+                    await message.answer(f"Пользователь с именем «{query}» не найден.", reply_markup=admin_menu_with_cancel)
+                    conn.close()
+                    return
+                elif len(rows) > 1:
+                    kb = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text=f"{row[1]} (ID {row[0]})", callback_data=f"select_user_{row[0]}")]
+                        for row in rows[:5]
+                    ])
+                    await message.answer(f"Найдено несколько пользователей с именем «{query}». Выберите:", reply_markup=kb)
+                    await state.update_data(give_days=days)
+                    await state.set_state(AdminStates.waiting_confirm_action)
+                    conn.close()
+                    return
+                else:
+                    user_id = rows[0][0]
+        conn.close()
+
+        if user_id:
+            await state.update_data(give_uid=user_id, give_days=days)
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="✅ Да", callback_data="confirm_give_yes")],
                 [InlineKeyboardButton(text="❌ Нет", callback_data="confirm_give_no")]
             ])
-            await message.answer(f"Выдать подписку на {days} дней пользователю {uid}? Подтвердите.", reply_markup=kb)
-            await state.set_state(AdminStates.waiting_confirm_action)
-        except:
-            await message.answer("Ошибка. Формат: ID дни")
+            conn2 = get_connection()
+            cursor2 = conn2.cursor()
+            cursor2.execute("SELECT name FROM users WHERE user_id=?", (user_id,))
+            row2 = cursor2.fetchone()
+            conn2.close()
+            name = row2[0] if row2 and row2[0] else "без имени"
+            await message.answer(f"Выдать подписку на {days} дней пользователю {user_id} ({name})? Подтвердите.", reply_markup=kb)
+
+    @dp.callback_query(F.data.startswith("select_user_"), AdminStates.waiting_confirm_action)
+    async def select_user_callback(callback: types.CallbackQuery, state: FSMContext):
+        user_id = int(callback.data.split("_")[-1])
+        data = await state.get_data()
+        days = data.get("give_days", 30)
+        await state.update_data(give_uid=user_id, give_days=days)
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM users WHERE user_id=?", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        name = row[0] if row and row[0] else "без имени"
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Да", callback_data="confirm_give_yes")],
+            [InlineKeyboardButton(text="❌ Нет", callback_data="confirm_give_no")]
+        ])
+        await callback.message.answer(f"Выдать подписку на {days} дней пользователю {user_id} ({name})? Подтвердите.", reply_markup=kb)
+        await callback.answer()
 
     @dp.callback_query(F.data == "confirm_give_yes", AdminStates.waiting_confirm_action)
     async def confirm_give(callback: types.CallbackQuery, state: FSMContext):
@@ -175,7 +281,7 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         uid = data.get("give_uid")
         days = data.get("give_days")
         add_subscription_days(uid, days, check_referral=True, admin_id=callback.from_user.id)
-        await callback.message.answer(f"Выдана подписка на {days} дней пользователю {uid}")
+        await callback.message.answer(f"Выдана подписка на {days} дней пользователю {uid}", reply_markup=admin_menu)
         await bot.send_message(uid, f"Администратор выдал вам подписку на {days} дней!")
         await state.clear()
         await callback.answer()
@@ -183,9 +289,10 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.callback_query(F.data == "confirm_give_no", AdminStates.waiting_confirm_action)
     async def cancel_give(callback: types.CallbackQuery, state: FSMContext):
         await state.clear()
-        await callback.message.answer("Действие отменено.")
+        await callback.message.answer("Действие отменено.", reply_markup=admin_menu)
         await callback.answer()
 
+    # ===== ПРОМОКОДЫ (с отменой) =====
     @dp.message(F.text == "🎫 ПРОМОКОДЫ")
     async def promocodes_menu(message: types.Message):
         if not is_admin(message.from_user.id, admin_ids):
@@ -200,48 +307,63 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "admin_create_promo")
     async def create_promo_start(callback: types.CallbackQuery, state: FSMContext):
-        await callback.message.answer("Введите код (латиница/цифры, без пробелов):")
+        await callback.message.answer("Введите код (латиница/цифры, без пробелов) или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
         await state.set_state(AdminStates.waiting_promo_code)
         await callback.answer()
 
     @dp.message(AdminStates.waiting_promo_code)
     async def get_promo_code(message: types.Message, state: FSMContext):
+        if message.text and message.text.lower() in ("отмена", "cancel"):
+            await state.clear()
+            await message.answer("Действие отменено.", reply_markup=admin_menu)
+            return
         code = message.text.strip()
-        # Проверка на существование кода
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT 1 FROM promocodes WHERE code=?", (code,))
         if cursor.fetchone():
-            await message.answer("Такой код уже существует. Придумайте другой.")
+            await message.answer("Такой код уже существует. Придумайте другой или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
             conn.close()
             return
         conn.close()
         await state.update_data(code=code)
-        await message.answer("Введите количество дней (целое число):")
+        await message.answer("Введите количество дней (целое число):", reply_markup=admin_menu_with_cancel)
         await state.set_state(AdminStates.waiting_promo_days)
 
     @dp.message(AdminStates.waiting_promo_days)
     async def get_promo_days(message: types.Message, state: FSMContext):
+        if message.text and message.text.lower() in ("отмена", "cancel"):
+            await state.clear()
+            await message.answer("Действие отменено.", reply_markup=admin_menu)
+            return
         try:
             days = int(message.text.strip())
             await state.update_data(days=days)
-            await message.answer("Введите максимальное количество использований (0 = безлимит):")
+            await message.answer("Введите максимальное количество использований (0 = безлимит):", reply_markup=admin_menu_with_cancel)
             await state.set_state(AdminStates.waiting_promo_max_uses)
         except:
-            await message.answer("Ошибка. Введите целое число.")
+            await message.answer("Ошибка. Введите целое число или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
 
     @dp.message(AdminStates.waiting_promo_max_uses)
     async def get_promo_max_uses(message: types.Message, state: FSMContext):
+        if message.text and message.text.lower() in ("отмена", "cancel"):
+            await state.clear()
+            await message.answer("Действие отменено.", reply_markup=admin_menu)
+            return
         try:
             max_uses = int(message.text.strip())
             await state.update_data(max_uses=max_uses)
-            await message.answer("Введите срок действия в формате ГГГГ-ММ-ДД (или 'never' для бессрочного):")
+            await message.answer("Введите срок действия в формате ГГГГ-ММ-ДД (или 'never' для бессрочного):", reply_markup=admin_menu_with_cancel)
             await state.set_state(AdminStates.waiting_promo_expiry)
         except:
-            await message.answer("Ошибка. Введите целое число.")
+            await message.answer("Ошибка. Введите целое число или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
 
     @dp.message(AdminStates.waiting_promo_expiry)
     async def get_promo_expiry(message: types.Message, state: FSMContext):
+        if message.text and message.text.lower() in ("отмена", "cancel"):
+            await state.clear()
+            await message.answer("Действие отменено.", reply_markup=admin_menu)
+            return
         expiry = message.text.strip()
         data = await state.get_data()
         code = data["code"]
@@ -251,7 +373,7 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             try:
                 datetime.datetime.strptime(expiry, "%Y-%m-%d")
             except:
-                await message.answer("Неверный формат даты. Используйте ГГГГ-ММ-ДД или 'never'")
+                await message.answer("Неверный формат даты. Используйте ГГГГ-ММ-ДД или 'never'.\nИли нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
                 return
         else:
             expiry = None
@@ -262,7 +384,7 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         conn.commit()
         conn.close()
         admin_log(message.from_user.id, "create_promocode", f"code={code}, days={days}, max_uses={max_uses}")
-        await message.answer(f"Промокод `{code}` создан на {days} дней, лимит {max_uses}.")
+        await message.answer(f"Промокод `{code}` создан на {days} дней, лимит {max_uses}.", reply_markup=admin_menu)
         await state.clear()
 
     @dp.callback_query(F.data == "admin_list_promos")
@@ -302,6 +424,7 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await callback.message.delete()
         await callback.answer()
 
+    # ===== БЛЭК-ЛИСТ =====
     @dp.message(F.text == "🚫 БЛЭК-ЛИСТ")
     async def blacklist_menu(message: types.Message):
         if not is_admin(message.from_user.id, admin_ids):
@@ -348,6 +471,7 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         remove_from_blacklist(user_id)
         await message.answer(f"Пользователь {user_id} удалён из чёрного списка.")
 
+    # ===== ЭКСПОРТ БАЗЫ =====
     @dp.message(F.text == "📤 ЭКСПОРТ БАЗЫ")
     async def export_db(message: types.Message):
         if not is_admin(message.from_user.id, admin_ids):
@@ -372,13 +496,15 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         backup_path = backup_database()
         await message.answer_document(FSInputFile(backup_path))
 
+    # ===== ЛИДЕРБОРД =====
     @dp.message(F.text == "🏆 ЛИДЕРБОРД")
     async def leaderboard_now(message: types.Message):
         if not is_admin(message.from_user.id, admin_ids):
             return
-        await weekly_leaderboard(bot, message.from_user.id)
+        await scheduler.weekly_leaderboard(bot, message.from_user.id)
         await message.answer("Лидерборд отправлен.")
 
+    # ===== ЛОГИ =====
     @dp.message(F.text == "📋 ЛОГИ")
     async def show_logs(message: types.Message):
         if not is_admin(message.from_user.id, admin_ids):
@@ -402,16 +528,21 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                 text += "─" * 20 + "\n"
         await message.answer(text, parse_mode="Markdown")
 
+    # ===== ИНФО ПОЛЬЗОВАТЕЛЯ =====
     @dp.message(F.text == "👤 ИНФО ПОЛЬЗОВАТЕЛЯ")
     async def userinfo_start(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
-        await message.answer("Введите user_id пользователя:")
+        await message.answer("Введите user_id пользователя или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
         await state.set_state(AdminStates.waiting_userinfo)
 
     @dp.message(AdminStates.waiting_userinfo)
     async def userinfo_show(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
+            return
+        if message.text and message.text.lower() in ("отмена", "cancel"):
+            await state.clear()
+            await message.answer("Действие отменено.", reply_markup=admin_menu)
             return
         try:
             uid = int(message.text.strip())
@@ -421,8 +552,7 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             row = cursor.fetchone()
             conn.close()
             if not row:
-                await message.answer("Пользователь не найден.")
-                await state.clear()
+                await message.answer("Пользователь не найден.", reply_markup=admin_menu_with_cancel)
                 return
             name, birth, destiny, sub_active, sub_end, reg_date, last_active, referred, phone, city, timezone, birth_time, birth_place = row
             sub_status = "Активна" if sub_active else "Неактивна"
@@ -435,12 +565,12 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             text += f"Имя: {name}\nДата: {birth}\nВремя рождения: {birth_time or '—'}\nМесто рождения: {birth_place or '—'}\nЧисло судьбы: {destiny}\nПодписка: {sub_status}\nДействительна до: {sub_end_str}\n"
             text += f"Регистрация: {reg_date[:16]}\nПоследняя активность: {last_active[:16] if last_active else '—'}\nРеферал от: {referred if referred else '—'}\nТелефон: {phone or '—'}\nГород: {city or '—'}\nЧасовой пояс: {timezone or '—'}\n\n"
             text += f"📜 *Последние 5 сообщений:*\n{hist_text}"
-            await message.answer(text, parse_mode="Markdown")
+            await message.answer(text, parse_mode="Markdown", reply_markup=admin_menu)
         except:
-            await message.answer("Ошибка. Введите числовой user_id.")
+            await message.answer("Ошибка. Введите числовой user_id или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
         await state.clear()
 
-    # ---------- УПРАВЛЕНИЕ ГРУППАМИ ----------
+    # ===== УПРАВЛЕНИЕ ГРУППАМИ =====
     @dp.message(F.text == "👥 УПРАВЛЕНИЕ ГРУППАМИ")
     async def groups_management_menu(message: types.Message):
         if not is_admin(message.from_user.id, admin_ids):
@@ -511,17 +641,18 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await groups_management_menu(callback.message)
         await callback.answer()
 
-    # ---------- ЦЕНА ПОДПИСКИ (рубли) ----------
+    # ===== ЦЕНА ПОДПИСКИ =====
     @dp.message(F.text == "💰 ЦЕНА ПОДПИСКИ")
     async def change_price(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
         current_price_rub = get_bot_config("subscription_price_rub", "249")
-        current_price_stars = int(int(current_price_rub) * 2)  # 1 руб = 2 Stars
+        current_price_stars = int(int(current_price_rub) * 2)
         await message.answer(
             f"💰 *Текущая цена:* {current_price_rub} ₽ (≈ {current_price_stars} Stars)\n\n"
-            "Введите новую цену в рублях (только число, например 249):",
-            parse_mode="Markdown"
+            "Введите новую цену в рублях (только число, например 249) или нажмите «❌ Отмена».",
+            parse_mode="Markdown",
+            reply_markup=admin_menu_with_cancel
         )
         await state.set_state(AdminStates.waiting_new_price)
 
@@ -529,17 +660,97 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     async def set_price(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
+        if message.text and message.text.lower() in ("отмена", "cancel"):
+            await state.clear()
+            await message.answer("Действие отменено.", reply_markup=admin_menu)
+            return
         try:
             price_rub = int(message.text.strip())
             stars = int(price_rub * 2)
             set_bot_config("subscription_price_rub", str(price_rub))
-            set_bot_config("subscription_price_stars", str(stars))  # сохраняем звёзды
+            set_bot_config("subscription_price_stars", str(stars))
             admin_log(message.from_user.id, "change_price", f"new_price_rub={price_rub}, stars={stars}")
-            await message.answer(f"✅ Цена изменена: {price_rub} ₽ (≈ {stars} Stars)")
+            await message.answer(f"✅ Цена изменена: {price_rub} ₽ (≈ {stars} Stars)", reply_markup=admin_menu)
         except:
-            await message.answer("Ошибка. Введите целое число.")
+            await message.answer("Ошибка. Введите целое число или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
         await state.clear()
 
+    # ===== ПРОМПТ =====
+    @dp.message(F.text == "🔧 ПРОМПТ")
+    async def prompt_menu(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        current_prompt = get_bot_config("system_prompt", "Не установлен")
+        await message.answer(
+            f"📝 *Текущий системный промпт:*\n\n{current_prompt}\n\n"
+            "Чтобы изменить, введите новый текст промпта (он заменит текущий).\n"
+            "Или нажмите «❌ Отмена» для выхода.",
+            parse_mode="Markdown",
+            reply_markup=admin_menu_with_cancel
+        )
+        await state.set_state(AdminStates.waiting_new_prompt)
+
+    @dp.message(AdminStates.waiting_new_prompt)
+    async def set_prompt(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        if message.text and message.text.lower() in ("отмена", "cancel"):
+            await state.clear()
+            await message.answer("Действие отменено.", reply_markup=admin_menu)
+            return
+        new_prompt = message.text.strip()
+        if len(new_prompt) < 10:
+            await message.answer("Промпт должен быть не менее 10 символов. Попробуйте снова или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+            return
+        set_bot_config("system_prompt", new_prompt)
+        admin_log(message.from_user.id, "change_prompt", f"new_prompt_length={len(new_prompt)}")
+        await message.answer("✅ Системный промпт обновлён!", reply_markup=admin_menu)
+        await state.clear()
+
+    # ===== ОТВЕТИТЬ ПОЛЬЗОВАТЕЛЮ =====
+    @dp.message(F.text == "💬 ОТВЕТИТЬ")
+    async def reply_to_user_start(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        await message.answer("Введите ID пользователя, которому хотите ответить, или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+        await state.set_state(AdminStates.waiting_reply_user_id)
+
+    @dp.message(AdminStates.waiting_reply_user_id)
+    async def reply_to_user_get_id(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        if message.text and message.text.lower() in ("отмена", "cancel"):
+            await state.clear()
+            await message.answer("Действие отменено.", reply_markup=admin_menu)
+            return
+        try:
+            uid = int(message.text.strip())
+            await state.update_data(reply_uid=uid)
+            await message.answer(f"Введите текст сообщения для пользователя {uid} (можно с HTML-разметкой).\nИли нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+            await state.set_state(AdminStates.waiting_reply_text)
+        except:
+            await message.answer("Ошибка. Введите числовой ID или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+
+    @dp.message(AdminStates.waiting_reply_text)
+    async def reply_to_user_send(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        if message.text and message.text.lower() in ("отмена", "cancel"):
+            await state.clear()
+            await message.answer("Действие отменено.", reply_markup=admin_menu)
+            return
+        data = await state.get_data()
+        uid = data.get("reply_uid")
+        text = message.text
+        try:
+            await bot.send_message(uid, f"✉️ *Сообщение от администратора:*\n\n{text}", parse_mode="HTML")
+            admin_log(message.from_user.id, "reply_to_user", f"user_id={uid}")
+            await message.answer(f"✅ Сообщение отправлено пользователю {uid}.", reply_markup=admin_menu)
+        except Exception as e:
+            await message.answer(f"❌ Ошибка отправки: {str(e)}", reply_markup=admin_menu_with_cancel)
+        await state.clear()
+
+    # ===== ВЫХОД ИЗ АДМИНКИ =====
     @dp.message(F.text == "⬅️ ВЫЙТИ ИЗ АДМИНКИ")
     async def exit_admin(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
