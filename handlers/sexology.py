@@ -92,7 +92,7 @@ async def sexology_question_handler(message: types.Message, state: FSMContext):
     status_msg = await message.answer("🧠 Аркадий Викторович размышляет над вашим вопросом...")
     if is_subscriber:
         prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о сексологии: {question}. Ответь развёрнуто (8-10 предложений) как психолог и сексолог, дай практические советы, будь деликатен. Учти число судьбы, если это уместно."
-        response = await get_yandex_gpt_response(prompt, user_id)
+        response = await get_yandex_gpt_response(prompt, user_id, function_name="sexology")
         await status_msg.delete()
         await message.answer(response, parse_mode=None, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="❓ Ещё вопрос", callback_data="sexology_ask")]
@@ -112,7 +112,7 @@ async def sexology_question_handler(message: types.Message, state: FSMContext):
         await state.clear()
         return
     prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о сексологии: {question}. Дай короткий, но цепляющий ответ (3-4 предложения), оставь интригу. В конце добавь фразу: «Полная консультация и практические рекомендации – по подписке»."
-    short_response = await get_yandex_gpt_response(prompt, user_id)
+    short_response = await get_yandex_gpt_response(prompt, user_id, function_name="sexology")
     increment_sexology_free_query(user_id)
     await status_msg.delete()
     await message.answer(

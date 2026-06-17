@@ -76,7 +76,7 @@ async def premium_matrix(callback: types.CallbackQuery):
         return
     status_msg = await callback.message.answer("📜 Аркадий Викторович составляет вашу матрицу... Это может занять до 2 минут.")
     prompt = f"Составь полную матрицу судьбы для числа {destiny}. Дай развёрнутую характеристику (10-15 предложений) по арканам."
-    response = await get_yandex_gpt_response(prompt, user_id)
+    response = await get_yandex_gpt_response(prompt, user_id, function_name="premium_matrix")
     await status_msg.delete()
     if "Ошибка" not in response and "Нейросеть" not in response and "таймаут" not in response:
         save_cached_response(user_id, cache_key, response)
@@ -111,7 +111,7 @@ async def premium_money_code(callback: types.CallbackQuery):
     destiny = row[2] or "?"
     status_msg = await callback.message.answer("💸 Аркадий Викторович рассчитывает ваш денежный код...")
     prompt = f"Рассчитай денежный код для человека {name} с датой рождения {birth_date} и числом судьбы {destiny}. Дай развёрнутый ответ (8-10 предложений): что такое денежный код, как его использовать, конкретные рекомендации по улучшению финансового потока, благоприятные дни для денежных операций."
-    response = await get_yandex_gpt_response(prompt, user_id)
+    response = await get_yandex_gpt_response(prompt, user_id, function_name="premium_money_code")
     await status_msg.delete()
     await callback.message.answer(f"💸 *Ваш денежный код*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
     update_last_active(user_id)
@@ -140,7 +140,7 @@ async def premium_natal(callback: types.CallbackQuery):
     birth_place = row[2] if row[2] else "не указано"
     status_msg = await callback.message.answer("🌌 Аркадий Викторович строит вашу натальную карту...")
     prompt = f"Составь полное описание натальной карты для человека, родившегося {birth_date} в {birth_time} в {birth_place}. Укажи основные планеты, дома, аспекты. Дай развёрнутый, содержательный прогноз (8-10 предложений)."
-    response = await get_yandex_gpt_response(prompt, user_id)
+    response = await get_yandex_gpt_response(prompt, user_id, function_name="premium_natal")
     await status_msg.delete()
     await callback.message.answer(f"🌌 *Ваша натальная карта*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
     update_last_active(user_id)
@@ -168,7 +168,7 @@ async def premium_solar(callback: types.CallbackQuery):
     zodiac = get_zodiac_sign(birth_date)
     status_msg = await callback.message.answer("☀️ Аркадий Викторович рассчитывает соляр...")
     prompt = f"Составь прогноз соляра для человека со знаком {zodiac} на предстоящий год. Укажи ключевые события, периоды роста и возможные трудности. Дай развёрнутый ответ (7-10 предложений)."
-    response = await get_yandex_gpt_response(prompt, user_id)
+    response = await get_yandex_gpt_response(prompt, user_id, function_name="premium_solar")
     await status_msg.delete()
     await callback.message.answer(f"☀️ *Ваш соляр на год*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
     update_last_active(user_id)
@@ -205,7 +205,7 @@ async def premium_horoscope_monthly(callback: types.CallbackQuery):
         month_name = today.strftime('%B').lower()
         prompt = f"Составь астрологический гороскоп на месяц {month_name} для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. Дай развёрнутый прогноз (8-10 предложений) по сферам: любовь, деньги, здоровье. Укажи благоприятные периоды и дай общий совет."
         status_msg = await callback.message.answer("🔮 Аркадий Викторович составляет гороскоп...")
-        response = await get_yandex_gpt_response(prompt, user_id)
+        response = await get_yandex_gpt_response(prompt, user_id, function_name="premium_horoscope_monthly")
         await status_msg.delete()
         if "Ошибка" not in response and "Нейросеть" not in response and "таймаут" not in response:
             save_cached_response(user_id, cache_key, response)

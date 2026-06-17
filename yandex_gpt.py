@@ -3,6 +3,7 @@ import os
 import time
 import asyncio
 from dotenv import load_dotenv
+from database import get_prompts_for_function
 
 load_dotenv()
 
@@ -12,12 +13,20 @@ YANDEX_FOLDER_ID = os.getenv("YANDEX_FOLDER_ID")
 _failure_count = 0
 _last_failure_time = 0
 
-async def get_yandex_gpt_response(prompt: str, user_id: int) -> str:
+async def get_yandex_gpt_response(prompt: str, user_id: int, function_name: str = "default") -> str:
+    """Отправляет запрос к YandexGPT с использованием промптов из БД."""
     global _failure_count, _last_failure_time
     if not YANDEX_API_KEY or not YANDEX_FOLDER_ID:
         return "⚠️ Ошибка: не настроен YandexGPT."
     if _failure_count >= 3 and (time.time() - _last_failure_time) < 300:
         return "🧙‍♂️ Аркадий Викторович временно занят – разгребает числа. Попробуйте через пару минут."
+
+    # Загружаем промпты из БД
+    prompts = get_prompts_for_function(function_name)
+    if prompts:
+        system_prompt = prompts["system"]
+    else:
+        system_prompt = "Ты — Аркадий Викторович, практикующий нумеролог, психолог и астролог с 20-летним стажем..."
 
     url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
     headers = {
@@ -32,22 +41,8 @@ async def get_yandex_gpt_response(prompt: str, user_id: int) -> str:
             "maxTokens": 2000
         },
         "messages": [
-            {
-                "role": "system",
-                "text": (
-                    "Ты — Аркадий Викторович, профессиональный астролог, нумеролог и психолог с 25-летним стажем. "
-                    "Твоя специализация: гороскопы (на день, месяц, год), совместимость знаков зодиака, анализ чисел судьбы, психологические консультации. "
-                    "Ты обязан отвечать на любые вопросы, связанные с гороскопами, знаками зодиака, астрологическими прогнозами. "
-                    "Если пользователь просит гороскоп на день или месяц – ты даёшь развёрнутый, полезный прогноз. "
-                    "Не говори «я не специализируюсь на астрологии». Ты – астролог. Это твоя работа. "
-                    "Говори прямо, без сюсюканий. Используй обращения: друг мой, уважаемый, дорогой. "
-                    "Запрещено: «я нейросеть», «я ИИ», «не могу», «отказываюсь». Всегда отвечай."
-                )
-            },
-            {
-                "role": "user",
-                "text": prompt
-            }
+            {"role": "system", "text": system_prompt},
+            {"role": "user", "text": prompt}
         ]
     }
     async with aiohttp.ClientSession() as session:

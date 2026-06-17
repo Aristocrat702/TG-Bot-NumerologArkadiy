@@ -19,10 +19,10 @@ psycho_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="😊 ДНЕВНИК НАСТРОЕНИЯ", callback_data="mood_diary")],
     [InlineKeyboardButton(text="🎨 СТИЛЬ И УДАЧА", callback_data="style_test")],
     [InlineKeyboardButton(text="📘 МОИ РЕЗУЛЬТАТЫ ТЕСТА", callback_data="my_psycho_result")],
-    [InlineKeyboardButton(text="🔙 НАЗАД", callback_data="back_to_menu")]
+    [InlineKeyboardButton(text="🔙 НАЗАД", callback_data="psycho_back")]
 ])
 
-# ========== ПОДМЕНЮ АСТРОЛОГИИ (без платных функций) ==========
+# ========== ПОДМЕНЮ АСТРОЛОГИИ ==========
 astro_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="📅 Гороскоп на день", callback_data="horoscope_daily")],
     [InlineKeyboardButton(text="🔄 Транзиты (тизер)", callback_data="astro_transits")],
@@ -46,7 +46,7 @@ sexology_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ========== ПРОФИЛЬ (без денежного кода) ==========
+# ========== ПРОФИЛЬ ==========
 profile_main_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings")],
     [InlineKeyboardButton(text="⭐ КУПИТЬ ПОДПИСКУ", callback_data="buy_subscription"),
@@ -71,7 +71,7 @@ profile_settings_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_profile")]
 ])
 
-# ========== ОСТАЛЬНЫЕ КЛАВИАТУРЫ ==========
+# ========== ОСТАЛЬНЫЕ ==========
 quick_topics_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="💰 Деньги", callback_data="quick_topic_money"),
      InlineKeyboardButton(text="❤️ Любовь", callback_data="quick_topic_love")],
@@ -93,7 +93,7 @@ challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ========== АДМИН-МЕНЮ (добавлена кнопка статей) ==========
+# ========== АДМИН-МЕНЮ (добавлена кнопка "УПРАВЛЕНИЕ ПРОМПТАМИ") ==========
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📊 СТАТИСТИКА"), KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ")],
@@ -103,8 +103,8 @@ admin_menu = ReplyKeyboardMarkup(
         [KeyboardButton(text="💬 ОТВЕТИТЬ"), KeyboardButton(text="💰 ЦЕНА ПОДПИСКИ")],
         [KeyboardButton(text="🏆 ЛИДЕРБОРД"), KeyboardButton(text="📋 ЛОГИ")],
         [KeyboardButton(text="👤 ИНФО ПОЛЬЗОВАТЕЛЯ"), KeyboardButton(text="👥 УПРАВЛЕНИЕ ГРУППАМИ")],
-        [KeyboardButton(text="📤 ТЕСТ ГРУППЫ"), KeyboardButton(text="📰 СТАТЬИ СЕКСОЛОГИИ")],
-        [KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
+        [KeyboardButton(text="📤 ТЕСТ ГРУППЫ"), KeyboardButton(text="🔧 УПРАВЛЕНИЕ ПРОМПТАМИ")],
+        [KeyboardButton(text="📰 СТАТЬИ СЕКСОЛОГИИ"), KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
     ],
     resize_keyboard=True
 )

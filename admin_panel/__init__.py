@@ -13,6 +13,7 @@ from .userinfo import register_userinfo_handlers
 from .groups_management import register_groups_management_handlers
 from .test_group import register_test_group_handlers
 from .articles import register_articles_handlers
+from .prompts import register_prompts_handlers  # <-- новый модуль
 
 def register_admin_handlers(dp, bot, admin_ids: list):
     register_admin_entry_handler(dp, bot, admin_ids)
@@ -30,3 +31,4 @@ def register_admin_handlers(dp, bot, admin_ids: list):
     register_groups_management_handlers(dp, bot, admin_ids)
     register_test_group_handlers(dp, bot, admin_ids)
     register_articles_handlers(dp, bot, admin_ids)
+    register_prompts_handlers(dp, bot, admin_ids)  # <-- регистрация

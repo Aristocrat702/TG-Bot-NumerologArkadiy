@@ -68,12 +68,13 @@ async def send_group_messages(bot: Bot):
 
 async def generate_unique_message(chat_id: int, is_long: bool = False) -> str:
     topics = [
-        ("psychology", 35),
-        ("relationships", 25),
-        ("support", 25),
-        ("self_knowledge", 10),
+        ("psychology", 25),
+        ("relationships", 20),
+        ("support", 15),
+        ("self_knowledge", 5),
         ("numerology", 3),
-        ("astrology", 2)
+        ("astrology", 2),
+        ("sexology", 30)
     ]
     topics_list = [t for t, w in topics for _ in range(w)]
     for attempt in range(5):
@@ -85,13 +86,13 @@ async def generate_unique_message(chat_id: int, is_long: bool = False) -> str:
 ДЛИНА: {length_desc}
 ТРЕБОВАНИЯ:
 - Говори просто, человечно, без сложных терминов.
-- Если тема психология, отношения, поддержка – сделай сообщение тёплым, с вопросом или интригой в конце.
+- Если тема психология, отношения, поддержка или сексология – сделай сообщение тёплым, с вопросом или интригой в конце.
 - Избегай политики, религии, осуждения.
 - Не используй штампы вроде «вы должны».
 - Сообщение должно быть уникальным, не повторять предыдущие формулировки.
 Напиши только текст сообщения, без лишних вступлений.
 """
-        response = await get_yandex_gpt_response(prompt, 0)
+        response = await get_yandex_gpt_response(prompt, 0, function_name="group_messages")
         if len(response) < 10 or "Ошибка" in response:
             fallback = [
                 "Сегодня отличный день, чтобы начать что-то новое. Даже маленький шаг меняет маршрут.",
@@ -115,7 +116,7 @@ async def generate_unique_message(chat_id: int, is_long: bool = False) -> str:
         "Помните: вы – главный герой своей жизни. Действуйте!"
     ])
 
-# ---------- НОЧНОЕ ПРИВЕТСТВИЕ (в 22:00 МСК) ----------
+# ---------- НОЧНОЕ ПРИВЕТСТВИЕ ----------
 async def send_night_greeting(bot: Bot):
     now_utc = datetime.datetime.now(datetime.timezone.utc)
     now_msk = now_utc + datetime.timedelta(hours=MSK_OFFSET)
@@ -157,7 +158,7 @@ async def send_night_greeting(bot: Bot):
         conn2.close()
         await asyncio.sleep(0.3)
 
-# ---------- УТРЕННЕЕ ПРИВЕТСТВИЕ (в 08:00 МСК) ----------
+# ---------- УТРЕННЕЕ ПРИВЕТСТВИЕ ----------
 async def send_morning_greeting(bot: Bot):
     now_utc = datetime.datetime.now(datetime.timezone.utc)
     now_msk = now_utc + datetime.timedelta(hours=MSK_OFFSET)
@@ -302,7 +303,7 @@ async def generate_sexology_articles(bot: Bot):
     topics = random.sample(SEXOLOGY_TOPICS, min(articles_per_week, len(SEXOLOGY_TOPICS)))
     for topic in topics:
         prompt = f"Напиши короткую полезную статью (5-7 предложений) на тему '{topic}'. Используй стиль Аркадия Викторовича: тепло, профессионально, без сложных терминов. Добавь интригу в конце."
-        content = await get_yandex_gpt_response(prompt, 0)
+        content = await get_yandex_gpt_response(prompt, 0, function_name="articles_generation")
         add_sexology_article(topic, content, topic, "pending")
         logging.info(f"Сгенерирована статья на тему: {topic}")
     logging.info("Генерация статей завершена")
@@ -332,4 +333,4 @@ def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     scheduler.add_job(backup_database, CronTrigger(hour=3, minute=0), id="backup_db")
     scheduler.add_job(weekly_leaderboard, CronTrigger(day_of_week='sun', hour=20, minute=0), args=[bot, admin_id], id="weekly_lb")
     scheduler.start()
-    logging.info(f"Планировщик запущен с задачами сексологии, версия {bot_version}")
+    logging.info(f"Планировщик запущен с задачами сексологии и промптами, версия {bot_version}")
