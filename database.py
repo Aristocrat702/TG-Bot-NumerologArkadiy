@@ -12,7 +12,7 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Таблица пользователей
+    # Таблица пользователей (с добавленным полем gender)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -35,13 +35,18 @@ def init_db():
             city TEXT,
             timezone TEXT,
             birth_time TEXT,
-            birth_place TEXT
+            birth_place TEXT,
+            gender TEXT DEFAULT 'unknown'
         )
     ''')
+    
+    # Миграции
     cursor.execute("PRAGMA table_info(users)")
     columns = [col[1] for col in cursor.fetchall()]
     if 'free_sexology_queries_today' not in columns:
         cursor.execute("ALTER TABLE users ADD COLUMN free_sexology_queries_today INTEGER DEFAULT 0")
+    if 'gender' not in columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN gender TEXT DEFAULT 'unknown'")
     
     # Таблица статей сексологии
     cursor.execute('''
@@ -55,7 +60,7 @@ def init_db():
         )
     ''')
     
-    # ========== НОВАЯ ТАБЛИЦА ДЛЯ ПРОМПТОВ ==========
+    # Таблица промптов
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS prompts (
             function_name TEXT PRIMARY KEY,
@@ -63,6 +68,31 @@ def init_db():
             free_prompt TEXT,
             paid_prompt TEXT,
             updated_at TEXT
+        )
+    ''')
+    
+    # Таблица визитов (этап 4)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_visits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            visit_date TEXT,
+            visit_time TEXT,
+            source TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        )
+    ''')
+    
+    # Таблица сообщений групп (этап 5)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS group_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id INTEGER,
+            user_id INTEGER,
+            message_text TEXT,
+            message_date TEXT,
+            is_from_bot BOOLEAN DEFAULT 0,
+            FOREIGN KEY (chat_id) REFERENCES group_chats(chat_id)
         )
     ''')
     
@@ -168,9 +198,15 @@ def init_db():
             chat_id INTEGER PRIMARY KEY,
             is_active BOOLEAN DEFAULT 0,
             created_at TEXT,
-            frequency INTEGER DEFAULT 2
+            frequency INTEGER DEFAULT 2,
+            collect_messages BOOLEAN DEFAULT 0
         )
     ''')
+    cursor.execute("PRAGMA table_info(group_chats)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'collect_messages' not in columns:
+        cursor.execute("ALTER TABLE group_chats ADD COLUMN collect_messages BOOLEAN DEFAULT 0")
+    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS group_sent_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -187,7 +223,7 @@ def init_db():
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_free_queries_limit', '3')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_articles_per_week', '2')")
     
-    # Инициализация промптов (создаём начальные записи)
+    # Инициализация промптов
     initialize_default_prompts()
     
     conn.commit()
@@ -223,7 +259,7 @@ def create_user(user_id: int, name: str = None, birth_date: str = None, **kwargs
                                "reg_date", "last_active", "free_queries_today", "free_sexology_queries_today",
                                "send_daily", "is_sleeping", "referred_by", "phone",
                                "bot_version", "xp", "level", "city", "timezone",
-                               "birth_time", "birth_place"):
+                               "birth_time", "birth_place", "gender"):
                         fields.append(f"{key} = ?")
                         values.append(val)
             if fields:
@@ -232,10 +268,10 @@ def create_user(user_id: int, name: str = None, birth_date: str = None, **kwargs
                 cursor.execute(query, values)
         else:
             cursor.execute('''
-                INSERT INTO users (user_id, name, birth_date, destiny_number, reg_date, last_active)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO users (user_id, name, birth_date, destiny_number, reg_date, last_active, gender)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ''', (user_id, name, birth_date, kwargs.get('destiny_number', 0),
-                  datetime.datetime.now().isoformat(), datetime.datetime.now().isoformat()))
+                  datetime.datetime.now().isoformat(), datetime.datetime.now().isoformat(), kwargs.get('gender', 'unknown')))
         conn.commit()
         conn.close()
         return True
@@ -258,7 +294,7 @@ def update_user(user_id: int, **kwargs):
                        "subscription_end", "reg_date", "last_active", "free_queries_today",
                        "free_sexology_queries_today", "send_daily", "is_sleeping", "referred_by",
                        "phone", "bot_version", "xp", "level", "city", "timezone",
-                       "birth_time", "birth_place"):
+                       "birth_time", "birth_place", "gender"):
                 fields.append(f"{key} = ?")
                 values.append(val)
         if not fields:
@@ -407,9 +443,8 @@ def delete_sexology_article(article_id: int):
     conn.commit()
     conn.close()
 
-# ---------- НОВЫЕ ФУНКЦИИ ДЛЯ ПРОМПТОВ ----------
+# ---------- ФУНКЦИИ ДЛЯ ПРОМПТОВ ----------
 def get_prompts_for_function(function_name: str) -> dict:
-    """Возвращает словарь с системным, бесплатным и платным промптом для функции."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT system_prompt, free_prompt, paid_prompt FROM prompts WHERE function_name = ?", (function_name,))
@@ -420,7 +455,6 @@ def get_prompts_for_function(function_name: str) -> dict:
     return None
 
 def set_prompts_for_function(function_name: str, system_prompt: str, free_prompt: str, paid_prompt: str):
-    """Сохраняет промпты для функции в БД."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
@@ -431,7 +465,6 @@ def set_prompts_for_function(function_name: str, system_prompt: str, free_prompt
     conn.close()
 
 def get_all_function_names() -> list:
-    """Возвращает список всех функций, для которых есть промпты."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT function_name FROM prompts")
@@ -440,7 +473,6 @@ def get_all_function_names() -> list:
     return [row[0] for row in rows]
 
 def initialize_default_prompts():
-    """Заполняет таблицу промптов начальными значениями для всех функций."""
     default_prompts = {
         "number": {
             "system": "Ты — Аркадий Викторович, практикующий нумеролог, психолог и астролог с 20-летним стажем. Говори прямо, без сюсюканий. Используй живые фразы. Обращайся на «вы». Ты умеешь составлять гороскопы, отвечать на вопросы о числах, судьбе. Для нумерологии: рассчитывай число судьбы, давай характеристику. Не отказывайся от астрологических тем. Ты — астролог. Запрещено говорить: «я нейросеть», «я ИИ». Всегда отвечай на запросы о гороскопе.",
@@ -467,9 +499,116 @@ def initialize_default_prompts():
             "free": "Дай короткий, но цепляющий ответ (3-4 предложения) на вопрос пользователя. Не раскрывай всех деталей, оставь интригу. В конце добавь фразу: «Полная консультация и практические рекомендации – по подписке».",
             "paid": "Ответь развёрнуто (8-10 предложений) как психолог и сексолог, дай практические советы, будь деликатен. Учти число судьбы, если это уместно."
         },
-        # Добавьте остальные функции по аналогии...
-        # Для упрощения я оставлю базовые, остальные можно добавить позже через админ-панель.
     }
     for func, prompts in default_prompts.items():
         if not get_prompts_for_function(func):
             set_prompts_for_function(func, prompts["system"], prompts["free"], prompts["paid"])
+
+# ---------- АНАЛИТИКА (этап 4) ----------
+def log_user_visit(user_id: int, source: str = "unknown"):
+    conn = get_connection()
+    cursor = conn.cursor()
+    now = datetime.datetime.now()
+    date_str = now.strftime("%Y-%m-%d")
+    time_str = now.strftime("%H:%M:%S")
+    cursor.execute(
+        "INSERT INTO user_visits (user_id, visit_date, visit_time, source) VALUES (?, ?, ?, ?)",
+        (user_id, date_str, time_str, source)
+    )
+    conn.commit()
+    conn.close()
+
+def get_user_visits_stats(user_id: int = None, days: int = 30) -> dict:
+    conn = get_connection()
+    cursor = conn.cursor()
+    if user_id:
+        cursor.execute("SELECT COUNT(*) FROM user_visits WHERE user_id = ? AND visit_date >= date('now', ?)", (user_id, f"-{days} days"))
+        total = cursor.fetchone()[0]
+        cursor.execute("SELECT visit_date, COUNT(*) FROM user_visits WHERE user_id = ? AND visit_date >= date('now', ?) GROUP BY visit_date ORDER BY visit_date", (user_id, f"-{days} days"))
+        daily = cursor.fetchall()
+        conn.close()
+        return {"total": total, "daily": [{"date": row[0], "count": row[1]} for row in daily]}
+    else:
+        cursor.execute("SELECT COUNT(DISTINCT user_id) FROM user_visits WHERE visit_date >= date('now', ?)", (f"-{days} days",))
+        unique_users = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM user_visits WHERE visit_date >= date('now', ?)", (f"-{days} days",))
+        total_visits = cursor.fetchone()[0]
+        conn.close()
+        return {"unique_users": unique_users, "total_visits": total_visits}
+
+def export_user_visits_csv(user_id: int = None, days: int = 30) -> str:
+    conn = get_connection()
+    cursor = conn.cursor()
+    if user_id:
+        cursor.execute("SELECT user_id, visit_date, visit_time, source FROM user_visits WHERE user_id = ? AND visit_date >= date('now', ?) ORDER BY visit_date, visit_time", (user_id, f"-{days} days"))
+    else:
+        cursor.execute("SELECT user_id, visit_date, visit_time, source FROM user_visits WHERE visit_date >= date('now', ?) ORDER BY user_id, visit_date, visit_time", (f"-{days} days",))
+    rows = cursor.fetchall()
+    conn.close()
+    import csv, io
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["user_id", "visit_date", "visit_time", "source"])
+    for row in rows:
+        writer.writerow([row[0], row[1], row[2], row[3]])
+    return output.getvalue()
+
+# ---------- ГРУППОВЫЕ СООБЩЕНИЯ (этап 5) ----------
+def save_group_message(chat_id: int, user_id: int, message_text: str, is_from_bot: bool = False):
+    conn = get_connection()
+    cursor = conn.cursor()
+    now = datetime.datetime.now().isoformat()
+    cursor.execute(
+        "INSERT INTO group_messages (chat_id, user_id, message_text, message_date, is_from_bot) VALUES (?, ?, ?, ?, ?)",
+        (chat_id, user_id, message_text, now, is_from_bot)
+    )
+    conn.commit()
+    conn.close()
+
+def get_group_messages(chat_id: int, limit: int = 100, days: int = None):
+    conn = get_connection()
+    cursor = conn.cursor()
+    query = "SELECT user_id, message_text, message_date, is_from_bot FROM group_messages WHERE chat_id = ?"
+    params = [chat_id]
+    if days:
+        query += " AND message_date >= datetime('now', ?)"
+        params.append(f"-{days} days")
+    query += " ORDER BY message_date DESC LIMIT ?"
+    params.append(limit)
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def toggle_group_message_collection(chat_id: int, enabled: bool):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE group_chats SET collect_messages = ? WHERE chat_id = ?", (1 if enabled else 0, chat_id))
+    conn.commit()
+    conn.close()
+
+def get_group_collection_status(chat_id: int) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT collect_messages FROM group_chats WHERE chat_id = ?", (chat_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return bool(row[0]) if row else False
+
+def export_group_messages_csv(chat_id: int, limit: int = 100, days: int = None) -> str:
+    rows = get_group_messages(chat_id, limit, days)
+    import csv, io
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["user_id", "message_text", "message_date", "is_from_bot"])
+    for row in rows:
+        writer.writerow([row[0], row[1], row[2], row[3]])
+    return output.getvalue()
+
+# ---------- ОПРЕДЕЛЕНИЕ ПОЛА (этап 6) ----------
+def update_user_gender(user_id: int, gender: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET gender = ? WHERE user_id = ?", (gender, user_id))
+    conn.commit()
+    conn.close()

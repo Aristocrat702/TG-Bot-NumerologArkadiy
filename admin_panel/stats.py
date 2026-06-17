@@ -35,3 +35,17 @@ def register_stats_handlers(dp, bot, admin_ids):
             text += f"ID: {r[0]}, Имя: {r[1]}, Подписка: {'да' if r[2] else 'нет'}\n"
         await message.answer(text)
         conn.close()
+from database import get_user_visits_stats
+
+@dp.message(F.text == "📊 СТАТИСТИКА АКТИВНОСТИ")
+async def admin_activity_stats(message: types.Message):
+    if not is_admin(message.from_user.id, admin_ids):
+        return
+    stats = get_user_visits_stats(days=30)
+    text = (
+        f"📊 *Активность за 30 дней*\n\n"
+        f"👥 Уникальных пользователей: {stats['unique_users']}\n"
+        f"🔄 Всего визитов: {stats['total_visits']}\n"
+        f"📈 Среднее визитов на пользователя: {stats['total_visits'] / stats['unique_users']:.1f}" if stats['unique_users'] else "Нет данных"
+    )
+    await message.answer(text, parse_mode="Markdown")

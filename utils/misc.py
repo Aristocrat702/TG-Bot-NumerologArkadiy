@@ -5,7 +5,7 @@ import time
 import asyncio
 import aiohttp
 import random
-from .db import get_connection, admin_log, set_bot_config, get_bot_config
+from .db import get_connection, admin_log, set_bot_config, get_bot_config, get_user
 from .calculations import add_xp
 from settings import CRISIS_HELP_LINKS
 
@@ -300,7 +300,6 @@ def update_last_active(user_id: int):
 
 # ---------- НЕАКТИВНОСТЬ ----------
 def get_inactivity_days(user_id: int) -> int:
-    """Возвращает количество дней, прошедших с последней активности пользователя."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT last_active FROM users WHERE user_id=?", (user_id,))
@@ -429,7 +428,6 @@ async def check_and_expire_subscriptions():
 
 # ---------- ЛИДЕРБОРД ----------
 def get_leaderboard(limit: int = 10, only_subscribers: bool = False) -> list:
-    """Возвращает список кортежей (user_id, name, xp, level) для топа пользователей."""
     conn = get_connection()
     cursor = conn.cursor()
     if only_subscribers:
@@ -450,3 +448,15 @@ def get_leaderboard(limit: int = 10, only_subscribers: bool = False) -> list:
     rows = cursor.fetchall()
     conn.close()
     return [(row[0], row[1] or "Без имени", row[2] or 0, row[3] or 1) for row in rows]
+
+# ---------- ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ ПОЛА (ЭТАП 6) ----------
+def get_user_gender(user_id: int) -> str:
+    """Возвращает пол пользователя ('male', 'female', 'unknown')."""
+    user = get_user(user_id)
+    if user:
+        # В зависимости от структуры, gender может быть по индексу или по ключу
+        if isinstance(user, dict):
+            return user.get('gender', 'unknown')
+        elif isinstance(user, tuple) and len(user) > 22:
+            return user[22] if user[22] else 'unknown'
+    return 'unknown'

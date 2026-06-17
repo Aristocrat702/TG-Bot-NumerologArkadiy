@@ -3,7 +3,7 @@ import os
 import time
 import asyncio
 from dotenv import load_dotenv
-from database import get_prompts_for_function
+from database import get_prompts_for_function, get_user
 
 load_dotenv()
 
@@ -13,13 +13,23 @@ YANDEX_FOLDER_ID = os.getenv("YANDEX_FOLDER_ID")
 _failure_count = 0
 _last_failure_time = 0
 
-async def get_yandex_gpt_response(prompt: str, user_id: int, function_name: str = "default") -> str:
-    """Отправляет запрос к YandexGPT с использованием промптов из БД."""
+async def get_yandex_gpt_response(prompt: str, user_id: int, function_name: str = "default", gender: str = None) -> str:
+    """
+    Отправляет запрос к YandexGPT с учётом пола пользователя.
+    """
     global _failure_count, _last_failure_time
     if not YANDEX_API_KEY or not YANDEX_FOLDER_ID:
         return "⚠️ Ошибка: не настроен YandexGPT."
     if _failure_count >= 3 and (time.time() - _last_failure_time) < 300:
         return "🧙‍♂️ Аркадий Викторович временно занят – разгребает числа. Попробуйте через пару минут."
+
+    # Если пол не передан, пытаемся получить его из БД
+    if gender is None:
+        user = get_user(user_id)
+        if user:
+            gender = user.get("gender") if isinstance(user, dict) else user[22]  # предполагаем, что gender на позиции 22
+        else:
+            gender = "unknown"
 
     # Загружаем промпты из БД
     prompts = get_prompts_for_function(function_name)
@@ -27,6 +37,14 @@ async def get_yandex_gpt_response(prompt: str, user_id: int, function_name: str 
         system_prompt = prompts["system"]
     else:
         system_prompt = "Ты — Аркадий Викторович, практикующий нумеролог, психолог и астролог с 20-летним стажем..."
+
+    # Добавляем пол в системный промпт (если известен)
+    if gender == "male":
+        system_prompt += " Обращайся к пользователю как к мужчине: используй «уважаемый», «дорогой», «мой хороший». Не используй женские обращения."
+    elif gender == "female":
+        system_prompt += " Обращайся к пользователю как к женщине: используй «уважаемая», «дорогая», «моя хорошая». Не используй мужские обращения."
+    else:
+        system_prompt += " Обращайся к пользователю нейтрально: «друг мой», «уважаемый» (универсально)."
 
     url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
     headers = {

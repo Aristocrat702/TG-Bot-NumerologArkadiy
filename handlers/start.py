@@ -5,13 +5,15 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.enums import ChatType
 from keyboards import main_menu
-from database import get_connection
+from database import get_connection, update_user_gender
 from yandex_gpt import get_yandex_gpt_response
 from utils import (
     is_blacklisted, calculate_destiny_number, grant_achievement,
     save_cached_response, get_cached_response, update_last_active,
     get_bot_config
 )
+from utils.misc import log_user_visit_wrapper
+from utils.gender import detect_gender_by_name
 from settings import BOT_VERSION
 
 router = Router()
@@ -28,11 +30,14 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await message.answer("Вы заблокированы.")
         return
 
-    # В группах полностью игнорируем команду /start (ничего не отвечаем)
+    # В группах полностью игнорируем команду /start
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
         return
 
-    # Реферальная ссылка (только в личных чатах)
+    # Логируем визит
+    log_user_visit_wrapper(user_id, source="start")
+
+    # Реферальная ссылка
     args = message.text.split()
     if len(args) > 1 and args[1].startswith("ref_"):
         referrer_id = int(args[1][4:])
@@ -45,7 +50,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
 
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT name, birth_date, bot_version FROM users WHERE user_id=?", (user_id,))
+    cursor.execute("SELECT name, birth_date, bot_version, gender FROM users WHERE user_id=?", (user_id,))
     row = cursor.fetchone()
     conn.close()
 
@@ -67,17 +72,37 @@ async def cmd_start(message: types.Message, state: FSMContext):
                 reply_markup=main_menu
             )
         else:
+            greeting = "🔮 С возвращением"
+            # Обращение с учётом пола (если известен)
+            gender = row[3] if row[3] else "unknown"
+            if gender == "male":
+                greeting += ", уважаемый!"
+            elif gender == "female":
+                greeting += ", дорогая!"
+            else:
+                greeting += f", {row[0]}!"
             await message.answer(
-                f"🔮 С возвращением, {row[0]}!",
+                f"{greeting}",
                 reply_markup=main_menu
             )
         await state.clear()
         return
 
+    # Новый пользователь – усиленное приветствие
     first_name = message.from_user.first_name
     await message.answer(
-        f"✨ {first_name}, я — Аркадий Викторович, нумеролог, психолог и астролог.\n\n"
-        "Как вас зовут? (Напишите имя)"
+        f"✨ Добро пожаловать, {first_name}!\n\n"
+        "Я — Аркадий Викторович, ваш личный нумеролог, психолог, астролог и сексолог с 20-летним стажем.\n\n"
+        "Здесь вы сможете:\n"
+        "🔢 Узнать своё число судьбы и получить персонализированную характеристику\n"
+        "🎁 Получить карту дня с прогнозом и практическими советами\n"
+        "❤️ Проверить совместимость с партнёром\n"
+        "🧠 Пройти психологические тесты и вести дневник настроения\n"
+        "🌟 Получить гороскоп на день и эксклюзивные прогнозы по подписке\n"
+        "💸 Рассчитать денежный код и стратегию увеличения дохода (по подписке)\n"
+        "🧠 Задать вопросы по сексологии и читать полезные статьи\n\n"
+        "💎 Подписка (всего 249 ₽/мес) открывает все эксклюзивные функции.\n\n"
+        "Для начала давайте познакомимся. Как вас зовут?"
     )
     await state.set_state(UserStates.waiting_full_name)
 
@@ -87,9 +112,21 @@ async def process_full_name(message: types.Message, state: FSMContext):
     if len(name) < 2:
         await message.answer("Имя должно быть не менее 2 символов.")
         return
-    await state.update_data(name=name)
+    # Определяем пол
+    gender = await detect_gender_by_name(name)
+    await state.update_data(name=name, gender=gender)
+    
+    # Обращение с учётом пола
+    if gender == "male":
+        address = "дорогой"
+    elif gender == "female":
+        address = "дорогая"
+    else:
+        address = "друг мой"
+    
     await message.answer(
-        f"Отлично, {name}! Теперь укажите дату рождения в формате ДД.ММ.ГГГГ (например, 15.06.1985)."
+        f"Отлично, {name}! {address.capitalize()}, теперь укажите вашу дату рождения в формате ДД.ММ.ГГГГ (например, 15.06.1985).\n\n"
+        "Это нужно для расчёта вашего числа судьбы."
     )
     await state.set_state(UserStates.waiting_birth_date_from_poll)
 
@@ -109,21 +146,31 @@ async def process_birth_date_from_poll(message: types.Message, state: FSMContext
         destiny = calculate_destiny_number(birth_date)
         data = await state.get_data()
         name = data.get("name", "друг")
+        gender = data.get("gender", "unknown")
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO users (user_id, name, birth_date, destiny_number, reg_date, last_active, bot_version)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (user_id, name, birth_date, destiny_number, reg_date, last_active, bot_version, gender)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(user_id) DO UPDATE SET
             name=excluded.name, birth_date=excluded.birth_date,
             destiny_number=excluded.destiny_number, last_active=excluded.last_active,
-            bot_version=excluded.bot_version
-        """, (user_id, name, birth_date, destiny, datetime.datetime.now().isoformat(), datetime.datetime.now().isoformat(), BOT_VERSION))
+            bot_version=excluded.bot_version, gender=excluded.gender
+        """, (user_id, name, birth_date, destiny, datetime.datetime.now().isoformat(), datetime.datetime.now().isoformat(), BOT_VERSION, gender))
         conn.commit()
         conn.close()
+        
+        # Персонализированное поздравление
+        if gender == "male":
+            address = "уважаемый"
+        elif gender == "female":
+            address = "уважаемая"
+        else:
+            address = "друг мой"
+        
         await message.answer(
             f"🔢 Ваше число судьбы: {destiny}\n\n"
-            f"Спасибо, {name}! Теперь вы можете использовать главное меню.",
+            f"Спасибо, {name}! Теперь вы можете использовать главное меню, {address}.",
             reply_markup=main_menu
         )
         grant_achievement(user_id, "first_calculation")

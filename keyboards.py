@@ -93,18 +93,20 @@ challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ========== АДМИН-МЕНЮ (добавлена кнопка "УПРАВЛЕНИЕ ПРОМПТАМИ") ==========
+# ========== АДМИН-МЕНЮ (с новыми кнопками) ==========
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="📊 СТАТИСТИКА"), KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ")],
+        [KeyboardButton(text="📊 СТАТИСТИКА АКТИВНОСТИ"), KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ")],
         [KeyboardButton(text="✉️ РАССЫЛКА"), KeyboardButton(text="💰 ВЫДАТЬ ПОДПИСКУ")],
         [KeyboardButton(text="🎫 ПРОМОКОДЫ"), KeyboardButton(text="🔧 ПРОМПТ")],
-        [KeyboardButton(text="📤 ЭКСПОРТ БАЗЫ"), KeyboardButton(text="🚫 БЛЭК-ЛИСТ")],
-        [KeyboardButton(text="💬 ОТВЕТИТЬ"), KeyboardButton(text="💰 ЦЕНА ПОДПИСКИ")],
-        [KeyboardButton(text="🏆 ЛИДЕРБОРД"), KeyboardButton(text="📋 ЛОГИ")],
-        [KeyboardButton(text="👤 ИНФО ПОЛЬЗОВАТЕЛЯ"), KeyboardButton(text="👥 УПРАВЛЕНИЕ ГРУППАМИ")],
-        [KeyboardButton(text="📤 ТЕСТ ГРУППЫ"), KeyboardButton(text="🔧 УПРАВЛЕНИЕ ПРОМПТАМИ")],
-        [KeyboardButton(text="📰 СТАТЬИ СЕКСОЛОГИИ"), KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
+        [KeyboardButton(text="📤 ЭКСПОРТ БАЗЫ"), KeyboardButton(text="📤 ЭКСПОРТ АКТИВНОСТИ")],
+        [KeyboardButton(text="📥 СБОР СООБЩЕНИЙ"), KeyboardButton(text="📤 ВЫГРУЗИТЬ СООБЩЕНИЯ")],
+        [KeyboardButton(text="🚫 БЛЭК-ЛИСТ"), KeyboardButton(text="💬 ОТВЕТИТЬ")],
+        [KeyboardButton(text="💰 ЦЕНА ПОДПИСКИ"), KeyboardButton(text="🏆 ЛИДЕРБОРД")],
+        [KeyboardButton(text="📋 ЛОГИ"), KeyboardButton(text="👤 ИНФО ПОЛЬЗОВАТЕЛЯ")],
+        [KeyboardButton(text="👥 УПРАВЛЕНИЕ ГРУППАМИ"), KeyboardButton(text="📤 ТЕСТ ГРУППЫ")],
+        [KeyboardButton(text="🔧 УПРАВЛЕНИЕ ПРОМПТАМИ"), KeyboardButton(text="📰 СТАТЬИ СЕКСОЛОГИИ")],
+        [KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
     ],
     resize_keyboard=True
 )
