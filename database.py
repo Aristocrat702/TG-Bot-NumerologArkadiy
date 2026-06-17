@@ -143,7 +143,7 @@ def init_db():
             PRIMARY KEY (user_id, created_at)
         )
     ''')
-    # Группы (новое)
+    # Группы
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS group_chats (
             chat_id INTEGER PRIMARY KEY,
@@ -152,7 +152,7 @@ def init_db():
             frequency INTEGER DEFAULT 2
         )
     ''')
-    # Лог отправленных сообщений в группы (для уникальности)
+    # Лог отправленных сообщений в группы
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS group_sent_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -167,3 +167,16 @@ def init_db():
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('subscription_price', '249')")
     conn.commit()
     conn.close()
+
+# ---------- ДОБАВЛЕННАЯ ФУНКЦИЯ get_user ----------
+def get_user(user_id: int):
+    """
+    Возвращает запись пользователя из таблицы users в виде словаря (Row).
+    Если пользователь не найден, возвращает None.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row
