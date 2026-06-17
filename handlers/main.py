@@ -22,6 +22,7 @@ from utils import (
     get_weather_by_coords,
     get_dialog_history
 )
+from utils.notifications import get_subscription_button
 
 router = Router()
 
@@ -63,7 +64,7 @@ async def show_my_number(message: types.Message):
     await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}",
                          reply_markup=quick_topics_menu, parse_mode=None)
 
-# ---------- МАТРИЦА (асинхронная обработка) ----------
+# ---------- МАТРИЦА (асинхронная) ----------
 async def process_matrix(user_id: int, destiny: int, name: str, bot: Bot, status_msg: types.Message, cache_key: str):
     prompt = f"Составь полную матрицу судьбы для числа {destiny}. Дай развёрнутую характеристику (10-15 предложений) по арканам."
     response = await get_yandex_gpt_response(prompt, user_id)
@@ -196,13 +197,14 @@ async def process_compatibility(message: types.Message, state: FSMContext):
     except Exception:
         await message.answer("Неверный формат даты. Введите ДД.ММ.ГГГГ", reply_markup=cancel_button())
 
-# ---------- КАРТА ДНЯ ----------
+# ---------- КАРТА ДНЯ (обновлённая) ----------
 @router.message(F.text == "🎁 КАРТА ДНЯ")
 async def daily_card(message: types.Message):
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
         await message.answer("Эта функция доступна только в личном чате.")
         return
     user_id = message.from_user.id
+    is_subscriber = get_user_subscription_status(user_id)
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT destiny_number, city FROM users WHERE user_id=?", (user_id,))
@@ -220,12 +222,19 @@ async def daily_card(message: types.Message):
                 weather_str = f"\n\n🌤️ *Погода в {city}:* {weather_str}"
             else:
                 weather_str = ""
+    
     status_msg = await message.answer("🌙 Аркадий Викторович заглядывает в будущее...")
-    prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (3-5 предложений) с практическим действием. Также добавь одну психологическую практику."
-    response = await get_yandex_gpt_response(prompt, user_id)
+    if is_subscriber:
+        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай развёрнутый прогноз (5-7 предложений) с практическим действием и психологической практикой."
+        response = await get_yandex_gpt_response(prompt, user_id)
+        reply_markup = menu_button
+    else:
+        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (2-3 предложения) с интригой. Добавь фразу: «Полная карта дня с практиками и погодой – по подписке»."
+        response = await get_yandex_gpt_response(prompt, user_id)
+        reply_markup = get_subscription_button()
     await status_msg.delete()
     last_answer[user_id] = response
-    await message.answer(f"🎁 *Карта дня*\n\n{response}{weather_str}", parse_mode="Markdown", reply_markup=menu_button)
+    await message.answer(f"🎁 *Карта дня*\n\n{response}{weather_str}", parse_mode="Markdown", reply_markup=reply_markup)
 
 # ---------- ЗАДАТЬ ВОПРОС ----------
 @router.message(F.text == "💬 ЗАДАТЬ ВОПРОС")
