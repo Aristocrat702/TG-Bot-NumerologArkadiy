@@ -1,17 +1,17 @@
-from handlers.start import router as start_router
-from handlers.profile import router as profile_router
-from handlers.psycho import router as psycho_router
-from handlers.main import router as main_router
-from handlers.challenge import router as challenge_router
-from handlers.promo import router as promo_router
-from handlers.common import router as common_router
-from handlers.horoscope import router as horoscope_router
-from handlers.astro import router as astro_router
-from handlers.groups import router as groups_router
-from handlers.help import router as help_router
-# alarm удалён
+from aiogram import Dispatcher
+from .start import router as start_router
+from .profile import router as profile_router
+from .psycho import router as psycho_router
+from .main import router as main_router
+from .challenge import router as challenge_router
+from .promo import router as promo_router
+from .common import router as common_router
+from .horoscope import router as horoscope_router
+from .astro import router as astro_router
+from .groups import router as groups_router
+from .help import router as help_router
 
-def register_handlers(dp, bot, admin_ids, bot_version):
+def register_handlers(dp: Dispatcher, bot, admin_ids, bot_version):
     dp.include_router(start_router)
     dp.include_router(profile_router)
     dp.include_router(psycho_router)

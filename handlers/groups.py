@@ -3,12 +3,14 @@ from aiogram.filters import Command
 from aiogram.enums import ChatType
 from database import get_connection
 import datetime
+import logging
 
 router = Router()
 
 @router.message(Command("startarkadiy"), F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
 async def start_bot_in_group(message: types.Message):
     chat_id = message.chat.id
+    logging.info(f"Команда /startarkadiy в группе {chat_id} от пользователя {message.from_user.id}")
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT chat_id FROM group_chats WHERE chat_id=?", (chat_id,))
@@ -24,6 +26,7 @@ async def start_bot_in_group(message: types.Message):
 @router.message(Command("stoparkadiy"), F.chat.type.in_({ChatType.GROUP, ChatType.SUPERGROUP}))
 async def stop_bot_in_group(message: types.Message):
     chat_id = message.chat.id
+    logging.info(f"Команда /stoparkadiy в группе {chat_id} от пользователя {message.from_user.id}")
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE group_chats SET is_active = 0 WHERE chat_id = ?", (chat_id,))
