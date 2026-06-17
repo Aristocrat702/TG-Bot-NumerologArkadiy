@@ -382,10 +382,15 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         if not rows:
             text = "Логи пусты."
         else:
-            text = "📋 Последние действия:\n\n"
+            # Красивое форматирование логов
+            text = "📋 *Последние действия:*\n\n"
             for row in rows:
-                text += f"{row[3][:16]} | admin {row[0]} | {row[1]} | {row[2]}\n"
-        await message.answer(text)
+                admin_id, action, details, created_at = row
+                # Обрезаем детали до 60 символов
+                if len(details) > 60:
+                    details = details[:57] + "..."
+                text += f"• {created_at[:16]} | {action} | {details}\n"
+        await message.answer(text, parse_mode="Markdown")
 
     @dp.message(F.text == "👤 ИНФО ПОЛЬЗОВАТЕЛЯ")
     async def userinfo_start(message: types.Message, state: FSMContext):
@@ -423,6 +428,80 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await message.answer(text, parse_mode="Markdown")
         except:
             await message.answer("Ошибка. Введите числовой user_id.")
+        await state.clear()
+
+    @dp.message(F.text == "💰 ЦЕНА ПОДПИСКИ")
+    async def change_price(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        current_price = get_bot_config("subscription_price", "249")
+        await message.answer(f"💰 *Текущая цена подписки: {current_price} ₽*\n\nВведите новую цену в рублях (только число).", parse_mode="Markdown")
+        await state.set_state(AdminStates.waiting_new_price)
+
+    @dp.message(AdminStates.waiting_new_price)
+    async def set_price(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        try:
+            price = int(message.text.strip())
+            set_bot_config("subscription_price", str(price))
+            admin_log(message.from_user.id, "change_price", f"new_price={price}")
+            await message.answer(f"✅ Цена подписки изменена на {price} ₽")
+        except:
+            await message.answer("Ошибка. Введите число.")
+        await state.clear()
+
+    @dp.message(F.text == "🔧 ПРОМПТ")
+    async def edit_prompt(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        current = get_bot_config("system_prompt", "Промпт не задан")
+        await message.answer(f"Текущий промпт:\n\n{current}\n\nОтправьте новый промпт (или /cancel_prompt)")
+        await state.set_state(AdminStates.waiting_new_prompt)
+
+    @dp.message(Command("cancel_prompt"))
+    async def cancel_prompt(message: types.Message, state: FSMContext):
+        await state.clear()
+        await message.answer("Редактирование отменено.")
+
+    @dp.message(AdminStates.waiting_new_prompt)
+    async def save_new_prompt(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        new_prompt = message.text
+        set_bot_config("system_prompt", new_prompt)
+        admin_log(message.from_user.id, "edit_prompt", "prompt_updated")
+        await message.answer("Промпт обновлён. Изменения вступят в силу после перезапуска бота.")
+        await state.clear()
+
+    @dp.message(F.text == "💬 ОТВЕТИТЬ")
+    async def reply_to_user_start(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        await message.answer("Введите user_id пользователя, которому хотите ответить:")
+        await state.set_state(AdminStates.waiting_reply_user_id)
+
+    @dp.message(AdminStates.waiting_reply_user_id)
+    async def reply_get_user_id(message: types.Message, state: FSMContext):
+        try:
+            user_id = int(message.text.strip())
+            await state.update_data(reply_user_id=user_id)
+            await message.answer("Введите текст ответа (можно с форматированием):")
+            await state.set_state(AdminStates.waiting_reply_text)
+        except:
+            await message.answer("Ошибка. Введите числовой user_id.")
+
+    @dp.message(AdminStates.waiting_reply_text)
+    async def reply_send_message(message: types.Message, state: FSMContext):
+        data = await state.get_data()
+        user_id = data.get("reply_user_id")
+        text = message.text
+        try:
+            await bot.send_message(user_id, f"✉️ Сообщение от администратора:\n\n{text}")
+            admin_log(message.from_user.id, "reply_to_user", f"user_id={user_id}")
+            await message.answer(f"Сообщение отправлено пользователю {user_id}.")
+        except Exception as e:
+            await message.answer(f"Ошибка при отправке: {e}")
         await state.clear()
 
     # ---------- УПРАВЛЕНИЕ ГРУППАМИ (ТОЛЬКО ДЛЯ АДМИНА) ----------
@@ -485,7 +564,6 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             chat_id, is_active, freq, created_at = row
             status = "✅ Активна" if is_active else "❌ Неактивна"
             text += f"Чат: {chat_id}\nСтатус: {status}\nЧастота: {freq} сообщ/час\nДата: {created_at[:10]}\n\n"
-        # Добавляем кнопку для каждой группы (пока только первая группа для примера)
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_groups_back")]
         ])
