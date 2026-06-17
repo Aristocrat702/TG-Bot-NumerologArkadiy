@@ -50,107 +50,36 @@ async def show_my_number(message: types.Message):
         await message.answer("Сначала введите дату рождения через /start.")
         return
     destiny = row[1]
-    cached = get_cached_response(user_id, f"birth_{destiny}")
+    is_subscriber = get_user_subscription_status(user_id)
+    cached = get_cached_response(user_id, f"birth_{destiny}_{'sub' if is_subscriber else 'free'}")
     if cached:
         response = cached
+        reply_markup = None if is_subscriber else get_subscription_button()
     else:
         status_msg = await message.answer("🧐 Аркадий Викторович изучает ваш гороскоп...")
-        prompt = f"Число судьбы {destiny}. Дай краткую характеристику (2-3 предложения), назови слабость и дай совет."
-        response = await get_yandex_gpt_response(prompt, user_id)
+        if is_subscriber:
+            prompt = f"Число судьбы {destiny}. Дай развёрнутую характеристику (6-8 предложений): сильные стороны, слабости, ключевой жизненный вызов, совет по самореализации. Будь прямолинеен, но с теплотой."
+            response = await get_yandex_gpt_response(prompt, user_id)
+            reply_markup = None
+        else:
+            prompt = f"Число судьбы {destiny}. Дай характеристику (5-6 предложений): укажи 2 сильные стороны, 1 слабость, 1 главную задачу в жизни. В конце добавь фразу: «Хотите узнать, как это число влияет на ваши отношения, карьеру и деньги? Полный разбор – по подписке»."
+            response = await get_yandex_gpt_response(prompt, user_id)
+            reply_markup = get_subscription_button()
         await status_msg.delete()
         if "Ошибка" not in response and "Нейросеть" not in response and "таймаут" not in response:
-            save_cached_response(user_id, f"birth_{destiny}", response)
+            save_cached_response(user_id, f"birth_{destiny}_{'sub' if is_subscriber else 'free'}", response)
     add_xp(user_id, "daily_visit")
     await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}",
-                         reply_markup=quick_topics_menu, parse_mode=None)
+                         reply_markup=reply_markup or quick_topics_menu, parse_mode=None)
 
-# ---------- МАТРИЦА (асинхронная) ----------
-async def process_matrix(user_id: int, destiny: int, name: str, bot: Bot, status_msg: types.Message, cache_key: str):
-    prompt = f"Составь полную матрицу судьбы для числа {destiny}. Дай развёрнутую характеристику (10-15 предложений) по арканам."
-    response = await get_yandex_gpt_response(prompt, user_id)
-    await status_msg.delete()
-    if "Ошибка" not in response and "Нейросеть" not in response and "таймаут" not in response:
-        save_cached_response(user_id, cache_key, response)
-    pdf_share_menu = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📄 Скачать PDF", callback_data="download_pdf")],
-        [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
-    ])
-    await bot.send_message(user_id, f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=pdf_share_menu)
-    pending_matrix.pop(user_id, None)
-
-@router.message(F.text == "🔮 МОЯ МАТРИЦА")
-async def matrix_prompt(message: types.Message):
-    if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
-        await message.answer("Эта функция доступна только в личном чате.")
-        return
-    user_id = message.from_user.id
-    if not get_user_subscription_status(user_id):
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ Купить подписку", callback_data="buy_subscription")],
-            [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
-        ])
-        await message.answer("Полная матрица судьбы доступна только по подписке. Оформите подписку в профиле.", reply_markup=kb)
-        return
-    if user_id in pending_matrix:
-        await message.answer("Матрица уже формируется, подождите немного. Как только будет готова – я пришлю.")
-        return
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT destiny_number, name FROM users WHERE user_id=?", (user_id,))
-    row = cursor.fetchone()
-    conn.close()
-    if not row or not row[0]:
-        await message.answer("Сначала укажите дату рождения через кнопку «Моё число».", reply_markup=menu_button)
-        return
-    destiny = row[0]
-    name = row[1] if row[1] else "пользователь"
-    cache_key = f"matrix_{destiny}"
-    cached = get_cached_response(user_id, cache_key)
-    if cached:
-        pdf_share_menu = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📄 Скачать PDF", callback_data="download_pdf")],
-            [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
-        ])
-        await message.answer(f"🔮 *Матрица судьбы*\n\n{cached}", parse_mode="Markdown", reply_markup=pdf_share_menu)
-        return
-    status_msg = await message.answer("📜 Аркадий Викторович составляет вашу матрицу... Это может занять до 2 минут. Я пришлю результат отдельным сообщением.")
-    pending_matrix[user_id] = status_msg
-    asyncio.create_task(process_matrix(user_id, destiny, name, bot, status_msg, cache_key))
-
-# ---------- СКАЧАТЬ PDF ----------
+# ---------- СКАЧАТЬ PDF (если он генерировался через матрицу, но мы её убрали, оставим только для обратной совместимости) ----------
 @router.callback_query(F.data == "download_pdf")
 async def download_pdf(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
         await callback.message.answer("Доступно только в личном чате.")
         await callback.answer()
         return
-    user_id = callback.from_user.id
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT destiny_number, name FROM users WHERE user_id=?", (user_id,))
-    row = cursor.fetchone()
-    conn.close()
-    if not row or not row[0]:
-        await callback.message.answer("Сначала рассчитайте матрицу через кнопку «МОЯ МАТРИЦА».")
-        await callback.answer()
-        return
-    destiny = row[0]
-    name = row[1] if row[1] else "пользователь"
-    cache_key = f"matrix_{destiny}"
-    matrix_text = get_cached_response(user_id, cache_key)
-    if not matrix_text:
-        await callback.message.answer("Сначала рассчитайте матрицу через кнопку «МОЯ МАТРИЦА».")
-        await callback.answer()
-        return
-    from utils import generate_pdf_matrix
-    pdf_data = generate_pdf_matrix(user_id, name, destiny, matrix_text)
-    if pdf_data:
-        await callback.message.answer_document(
-            types.BufferedInputFile(pdf_data, filename=f"matrix_{user_id}.pdf"),
-            caption="📄 Ваша матрица судьбы в формате PDF"
-        )
-    else:
-        await callback.message.answer("Ошибка генерации PDF. Попробуйте позже.")
+    await callback.message.answer("PDF-отчёт доступен только по подписке в разделе «Эксклюзив».")
     await callback.answer()
 
 # ---------- СОВМЕСТИМОСТЬ ----------
@@ -177,9 +106,10 @@ async def process_compatibility(message: types.Message, state: FSMContext):
         day, month, year = map(int, partner_text.split('.'))
         partner_birth = f"{day:02d}.{month:02d}.{year:04d}"
         partner_destiny = calculate_destiny_number(partner_birth)
+        partner_zodiac = get_zodiac_sign(partner_birth)
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT destiny_number FROM users WHERE user_id=?", (user_id,))
+        cursor.execute("SELECT destiny_number, birth_date FROM users WHERE user_id=?", (user_id,))
         row = cursor.fetchone()
         conn.close()
         if not row or not row[0]:
@@ -187,17 +117,27 @@ async def process_compatibility(message: types.Message, state: FSMContext):
             await state.clear()
             return
         my_destiny = row[0]
+        my_birth = row[1]
+        my_zodiac = get_zodiac_sign(my_birth) if my_birth else "неизвестен"
+        is_subscriber = get_user_subscription_status(user_id)
+
         status_msg = await message.answer("🔍 Анализирую совместимость...")
-        prompt = f"Число судьбы пользователя {my_destiny}, число партнёра {partner_destiny}. Опиши совместимость (5-7 предложений) с советами."
-        response = await get_yandex_gpt_response(prompt, user_id)
+        if is_subscriber:
+            prompt = f"Число судьбы пользователя {my_destiny} (знак {my_zodiac}), число партнёра {partner_destiny} (знак {partner_zodiac}). Опиши совместимость развёрнуто (10-12 предложений) по 5 сферам: любовь, дружба, деньги, секс, интеллект. Дай рекомендации, как улучшить отношения. Будь честен и практичен."
+            response = await get_yandex_gpt_response(prompt, user_id)
+            reply_markup = menu_button
+        else:
+            prompt = f"Число судьбы пользователя {my_destiny} (знак {my_zodiac}), число партнёра {partner_destiny} (знак {partner_zodiac}). Дай краткое, но очень интригующее описание совместимости (4-5 предложений). Напиши, что их связывает, что будет сложно, и дай один совет. В конце добавь фразу: «Полный разбор по 5 сферам с рекомендациями – по подписке»."
+            response = await get_yandex_gpt_response(prompt, user_id)
+            reply_markup = get_subscription_button()
         await status_msg.delete()
         last_answer[user_id] = response
-        await message.answer(f"❤️ *Совместимость*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
+        await message.answer(f"❤️ *Совместимость*\n\n{response}", parse_mode="Markdown", reply_markup=reply_markup)
         await state.clear()
     except Exception:
         await message.answer("Неверный формат даты. Введите ДД.ММ.ГГГГ", reply_markup=cancel_button())
 
-# ---------- КАРТА ДНЯ (обновлённая) ----------
+# ---------- КАРТА ДНЯ ----------
 @router.message(F.text == "🎁 КАРТА ДНЯ")
 async def daily_card(message: types.Message):
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -225,11 +165,11 @@ async def daily_card(message: types.Message):
     
     status_msg = await message.answer("🌙 Аркадий Викторович заглядывает в будущее...")
     if is_subscriber:
-        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай развёрнутый прогноз (5-7 предложений) с практическим действием и психологической практикой."
+        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай развёрнутый прогноз (6-8 предложений): общий настрой, практическое действие, психологическая практика, вопрос для рефлексии."
         response = await get_yandex_gpt_response(prompt, user_id)
         reply_markup = menu_button
     else:
-        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (2-3 предложения) с интригой. Добавь фразу: «Полная карта дня с практиками и погодой – по подписке»."
+        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай цепляющий прогноз (5-6 предложений): что важно сегодня, один практический совет, вопрос, чтобы задуматься. В конце добавь фразу: «Полная карта дня с практиками и погодой – по подписке»."
         response = await get_yandex_gpt_response(prompt, user_id)
         reply_markup = get_subscription_button()
     await status_msg.delete()
@@ -341,11 +281,16 @@ async def quick_topic(callback: types.CallbackQuery):
     row = cursor.fetchone()
     conn.close()
     destiny = row[0] if row else "?"
-    prompt = f"Человек с числом судьбы {destiny} спрашивает про {topic}. Дай краткую, но полезную характеристику (3-5 предложений) с советом."
+    is_subscriber = get_user_subscription_status(user_id)
+    if is_subscriber:
+        prompt = f"Человек с числом судьбы {destiny} спрашивает про {topic}. Дай развёрнутый ответ (5-7 предложений) с практическими советами."
+    else:
+        prompt = f"Человек с числом судьбы {destiny} спрашивает про {topic}. Дай краткий, но цепляющий ответ (3-4 предложения). В конце добавь фразу: «Углублённый разбор и стратегии – по подписке»."
     status_msg = await callback.message.answer("🔮 Аркадий Викторович размышляет...")
     response = await get_yandex_gpt_response(prompt, user_id)
     await status_msg.delete()
-    await callback.message.answer(f"📌 *{topic.capitalize()}*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
+    reply_markup = None if is_subscriber else get_subscription_button()
+    await callback.message.answer(f"📌 *{topic.capitalize()}*\n\n{response}", parse_mode="Markdown", reply_markup=reply_markup or menu_button)
     await callback.answer()
 
 # ---------- КОМАНДА /MYNUMBER ----------

@@ -10,6 +10,7 @@ from database import (
     get_sexology_free_queries_today,
     increment_sexology_free_query,
     get_sexology_articles,
+    get_bot_config,
     update_user
 )
 from yandex_gpt import get_yandex_gpt_response
@@ -20,7 +21,6 @@ router = Router()
 class SexologyStates(StatesGroup):
     waiting_question = State()
 
-# ---------- ВХОД В СЕКСОЛОГИЮ ----------
 @router.message(F.text == "🧠 СЕКСОЛОГИЯ")
 async def sexology_menu(message: types.Message):
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -34,7 +34,6 @@ async def sexology_menu(message: types.Message):
         reply_markup=sexology_submenu
     )
 
-# ---------- ЗАДАТЬ ВОПРОС ----------
 @router.callback_query(F.data == "sexology_ask")
 async def sexology_ask(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -51,12 +50,9 @@ async def sexology_ask(callback: types.CallbackQuery, state: FSMContext):
         await state.set_state(SexologyStates.waiting_question)
         await callback.answer()
         return
-    remaining = get_sexology_free_queries_today(user_id)
-    limit = int(get_sexology_free_queries_today(user_id))  # это число, но лучше взять из настроек
-    # Временно получаем лимит из БД
-    from database import get_bot_config
     limit = int(get_bot_config("sexology_free_queries_limit", "3"))
-    remaining = limit - get_sexology_free_queries_today(user_id)
+    used = get_sexology_free_queries_today(user_id)
+    remaining = limit - used
     if remaining > 0:
         await callback.message.answer(
             f"У вас осталось *{remaining}* бесплатных вопросов по сексологии на сегодня.\n\n"
@@ -93,7 +89,6 @@ async def sexology_question_handler(message: types.Message, state: FSMContext):
     conn.close()
     destiny = row[0] if row else "?"
     name = row[1] if row else "друг"
-    
     status_msg = await message.answer("🧠 Аркадий Викторович размышляет над вашим вопросом...")
     if is_subscriber:
         prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о сексологии: {question}. Ответь развёрнуто (8-10 предложений) как психолог и сексолог, дай практические советы, будь деликатен. Учти число судьбы, если это уместно."
@@ -104,12 +99,9 @@ async def sexology_question_handler(message: types.Message, state: FSMContext):
         ]))
         await state.clear()
         return
-    
-    remaining = get_sexology_free_queries_today(user_id)
-    limit = int(get_sexology_free_queries_today(user_id))  # временно
-    from database import get_bot_config
     limit = int(get_bot_config("sexology_free_queries_limit", "3"))
-    remaining = limit - remaining
+    used = get_sexology_free_queries_today(user_id)
+    remaining = limit - used
     if remaining <= 0:
         await status_msg.delete()
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -119,7 +111,6 @@ async def sexology_question_handler(message: types.Message, state: FSMContext):
         await message.answer("Лимит бесплатных вопросов исчерпан. Оформите подписку.", reply_markup=kb)
         await state.clear()
         return
-    
     prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о сексологии: {question}. Дай короткий, но цепляющий ответ (3-4 предложения), оставь интригу. В конце добавь фразу: «Полная консультация и практические рекомендации – по подписке»."
     short_response = await get_yandex_gpt_response(prompt, user_id)
     increment_sexology_free_query(user_id)
@@ -133,7 +124,6 @@ async def sexology_question_handler(message: types.Message, state: FSMContext):
     )
     await state.clear()
 
-# ---------- СТАТЬИ ----------
 @router.callback_query(F.data == "sexology_articles")
 async def sexology_articles_list(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -154,10 +144,8 @@ async def sexology_articles_list(callback: types.CallbackQuery):
     await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
     await callback.answer()
 
-# ---------- ПРОСМОТР КОНКРЕТНОЙ СТАТЬИ (через deep link) ----------
 @router.message(F.text.startswith("/start article_"))
 async def article_deeplink(message: types.Message):
-    # Обработка deep link для статей
     parts = message.text.split("_")
     if len(parts) < 2:
         return

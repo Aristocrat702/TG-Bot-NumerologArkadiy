@@ -1,7 +1,7 @@
 ﻿from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram import Bot
 
-# ========== ГЛАВНОЕ МЕНЮ (обновлённое) ==========
+# ========== ГЛАВНОЕ МЕНЮ ==========
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🔢 МОЁ ЧИСЛО"), KeyboardButton(text="🎁 КАРТА ДНЯ")],
@@ -29,7 +29,7 @@ astro_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ========== ПОДМЕНЮ ЭКСКЛЮЗИВ (все платные функции) ==========
+# ========== ПОДМЕНЮ ЭКСКЛЮЗИВ ==========
 premium_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔮 Полная матрица судьбы", callback_data="premium_matrix")],
     [InlineKeyboardButton(text="💸 Денежный код", callback_data="premium_money_code")],
@@ -39,14 +39,14 @@ premium_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ========== ПОДМЕНЮ СЕКСОЛОГИИ (гибрид) ==========
+# ========== ПОДМЕНЮ СЕКСОЛОГИИ ==========
 sexology_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="❓ Задать вопрос", callback_data="sexology_ask")],
     [InlineKeyboardButton(text="📚 Статьи", callback_data="sexology_articles")],
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ========== МЕНЮ ПРОФИЛЯ (обновлённое, без денежного кода) ==========
+# ========== ПРОФИЛЬ (без денежного кода) ==========
 profile_main_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings")],
     [InlineKeyboardButton(text="⭐ КУПИТЬ ПОДПИСКУ", callback_data="buy_subscription"),
@@ -93,7 +93,7 @@ challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ========== АДМИН-МЕНЮ ==========
+# ========== АДМИН-МЕНЮ (добавлена кнопка статей) ==========
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📊 СТАТИСТИКА"), KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ")],
@@ -103,12 +103,12 @@ admin_menu = ReplyKeyboardMarkup(
         [KeyboardButton(text="💬 ОТВЕТИТЬ"), KeyboardButton(text="💰 ЦЕНА ПОДПИСКИ")],
         [KeyboardButton(text="🏆 ЛИДЕРБОРД"), KeyboardButton(text="📋 ЛОГИ")],
         [KeyboardButton(text="👤 ИНФО ПОЛЬЗОВАТЕЛЯ"), KeyboardButton(text="👥 УПРАВЛЕНИЕ ГРУППАМИ")],
-        [KeyboardButton(text="📤 ТЕСТ ГРУППЫ"), KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
+        [KeyboardButton(text="📤 ТЕСТ ГРУППЫ"), KeyboardButton(text="📰 СТАТЬИ СЕКСОЛОГИИ")],
+        [KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
     ],
     resize_keyboard=True
 )
 
-# ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 def cancel_button(callback_data: str = "cancel_action") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="❌ Отмена", callback_data=callback_data)]

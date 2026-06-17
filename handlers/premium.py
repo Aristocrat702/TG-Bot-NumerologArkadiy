@@ -1,5 +1,5 @@
 import datetime
-from aiogram import Bot, Dispatcher, types, F, Router
+from aiogram import Router, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.enums import ChatType
@@ -10,7 +10,6 @@ from utils import get_user_subscription_status, get_cached_response, save_cached
 
 router = Router()
 
-# ---------- ВХОД В ЭКСКЛЮЗИВ ----------
 @router.message(F.text == "💎 ЭКСКЛЮЗИВ")
 async def premium_menu(message: types.Message):
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -29,7 +28,6 @@ async def premium_menu(message: types.Message):
         reply_markup=premium_submenu
     )
 
-# ---------- ОБРАБОТЧИКИ ДЛЯ КАЖДОЙ ФУНКЦИИ ----------
 async def check_subscription_and_redirect(callback: types.CallbackQuery, function_name: str):
     user_id = callback.from_user.id
     if not get_user_subscription_status(user_id):

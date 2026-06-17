@@ -55,10 +55,10 @@ STARS_TO_RUB_RATE = 2
 
 PAYMENTS_TOKEN = os.getenv("PAYMENTS_TOKEN", "")
 
-# ---------- НАСТРОЙКИ СЕКСОЛОГИИ ----------
-SEXOLOGY_FREE_QUERIES_LIMIT = 3  # бесплатных вопросов в день
-SEXOLOGY_ARTICLES_PER_WEEK = 2   # статей в неделю
-SEXOLOGY_ARTICLES_INITIAL_COUNT = 10  # начальное количество статей
+# ---------- СЕКСОЛОГИЯ ----------
+SEXOLOGY_FREE_QUERIES_LIMIT = 3
+SEXOLOGY_ARTICLES_PER_WEEK = 2
+SEXOLOGY_ARTICLES_INITIAL_COUNT = 10
 SEXOLOGY_TOPICS = [
     "Как стресс влияет на либидо",
     "Как говорить с партнёром о сексе",

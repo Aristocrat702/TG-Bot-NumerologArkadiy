@@ -5,12 +5,13 @@ from .db import get_connection
 from yandex_gpt import get_yandex_gpt_response
 
 TOPICS = [
-    ("psychology", 35),
-    ("relationships", 25),
-    ("support", 25),
-    ("self_knowledge", 10),
+    ("psychology", 25),
+    ("relationships", 20),
+    ("support", 15),
+    ("self_knowledge", 5),
     ("numerology", 3),
     ("astrology", 2),
+    ("sexology", 30)   # 30% сообщений на тему сексологии
 ]
 
 NIGHT_MESSAGES = [
@@ -46,7 +47,7 @@ async def generate_group_message(chat_id: int, is_long: bool = False) -> str:
         f"Ты — Аркадий Викторович, мудрый собеседник. Напиши сообщение для группы людей на тему '{topic}'. "
         f"Сообщение должно быть {length_desc}. "
         "Оно должно быть тёплым, поддерживающим, без сложных терминов. "
-        "Если тема психология, отношения или поддержка – сделай акцент на эмоциях, советах, аффирмациях. "
+        "Если тема психология, отношения, поддержка или сексология – сделай акцент на эмоциях, советах, аффирмациях. "
         "Если нумерология или астрология – дай краткий, но интересный факт. "
         "Сообщение должно быть уникальным, не повторять предыдущие формулировки. "
         "Не используй штампы, избегай политики и религии. "
@@ -55,6 +56,7 @@ async def generate_group_message(chat_id: int, is_long: bool = False) -> str:
 
     response = await get_yandex_gpt_response(prompt, 0)
 
+    # Проверка уникальности
     conn = get_connection()
     cursor = conn.cursor()
     msg_hash = hashlib.sha256(response.encode()).hexdigest()

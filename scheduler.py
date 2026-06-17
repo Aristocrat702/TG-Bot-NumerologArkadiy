@@ -199,7 +199,7 @@ async def send_morning_greeting(bot: Bot):
         conn2.close()
         await asyncio.sleep(0.3)
 
-# ---------- ОСТАЛЬНЫЕ ЗАДАЧИ (без изменений) ----------
+# ---------- PUSH-УВЕДОМЛЕНИЯ ----------
 async def send_push_notification(bot: Bot, notification_type: str, generator_func):
     conn = get_connection()
     cursor = conn.cursor()
@@ -220,6 +220,7 @@ async def send_push_notification(bot: Bot, notification_type: str, generator_fun
             logging.error(f"Ошибка отправки уведомления {notification_type} пользователю {user_id}: {e}")
         await asyncio.sleep(0.3)
 
+# ---------- ЗАДАЧИ PUSH ----------
 async def send_morning_notifications(bot: Bot):
     await send_push_notification(bot, "morning", generate_morning_greeting)
 
@@ -235,6 +236,7 @@ async def send_fact_notifications(bot: Bot):
 async def send_evening_notifications(bot: Bot):
     await send_push_notification(bot, "evening", generate_evening_advice)
 
+# ---------- АДАПТИВНЫЕ ----------
 async def send_adaptive_notifications(bot: Bot):
     conn = get_connection()
     cursor = conn.cursor()
@@ -262,6 +264,7 @@ async def send_adaptive_notifications(bot: Bot):
             logging.error(f"Ошибка отправки адаптивного уведомления пользователю {user_id}: {e}")
         await asyncio.sleep(0.3)
 
+# ---------- НАПОМИНАНИЕ О ПОДПИСКЕ ----------
 async def send_subscription_reminder(bot: Bot):
     conn = get_connection()
     cursor = conn.cursor()
@@ -281,33 +284,52 @@ async def send_subscription_reminder(bot: Bot):
             logging.error(f"Ошибка отправки напоминания о подписке пользователю {user_id}: {e}")
         await asyncio.sleep(0.3)
 
+# ---------- СТАТЬИ СЕКСОЛОГИИ ----------
+async def generate_sexology_articles(bot: Bot):
+    from database import get_sexology_articles, add_sexology_article, get_bot_config
+    from settings import SEXOLOGY_TOPICS
+    import random
+    conn = get_connection()
+    cursor = conn.cursor()
+    week_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
+    cursor.execute("SELECT COUNT(*) FROM sexology_articles WHERE created_at >= ?", (week_ago,))
+    count = cursor.fetchone()[0]
+    conn.close()
+    articles_per_week = int(get_bot_config("sexology_articles_per_week", "2"))
+    if count >= articles_per_week:
+        logging.info("Статей за неделю достаточно, пропускаем генерацию")
+        return
+    topics = random.sample(SEXOLOGY_TOPICS, min(articles_per_week, len(SEXOLOGY_TOPICS)))
+    for topic in topics:
+        prompt = f"Напиши короткую полезную статью (5-7 предложений) на тему '{topic}'. Используй стиль Аркадия Викторовича: тепло, профессионально, без сложных терминов. Добавь интригу в конце."
+        content = await get_yandex_gpt_response(prompt, 0)
+        add_sexology_article(topic, content, topic, "pending")
+        logging.info(f"Сгенерирована статья на тему: {topic}")
+    logging.info("Генерация статей завершена")
+
+# ---------- ПРОЧИЕ ----------
 async def check_expired_subscriptions(bot: Bot):
     logging.info("check_expired_subscriptions выполнена (заглушка)")
 
 async def weekly_leaderboard(bot: Bot, admin_id: int = None):
     logging.info("weekly_leaderboard выполнена (заглушка)")
 
-# ---------- ЗАПУСК ПЛАНИРОВЩИКА ----------
+# ---------- ЗАПУСК ----------
 def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     scheduler.remove_all_jobs()
-    # Групповая рассылка
     scheduler.add_job(send_group_messages, IntervalTrigger(minutes=30), args=[bot], id="send_group_messages")
-    # Ночное и утреннее приветствия (по новому времени: 22:00 и 08:00 МСК)
     scheduler.add_job(send_night_greeting, CronTrigger(hour=22, minute=0), args=[bot], id="night_greeting")
     scheduler.add_job(send_morning_greeting, CronTrigger(hour=8, minute=0), args=[bot], id="morning_greeting")
-    # Личные уведомления (по МСК, пока без часовых поясов)
     scheduler.add_job(send_morning_notifications, CronTrigger(hour=8, minute=0), args=[bot], id="morning_push")
     scheduler.add_job(send_motivation_notifications, CronTrigger(hour=10, minute=0), args=[bot], id="motivation_push")
     scheduler.add_job(send_daily_card_notifications, CronTrigger(hour=12, minute=0), args=[bot], id="daily_card_push")
     scheduler.add_job(send_fact_notifications, CronTrigger(hour=15, minute=0), args=[bot], id="fact_push")
     scheduler.add_job(send_evening_notifications, CronTrigger(hour=18, minute=0), args=[bot], id="evening_push")
-    # Адаптивные уведомления
     scheduler.add_job(send_adaptive_notifications, CronTrigger(hour=20, minute=0), args=[bot], id="adaptive_push")
-    # Напоминание о подписке
     scheduler.add_job(send_subscription_reminder, CronTrigger(hour=10, minute=0), args=[bot], id="subscription_reminder")
-    # Прочие
+    scheduler.add_job(generate_sexology_articles, CronTrigger(day_of_week='tue,fri', hour=12, minute=0), args=[bot], id="generate_sexology_articles")
     scheduler.add_job(check_expired_subscriptions, CronTrigger(hour=2, minute=0), args=[bot], id="check_expired")
     scheduler.add_job(backup_database, CronTrigger(hour=3, minute=0), id="backup_db")
     scheduler.add_job(weekly_leaderboard, CronTrigger(day_of_week='sun', hour=20, minute=0), args=[bot, admin_id], id="weekly_lb")
     scheduler.start()
-    logging.info(f"Планировщик запущен с новым временем приветствий, версия {bot_version}")
+    logging.info(f"Планировщик запущен с задачами сексологии, версия {bot_version}")

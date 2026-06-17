@@ -5,13 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice, PreCheckoutQuery
 from aiogram.enums import ChatType
-from keyboards import (
-    profile_main_menu,
-    profile_settings_menu,
-    main_menu,
-    menu_button,
-    cancel_button
-)
+from keyboards import profile_main_menu, profile_settings_menu, main_menu, menu_button, cancel_button
 from database import get_connection, get_user, update_user, get_subscription_status
 from yandex_gpt import get_yandex_gpt_response
 from utils import (
@@ -410,7 +404,6 @@ async def show_help(callback: types.CallbackQuery):
         "• 💬 Безлимитные вопросы с развёрнутыми ответами\n"
         "• 📅 Гороскоп на месяц и ежедневные прогнозы\n"
         "• 🌌 Натальная карта, транзиты и соляр\n"
-        "• 💸 Денежный код – персональная стратегия увеличения дохода\n"
         "• 📊 Персональные психологические рекомендации\n"
         "• 🔔 Ежедневные мотивирующие фразы и аффирмации\n"
         "• 🎁 Приоритетная поддержка\n\n"
@@ -509,53 +502,26 @@ async def successful_payment(message: types.Message):
         add_subscription_days(message.from_user.id, 30, check_referral=False, admin_id=0)
         await message.answer("✅ Подписка активирована на 30 дней! Теперь вам доступны матрица судьбы, безлимитные вопросы и все премиум-функции. Спасибо, что с нами!")
 
-# ---------- ДЕНЕЖНЫЙ КОД (только по подписке) ----------
-@router.callback_query(F.data == "money_code")
-async def money_code(callback: types.CallbackQuery):
-    if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
-        await callback.message.answer("Доступно только в личном чате.")
-        await callback.answer()
-        return
-    user_id = callback.from_user.id
-    if not get_user_subscription_status(user_id):
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ Купить подписку", callback_data="buy_subscription")],
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
-        ])
-        await callback.message.answer(
-            "💸 *Денежный код*\n\n"
-            "Это эксклюзивная функция, доступная только по подписке.\n"
-            "Вы получите:\n"
-            "• Ваш личный денежный код (по дате рождения и имени)\n"
-            "• Стратегию увеличения дохода\n"
-            "• Благоприятные периоды для инвестиций и крупных покупок\n"
-            "• Советы по управлению финансами\n\n"
-            "Оформите подписку, чтобы открыть этот раздел!",
-            parse_mode="Markdown",
-            reply_markup=kb
-        )
-        await callback.answer()
-        return
-
+# ---------- КОМАНДЫ ДЛЯ ПОДПИСКИ НА РАССЫЛКУ ----------
+@router.message(Command("unsubscribe_daily"))
+async def unsubscribe_daily(message: types.Message):
+    user_id = message.from_user.id
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT name, birth_date, destiny_number FROM users WHERE user_id=?", (user_id,))
-    row = cursor.fetchone()
+    cursor.execute("UPDATE users SET send_daily = 0 WHERE user_id = ?", (user_id,))
+    conn.commit()
     conn.close()
-    if not row or not row[1]:
-        await callback.message.answer("Сначала укажите дату рождения в профиле.", reply_markup=menu_button)
-        await callback.answer()
-        return
-    name = row[0] or "пользователь"
-    birth_date = row[1]
-    destiny = row[2] or "?"
+    await message.answer("Вы отписались от ежедневной рассылки карты дня и гороскопа.", reply_markup=menu_button)
 
-    status_msg = await callback.message.answer("💸 Аркадий Викторович рассчитывает ваш денежный код...")
-    prompt = f"Рассчитай денежный код для человека {name} с датой рождения {birth_date} и числом судьбы {destiny}. Дай развёрнутый ответ (8-10 предложений): что такое денежный код, как его использовать, конкретные рекомендации по улучшению финансового потока, благоприятные дни для денежных операций."
-    response = await get_yandex_gpt_response(prompt, user_id)
-    await status_msg.delete()
-    await callback.message.answer(f"💸 *Ваш денежный код*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
-    await callback.answer()
+@router.message(Command("subscribe_daily"))
+async def subscribe_daily(message: types.Message):
+    user_id = message.from_user.id
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET send_daily = 1 WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    await message.answer("Вы подписались на ежедневную рассылку карты дня и гороскопа.", reply_markup=menu_button)
 
 # ---------- ЛИДЕРБОРД ----------
 @router.callback_query(F.data == "leaderboard")
@@ -588,24 +554,3 @@ async def show_leaderboard(callback: types.CallbackQuery):
 
     await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
     await callback.answer()
-
-# ---------- КОМАНДЫ ДЛЯ ПОДПИСКИ НА РАССЫЛКУ ----------
-@router.message(Command("unsubscribe_daily"))
-async def unsubscribe_daily(message: types.Message):
-    user_id = message.from_user.id
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET send_daily = 0 WHERE user_id = ?", (user_id,))
-    conn.commit()
-    conn.close()
-    await message.answer("Вы отписались от ежедневной рассылки карты дня и гороскопа.", reply_markup=menu_button)
-
-@router.message(Command("subscribe_daily"))
-async def subscribe_daily(message: types.Message):
-    user_id = message.from_user.id
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET send_daily = 1 WHERE user_id = ?", (user_id,))
-    conn.commit()
-    conn.close()
-    await message.answer("Вы подписались на ежедневную рассылку карты дня и гороскопа.", reply_markup=menu_button)

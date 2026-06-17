@@ -3,6 +3,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from keyboards import admin_menu, cancel_button
 from database import (
+    get_connection,
     get_sexology_articles,
     update_article_status,
     delete_sexology_article,

@@ -12,7 +12,7 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Таблица пользователей (добавляем поле free_sexology_queries_today)
+    # Таблица пользователей
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -39,7 +39,7 @@ def init_db():
         )
     ''')
     
-    # Проверяем наличие поля free_sexology_queries_today (миграция)
+    # Проверяем поле free_sexology_queries_today
     cursor.execute("PRAGMA table_info(users)")
     columns = [col[1] for col in cursor.fetchall()]
     if 'free_sexology_queries_today' not in columns:
@@ -57,17 +57,7 @@ def init_db():
         )
     ''')
     
-    # Таблица для кэширования статей (чтобы не генерировать повторно)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS sexology_articles_cache (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            content TEXT NOT NULL,
-            created_at TEXT
-        )
-    ''')
-    
-    # Остальные таблицы (без изменений)...
+    # Остальные таблицы
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS messages_cache (
             user_id INTEGER,
@@ -182,18 +172,16 @@ def init_db():
         )
     ''')
     
+    # Начальные настройки
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('system_prompt', 'Вы — Аркадий Викторович...')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('subscription_price', '249')")
-    
-    # Добавляем настройки для сексологии
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_free_queries_limit', '3')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_articles_per_week', '2')")
-    cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_articles_notify', '1')")
     
     conn.commit()
     conn.close()
 
-# ---------- ФУНКЦИИ ДЛЯ РАБОТЫ С ПОЛЬЗОВАТЕЛЯМИ ----------
+# ---------- ФУНКЦИИ РАБОТЫ С ПОЛЬЗОВАТЕЛЯМИ ----------
 def get_user(user_id: int):
     conn = get_connection()
     cursor = conn.cursor()
@@ -327,14 +315,14 @@ def get_sexology_free_queries_today(user_id: int) -> int:
     row = cursor.fetchone()
     conn.close()
     if not row:
-        return int(get_bot_config("sexology_free_queries_limit", "3"))
+        return 0
     count = row[0]
     last_active = row[1]
     if last_active:
         last_date = datetime.datetime.fromisoformat(last_active).date()
         today = datetime.date.today()
         if last_date < today:
-            return int(get_bot_config("sexology_free_queries_limit", "3"))
+            return 0
     return count
 
 def increment_sexology_free_query(user_id: int) -> bool:
