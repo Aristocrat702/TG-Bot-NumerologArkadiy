@@ -12,7 +12,7 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Таблица пользователей
+    # Таблица пользователей (добавляем поле free_sexology_queries_today)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -24,6 +24,7 @@ def init_db():
             reg_date TEXT,
             last_active TEXT,
             free_queries_today INTEGER DEFAULT 0,
+            free_sexology_queries_today INTEGER DEFAULT 0,
             send_daily BOOLEAN DEFAULT 1,
             is_sleeping BOOLEAN DEFAULT 0,
             referred_by INTEGER,
@@ -38,6 +39,35 @@ def init_db():
         )
     ''')
     
+    # Проверяем наличие поля free_sexology_queries_today (миграция)
+    cursor.execute("PRAGMA table_info(users)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'free_sexology_queries_today' not in columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN free_sexology_queries_today INTEGER DEFAULT 0")
+    
+    # Таблица статей сексологии
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sexology_articles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT,
+            status TEXT DEFAULT 'pending',
+            topic TEXT
+        )
+    ''')
+    
+    # Таблица для кэширования статей (чтобы не генерировать повторно)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sexology_articles_cache (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT
+        )
+    ''')
+    
+    # Остальные таблицы (без изменений)...
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS messages_cache (
             user_id INTEGER,
@@ -47,7 +77,6 @@ def init_db():
             PRIMARY KEY (user_id, request_type)
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS dialog_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,7 +86,6 @@ def init_db():
             timestamp TEXT
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS promocodes (
             code TEXT PRIMARY KEY,
@@ -70,7 +98,6 @@ def init_db():
             created_at TEXT
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS promocode_activations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,7 +107,6 @@ def init_db():
             result_text TEXT
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS blacklist (
             user_id INTEGER PRIMARY KEY,
@@ -88,14 +114,12 @@ def init_db():
             blocked_at TEXT
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS bot_config (
             key TEXT PRIMARY KEY,
             value TEXT
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS achievements (
             user_id INTEGER,
@@ -104,7 +128,6 @@ def init_db():
             PRIMARY KEY (user_id, achievement)
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS challenges (
             user_id INTEGER,
@@ -115,7 +138,6 @@ def init_db():
             PRIMARY KEY (user_id, day)
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS mood_log (
             user_id INTEGER,
@@ -125,7 +147,6 @@ def init_db():
             PRIMARY KEY (user_id, log_date)
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS admin_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -135,7 +156,6 @@ def init_db():
             created_at TEXT
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS psycho_results (
             user_id INTEGER,
@@ -144,8 +164,6 @@ def init_db():
             PRIMARY KEY (user_id, created_at)
         )
     ''')
-    
-    # Таблица групп – пересоздаём с колонкой frequency
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS group_chats (
             chat_id INTEGER PRIMARY KEY,
@@ -154,13 +172,6 @@ def init_db():
             frequency INTEGER DEFAULT 2
         )
     ''')
-    
-    # Если таблица уже существовала без колонки frequency – добавляем её
-    cursor.execute("PRAGMA table_info(group_chats)")
-    columns = [col[1] for col in cursor.fetchall()]
-    if 'frequency' not in columns:
-        cursor.execute("ALTER TABLE group_chats ADD COLUMN frequency INTEGER DEFAULT 2")
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS group_sent_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -173,6 +184,12 @@ def init_db():
     
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('system_prompt', 'Вы — Аркадий Викторович...')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('subscription_price', '249')")
+    
+    # Добавляем настройки для сексологии
+    cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_free_queries_limit', '3')")
+    cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_articles_per_week', '2')")
+    cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_articles_notify', '1')")
+    
     conn.commit()
     conn.close()
 
@@ -203,7 +220,7 @@ def create_user(user_id: int, name: str = None, birth_date: str = None, **kwargs
             if kwargs:
                 for key, val in kwargs.items():
                     if key in ("destiny_number", "subscription_active", "subscription_end",
-                               "reg_date", "last_active", "free_queries_today",
+                               "reg_date", "last_active", "free_queries_today", "free_sexology_queries_today",
                                "send_daily", "is_sleeping", "referred_by", "phone",
                                "bot_version", "xp", "level", "city", "timezone",
                                "birth_time", "birth_place"):
@@ -239,8 +256,9 @@ def update_user(user_id: int, **kwargs):
         for key, val in kwargs.items():
             if key in ("name", "birth_date", "destiny_number", "subscription_active",
                        "subscription_end", "reg_date", "last_active", "free_queries_today",
-                       "send_daily", "is_sleeping", "referred_by", "phone", "bot_version",
-                       "xp", "level", "city", "timezone", "birth_time", "birth_place"):
+                       "free_sexology_queries_today", "send_daily", "is_sleeping", "referred_by",
+                       "phone", "bot_version", "xp", "level", "city", "timezone",
+                       "birth_time", "birth_place"):
                 fields.append(f"{key} = ?")
                 values.append(val)
         if not fields:
@@ -277,3 +295,114 @@ def get_subscription_status(user_id: int) -> bool:
         except:
             pass
     return True
+
+def admin_log(admin_id: int, action: str, details: str = ""):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO admin_logs (admin_id, action, details, created_at) VALUES (?, ?, ?, ?)",
+                   (admin_id, action, details, datetime.datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
+def set_bot_config(key: str, value: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO bot_config (key, value) VALUES (?, ?)", (key, value))
+    conn.commit()
+    conn.close()
+
+def get_bot_config(key: str, default=None):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT value FROM bot_config WHERE key=?", (key,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else default
+
+# ---------- ФУНКЦИИ ДЛЯ СЕКСОЛОГИИ ----------
+def get_sexology_free_queries_today(user_id: int) -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT free_sexology_queries_today, last_active FROM users WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        return int(get_bot_config("sexology_free_queries_limit", "3"))
+    count = row[0]
+    last_active = row[1]
+    if last_active:
+        last_date = datetime.datetime.fromisoformat(last_active).date()
+        today = datetime.date.today()
+        if last_date < today:
+            return int(get_bot_config("sexology_free_queries_limit", "3"))
+    return count
+
+def increment_sexology_free_query(user_id: int) -> bool:
+    limit = int(get_bot_config("sexology_free_queries_limit", "3"))
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT free_sexology_queries_today, last_active FROM users WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+    if not row:
+        cursor.execute("INSERT INTO users (user_id, free_sexology_queries_today, last_active) VALUES (?, 1, ?)",
+                       (user_id, datetime.datetime.now().isoformat()))
+        conn.commit()
+        conn.close()
+        return True
+    count = row[0]
+    last_active = row[1]
+    if last_active:
+        last_date = datetime.datetime.fromisoformat(last_active).date()
+        today = datetime.date.today()
+        if last_date < today:
+            count = 0
+    if count >= limit:
+        conn.close()
+        return False
+    count += 1
+    cursor.execute("UPDATE users SET free_sexology_queries_today = ?, last_active = ? WHERE user_id=?",
+                   (count, datetime.datetime.now().isoformat(), user_id))
+    conn.commit()
+    conn.close()
+    return True
+
+def add_sexology_article(title: str, content: str, topic: str = "", status: str = "pending") -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO sexology_articles (title, content, created_at, status, topic) VALUES (?, ?, ?, ?, ?)",
+                   (title, content, datetime.datetime.now().isoformat(), status, topic))
+    conn.commit()
+    article_id = cursor.lastrowid
+    conn.close()
+    return article_id
+
+def get_sexology_articles(status: str = None, limit: int = None):
+    conn = get_connection()
+    cursor = conn.cursor()
+    query = "SELECT id, title, content, created_at, status, topic FROM sexology_articles"
+    params = []
+    if status:
+        query += " WHERE status = ?"
+        params.append(status)
+    query += " ORDER BY created_at DESC"
+    if limit:
+        query += " LIMIT ?"
+        params.append(limit)
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def update_article_status(article_id: int, status: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE sexology_articles SET status = ? WHERE id = ?", (status, article_id))
+    conn.commit()
+    conn.close()
+
+def delete_sexology_article(article_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM sexology_articles WHERE id = ?", (article_id,))
+    conn.commit()
+    conn.close()

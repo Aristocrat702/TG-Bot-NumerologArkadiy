@@ -10,6 +10,7 @@ from .horoscope import router as horoscope_router
 from .astro import router as astro_router
 from .groups import router as groups_router
 from .help import router as help_router
+from .premium import router as premium_router
 
 def register_handlers(dp: Dispatcher, bot, admin_ids, bot_version):
     dp.include_router(start_router)
@@ -23,3 +24,4 @@ def register_handlers(dp: Dispatcher, bot, admin_ids, bot_version):
     dp.include_router(astro_router)
     dp.include_router(groups_router)
     dp.include_router(help_router)
+    dp.include_router(premium_router)
