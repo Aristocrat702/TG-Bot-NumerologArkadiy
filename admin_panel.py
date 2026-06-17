@@ -12,8 +12,9 @@ from database import get_connection
 from utils import (
     is_admin, add_subscription_days, add_to_blacklist,
     remove_from_blacklist, backup_database, get_bot_config,
-    set_bot_config, admin_log
+    set_bot_config, admin_log, get_dialog_history
 )
+from scheduler import weekly_leaderboard  # добавлен импорт
 
 class AdminStates(StatesGroup):
     waiting_promo_code = State()
@@ -206,6 +207,15 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     @dp.message(AdminStates.waiting_promo_code)
     async def get_promo_code(message: types.Message, state: FSMContext):
         code = message.text.strip()
+        # Проверка на существование кода
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM promocodes WHERE code=?", (code,))
+        if cursor.fetchone():
+            await message.answer("Такой код уже существует. Придумайте другой.")
+            conn.close()
+            return
+        conn.close()
         await state.update_data(code=code)
         await message.answer("Введите количество дней (целое число):")
         await state.set_state(AdminStates.waiting_promo_days)
@@ -366,7 +376,6 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     async def leaderboard_now(message: types.Message):
         if not is_admin(message.from_user.id, admin_ids):
             return
-        from scheduler import weekly_leaderboard
         await weekly_leaderboard(bot, message.from_user.id)
         await message.answer("Лидерборд отправлен.")
 

@@ -93,3 +93,23 @@ async def help_command(message: Message):
 @router.message(F.text == "✖️ ЗАКРЫТЬ")
 async def close_profile(message: Message):
     await message.answer("Закрыто.", reply_markup=main_menu)
+# ========== КОМАНДЫ ДЛЯ ЕЖЕДНЕВНОЙ РАССЫЛКИ ==========
+@dp.message(Command("unsubscribe_daily"))
+async def unsubscribe_daily(message: types.Message):
+    user_id = message.from_user.id
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET send_daily = 0 WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    await message.answer("Вы отписались от ежедневной рассылки карты дня и гороскопа.", reply_markup=menu_button)
+
+@dp.message(Command("subscribe_daily"))
+async def subscribe_daily(message: types.Message):
+    user_id = message.from_user.id
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET send_daily = 1 WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    await message.answer("Вы подписались на ежедневную рассылку карты дня и гороскопа.", reply_markup=menu_button)

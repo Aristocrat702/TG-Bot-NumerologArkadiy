@@ -14,7 +14,6 @@ CRISIS_HELP_LINKS = {
     "url": "https://ваш-сайт/psychology"
 }
 
-# Уровни
 LEVELS = {
     1: {"name": "Искатель", "xp": 0},
     2: {"name": "Любопытный", "xp": 100},
@@ -52,5 +51,6 @@ XP_REWARDS = {
 DAILY_CARD_HOUR = 9
 MIN_ACTIVE_DAYS_FOR_PHONE_REQUEST = 2
 
-# Курс звёзд: 1 Star = 0.5 руб => рубли * 2 = звёзды
 STARS_TO_RUB_RATE = 2
+
+PAYMENTS_TOKEN = os.getenv("PAYMENTS_TOKEN", "")  # токен для Telegram Stars
