@@ -11,7 +11,6 @@ def get_connection():
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
-    # Таблица пользователей
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -156,7 +155,6 @@ def init_db():
 
 # ---------- ФУНКЦИИ ДЛЯ РАБОТЫ С ПОЛЬЗОВАТЕЛЯМИ ----------
 def get_user(user_id: int):
-    """Возвращает запись пользователя (Row) или None."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
@@ -165,10 +163,6 @@ def get_user(user_id: int):
     return row
 
 def create_user(user_id: int, name: str = None, birth_date: str = None, **kwargs):
-    """
-    Создаёт запись пользователя, если её нет, или обновляет существующую.
-    Возвращает True при успехе, False при ошибке.
-    """
     conn = get_connection()
     cursor = conn.cursor()
     try:
@@ -212,10 +206,6 @@ def create_user(user_id: int, name: str = None, birth_date: str = None, **kwargs
         return False
 
 def update_user(user_id: int, **kwargs):
-    """
-    Обновляет произвольные поля пользователя.
-    Пример: update_user(123, name="Новое имя", city="Москва")
-    """
     if not kwargs:
         return True
     conn = get_connection()
@@ -245,11 +235,9 @@ def update_user(user_id: int, **kwargs):
         conn.close()
         return False
 
-# ---------- ДОБАВЛЕННАЯ ФУНКЦИЯ ДЛЯ ПРОВЕРКИ ПОДПИСКИ ----------
+# ---------- ДОБАВЛЕННАЯ ФУНКЦИЯ ----------
 def get_subscription_status(user_id: int) -> bool:
-    """
-    Возвращает True, если у пользователя активна подписка, иначе False.
-    """
+    """Возвращает True, если у пользователя активна подписка."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT subscription_active, subscription_end FROM users WHERE user_id = ?", (user_id,))
