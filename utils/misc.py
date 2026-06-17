@@ -424,3 +424,4 @@ async def check_and_expire_subscriptions():
             pass
     conn.commit()
     conn.close()
+save_mood = log_mood
