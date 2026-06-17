@@ -1,7 +1,6 @@
 ﻿from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 from aiogram import Bot
 
-# Главное меню (без изменений)
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🔮 МОЯ МАТРИЦА"), KeyboardButton(text="🔢 МОЁ ЧИСЛО")],
@@ -12,7 +11,6 @@ main_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Подменю психологии (без изменений)
 psycho_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🧠 ПСИХОТЕСТ", callback_data="psycho_test")],
     [InlineKeyboardButton(text="😊 ДНЕВНИК НАСТРОЕНИЯ", callback_data="mood_diary")],
@@ -21,23 +19,23 @@ psycho_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 НАЗАД", callback_data="psycho_back")]
 ])
 
-# Подменю астрологии (без изменений)
+# ===== АСТРОЛОГИЯ – БЕЗ СОВМЕСТИМОСТИ =====
 astro_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🌌 Натальная карта", callback_data="astro_natal")],
     [InlineKeyboardButton(text="🔄 Транзиты", callback_data="astro_transits")],
     [InlineKeyboardButton(text="☀️ Соляр", callback_data="astro_solar")],
-    [InlineKeyboardButton(text="♊ Совместимость по знакам", callback_data="astro_compatibility")],
     [InlineKeyboardButton(text="📅 Гороскоп на день", callback_data="horoscope_daily")],
     [InlineKeyboardButton(text="📆 Гороскоп на месяц", callback_data="horoscope_monthly")],
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ===== НОВОЕ МЕНЮ ПРОФИЛЯ (без "СМЕНИТЬ ИМЯ") =====
+# ===== ПРОФИЛЬ – С ДЕНЕЖНЫМ КОДОМ =====
 profile_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🎁 РЕФЕРАЛЫ", callback_data="referral_info"),
      InlineKeyboardButton(text="🏆 ДОСТИЖЕНИЯ", callback_data="achievements")],
     [InlineKeyboardButton(text="⭐ КУПИТЬ ПОДПИСКУ", callback_data="buy_subscription"),
      InlineKeyboardButton(text="🎁 ПОДАРИТЬ ПОДПИСКУ", callback_data="gift_subscription")],
+    [InlineKeyboardButton(text="💸 ДЕНЕЖНЫЙ КОД", callback_data="money_code")],
     [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings")],
     [InlineKeyboardButton(text="📜 ИСТОРИЯ ЗАПРОСОВ", callback_data="history")],
     [InlineKeyboardButton(text="🎟️ ВВЕСТИ ПРОМОКОД", callback_data="enter_promo")],
@@ -46,7 +44,6 @@ profile_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="✖️ ЗАКРЫТЬ", callback_data="close")]
 ])
 
-# Быстрые темы (без изменений)
 quick_topics_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="💰 Деньги", callback_data="quick_topic_money"),
      InlineKeyboardButton(text="❤️ Любовь", callback_data="quick_topic_love")],
@@ -62,14 +59,12 @@ menu_button = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
 ])
 
-# Меню челленджа (без изменений)
 challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔥 Начать челлендж 7 дней", callback_data="start_challenge")],
     [InlineKeyboardButton(text="📊 Мой прогресс", callback_data="challenge_progress")],
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# Админ-меню (без изменений)
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📊 СТАТИСТИКА"), KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ")],
@@ -84,13 +79,11 @@ admin_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# Функция для inline-кнопки отмены
 def cancel_button(callback_data: str = "cancel_action") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="❌ Отмена", callback_data=callback_data)]
     ])
 
-# Команды бота (только /start)
 async def set_main_menu(bot: Bot):
     await bot.set_my_commands([
         BotCommand(command="start", description="Запустить бота"),
