@@ -40,7 +40,6 @@ def register_groups_management_handlers(dp, bot, admin_ids):
 
         for row in rows:
             chat_id, is_active, freq, created_at = row
-            # Получаем информацию о чате
             try:
                 chat = await bot.get_chat(chat_id)
                 chat_name = chat.title or chat.first_name or str(chat_id)
@@ -58,19 +57,16 @@ def register_groups_management_handlers(dp, bot, admin_ids):
             text += f"Частота: {freq} сообщ/час\n"
             text += f"📅 Дата: {created_at[:10]}\n"
 
-            # Ссылка для перехода
             link = None
             if chat_username:
                 link = f"https://t.me/{chat_username}"
             elif invite_link:
                 link = invite_link
             else:
-                # Пытаемся создать инвайт-ссылку
                 try:
                     new_link = await bot.create_chat_invite_link(chat_id, member_limit=1)
                     link = new_link.invite_link
                 except:
-                    # Если не удалось, используем t.me/c/ для супергрупп
                     try:
                         chat_obj = await bot.get_chat(chat_id)
                         if chat_obj.type in ("supergroup", "group"):
@@ -78,7 +74,6 @@ def register_groups_management_handlers(dp, bot, admin_ids):
                     except:
                         link = None
 
-            # Формируем клавиатуру
             kb_buttons = []
             if link:
                 kb_buttons.append([InlineKeyboardButton(text="🔗 Перейти в чат", url=link)])
@@ -91,7 +86,20 @@ def register_groups_management_handlers(dp, bot, admin_ids):
 
             await callback.message.answer(text, parse_mode="Markdown", reply_markup=kb)
 
+        # Кнопка возврата в меню групп
         await callback.message.answer("🔙 Вернуться в меню групп", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="admin_groups_back")]]))
+
+    @dp.callback_query(F.data == "admin_groups_back")
+    async def groups_back(callback: types.CallbackQuery):
+        """Возврат в меню управления группами."""
+        await callback.message.delete()
+        # Повторно вызываем меню (используем callback.message как контейнер)
+        # Лучше отправить новое сообщение с меню
+        await callback.message.answer("👥 *Управление группами*\n\nВыберите действие:", parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🌐 ГЛОБАЛЬНАЯ ЧАСТОТА", callback_data="admin_global_frequency")],
+            [InlineKeyboardButton(text="📋 СПИСОК ВСЕХ ГРУПП", callback_data="admin_list_all_groups")],
+            [InlineKeyboardButton(text="🔙 НАЗАД", callback_data="admin_back")]
+        ]))
         await callback.answer()
 
     @dp.callback_query(F.data.startswith("copy_id_"))
@@ -213,7 +221,9 @@ def register_groups_management_handlers(dp, bot, admin_ids):
         await callback.message.edit_text(f"✅ Глобальная частота установлена: {freq} сообщения в час для всех групп.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="admin_groups_back")]]))
         await callback.answer()
 
-    @dp.callback_query(F.data == "admin_groups_back")
-    async def groups_back(callback: types.CallbackQuery):
-        await groups_management_menu(callback.message)
+    @dp.callback_query(F.data == "admin_back")
+    async def admin_back(callback: types.CallbackQuery):
+        """Возврат в админ-панель (обработчик из promocodes, но используется и здесь)."""
+        await callback.message.delete()
+        await callback.message.answer("Админ-панель", reply_markup=admin_menu)
         await callback.answer()
