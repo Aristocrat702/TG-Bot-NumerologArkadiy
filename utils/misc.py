@@ -262,9 +262,6 @@ def log_mood(user_id: int, mood: int, comment: str = ""):
     conn.commit()
     conn.close()
 
-# Алиас для совместимости
-save_mood = log_mood
-
 def get_week_moods(user_id: int):
     conn = get_connection()
     cursor = conn.cursor()
@@ -299,6 +296,24 @@ def update_last_active(user_id: int):
     conn.commit()
     conn.close()
 
+# ---------- НЕАКТИВНОСТЬ ----------
+def get_inactivity_days(user_id: int) -> int:
+    """Возвращает количество дней, прошедших с последней активности пользователя."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT last_active FROM users WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row or not row[0]:
+        return 0
+    try:
+        last_active = datetime.datetime.fromisoformat(row[0])
+        now = datetime.datetime.now()
+        diff = now - last_active
+        return diff.days
+    except:
+        return 0
+
 # ---------- БЭКАП ----------
 def backup_database():
     import shutil
@@ -312,7 +327,6 @@ def backup_database():
     for f in glob.glob(f"{backup_dir}/arkadiy_bot_*.db"):
         if os.path.getmtime(f) < time.time() - 7*86400:
             os.remove(f)
-    # asyncio.create_task(upload_to_yadisk(dst))
     return dst
 
 async def upload_to_yadisk(file_path):

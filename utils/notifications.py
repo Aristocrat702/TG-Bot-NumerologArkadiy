@@ -8,8 +8,8 @@ def get_subscription_button() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="⭐ Полная версия – по подписке", callback_data="buy_subscription")]
     ])
 
+# ---------- PUSH-УВЕДОМЛЕНИЯ ----------
 async def generate_morning_greeting(user_id: int, destiny: int, is_subscriber: bool):
-    """Утреннее приветствие + короткий гороскоп."""
     if is_subscriber:
         prompt = f"Составь утреннее приветствие (2-3 предложения) и короткий гороскоп на сегодня для человека с числом судьбы {destiny}. Ответ должен быть тёплым, вдохновляющим, с советом на день."
         text = await get_yandex_gpt_response(prompt, user_id)
@@ -20,7 +20,6 @@ async def generate_morning_greeting(user_id: int, destiny: int, is_subscriber: b
         return text, get_subscription_button()
 
 async def generate_motivation(user_id: int, destiny: int, is_subscriber: bool):
-    """Мотивационная фраза / аффирмация."""
     if is_subscriber:
         prompt = f"Напиши мотивирующую фразу (3-4 предложения) с учётом числа судьбы {destiny}. Добавь вопрос в конце, чтобы вовлечь пользователя."
         text = await get_yandex_gpt_response(prompt, user_id)
@@ -31,7 +30,6 @@ async def generate_motivation(user_id: int, destiny: int, is_subscriber: bool):
         return text, get_subscription_button()
 
 async def generate_daily_card(user_id: int, destiny: int, is_subscriber: bool):
-    """Карта дня (сокращённая для всех)."""
     if is_subscriber:
         prompt = f"Составь карту дня (5-7 предложений) для человека с числом судьбы {destiny}. Включи практический совет и психологическую практику."
         text = await get_yandex_gpt_response(prompt, user_id)
@@ -42,7 +40,6 @@ async def generate_daily_card(user_id: int, destiny: int, is_subscriber: bool):
         return text, get_subscription_button()
 
 async def generate_fact(user_id: int, destiny: int, is_subscriber: bool):
-    """Интересный факт (нумерология / астрология)."""
     if is_subscriber:
         prompt = f"Дай интересный факт о числе {destiny} или знаке зодиака (если известен). Факт должен быть полезным и интригующим. 2-3 предложения."
         text = await get_yandex_gpt_response(prompt, user_id)
@@ -53,7 +50,6 @@ async def generate_fact(user_id: int, destiny: int, is_subscriber: bool):
         return text, get_subscription_button()
 
 async def generate_evening_advice(user_id: int, destiny: int, is_subscriber: bool):
-    """Вечерний совет / рефлексия."""
     if is_subscriber:
         prompt = f"Напиши вечерний совет (3-4 предложения) для человека с числом судьбы {destiny}. Это должна быть практика для рефлексии или завершения дня."
         text = await get_yandex_gpt_response(prompt, user_id)
@@ -62,3 +58,25 @@ async def generate_evening_advice(user_id: int, destiny: int, is_subscriber: boo
         prompt = f"Напиши короткий вечерний совет (1-2 предложения) для человека с числом судьбы {destiny}. Добавь фразу: «Полные практики и советы – по подписке»."
         text = await get_yandex_gpt_response(prompt, user_id)
         return text, get_subscription_button()
+
+# ---------- АДАПТИВНЫЕ УВЕДОМЛЕНИЯ ----------
+async def generate_adaptive_3_days(user_id: int, destiny: int, is_subscriber: bool):
+    prompt = f"Напиши тёплое, цепляющее сообщение (3-4 предложения) для человека с числом судьбы {destiny}, который не заходил в бот 3 дня. Сообщение должно быть интригующим, с вопросом в конце, чтобы человек захотел вернуться. Используй обращение «друг мой» или «уважаемый»."
+    text = await get_yandex_gpt_response(prompt, user_id)
+    return text, None
+
+async def generate_adaptive_7_days(user_id: int, destiny: int, is_subscriber: bool):
+    prompt = f"Напиши сообщение (4-5 предложений) для человека с числом судьбы {destiny}, который не заходил 7 дней. Скажи, что у него есть персональный прогноз, и он может узнать что-то важное о себе. Добавь фразу: «Загляните – не пожалеете!»."
+    text = await get_yandex_gpt_response(prompt, user_id)
+    return text, None
+
+async def generate_adaptive_14_days(user_id: int, destiny: int, is_subscriber: bool):
+    prompt = f"Напиши сообщение (4-5 предложений) для человека с числом судьбы {destiny}, который не заходил 14 дней. Спроси, всё ли в порядке, и предложи короткую аффирмацию. Добавь фразу: «Будем рады видеть вас снова!»."
+    text = await get_yandex_gpt_response(prompt, user_id)
+    return text, None
+
+# ---------- НАПОМИНАНИЕ О ПОДПИСКЕ ----------
+async def generate_subscription_reminder(user_id: int, destiny: int):
+    prompt = f"Напиши сообщение (3-4 предложения) для человека с числом судьбы {destiny}, у которого заканчивается подписка через 3 дня. Предложи продлить подписку, упомяни преимущества (матрица, безлимитные вопросы, прогнозы). Будь дружелюбен и ненавязчив."
+    text = await get_yandex_gpt_response(prompt, user_id)
+    return text, get_subscription_button()
