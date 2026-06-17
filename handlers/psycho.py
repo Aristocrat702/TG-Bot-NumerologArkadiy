@@ -18,6 +18,7 @@ from utils import (
     save_mood,
     get_user_subscription_status
 )
+from utils.misc import get_user_gender
 from utils.notifications import get_subscription_button
 
 router = Router()
@@ -119,6 +120,7 @@ async def process_psycho_answer(callback: types.CallbackQuery, state: FSMContext
     else:
         user_id = callback.from_user.id
         is_subscriber = get_user_subscription_status(user_id)
+        gender = get_user_gender(user_id)
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT destiny_number, name FROM users WHERE user_id=?", (user_id,))
@@ -129,11 +131,11 @@ async def process_psycho_answer(callback: types.CallbackQuery, state: FSMContext
         status_msg = await callback.message.answer("🧠 Анализирую ваши ответы...")
         if is_subscriber:
             prompt = f"Пользователь {name} с числом судьбы {destiny} ответил на вопросы психологического теста: {answers}. Вопросы: {[q['text'] for q in PSYCHO_QUESTIONS]}. Дай развёрнутую характеристику личности (7-9 предложений), укажи сильные стороны, слабости, дай практический совет. Будь прямолинеен, но не груб. Используй стиль Аркадия Викторовича."
-            response = await get_yandex_gpt_response(prompt, user_id, function_name="psycho_test")
+            response = await get_yandex_gpt_response(prompt, user_id, function_name="psycho_test", gender=gender)
             reply_markup = None
         else:
             prompt = f"Пользователь {name} с числом судьбы {destiny} ответил на вопросы психологического теста: {answers}. Вопросы: {[q['text'] for q in PSYCHO_QUESTIONS]}. Дай характеристику личности (4-5 предложений): укажи 2 сильные стороны, 1 слабость, 1 совет. В конце добавь фразу: «Хотите получить полный анализ личности с практическими рекомендациями? Оформите подписку»."
-            response = await get_yandex_gpt_response(prompt, user_id, function_name="psycho_test")
+            response = await get_yandex_gpt_response(prompt, user_id, function_name="psycho_test", gender=gender)
             reply_markup = get_subscription_button()
         await status_msg.delete()
         save_psycho_result(user_id, response)
@@ -179,6 +181,7 @@ async def process_style_answer(callback: types.CallbackQuery, state: FSMContext)
     else:
         user_id = callback.from_user.id
         is_subscriber = get_user_subscription_status(user_id)
+        gender = get_user_gender(user_id)
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT destiny_number, name, birth_date FROM users WHERE user_id=?", (user_id,))
@@ -191,11 +194,11 @@ async def process_style_answer(callback: types.CallbackQuery, state: FSMContext)
         status_msg = await callback.message.answer("🔮 Аркадий анализирует ваш стиль...")
         if is_subscriber:
             prompt = f"Пользователь {name} с числом судьбы {destiny} и знаком зодиака {zodiac} ответил на вопросы о стиле: {answers}. На основе нумерологии, психологии и астрологии дай развёрнутые рекомендации (6-8 предложений): какие цвета ему подходят, какие бренды (стиль одежды, техника, аксессуары), какой стиль в интерьере, какие профессии или хобби. Ответ должен быть полезным, практичным, без выдумок."
-            response = await get_yandex_gpt_response(prompt, user_id, function_name="style_test")
+            response = await get_yandex_gpt_response(prompt, user_id, function_name="style_test", gender=gender)
             reply_markup = None
         else:
             prompt = f"Пользователь {name} с числом судьбы {destiny} и знаком зодиака {zodiac} ответил на вопросы о стиле: {answers}. Дай краткие рекомендации (3-4 предложения) по стилю. В конце добавь фразу: «Полный разбор с брендами, цветами и профессиями – по подписке»."
-            response = await get_yandex_gpt_response(prompt, user_id, function_name="style_test")
+            response = await get_yandex_gpt_response(prompt, user_id, function_name="style_test", gender=gender)
             reply_markup = get_subscription_button()
         await status_msg.delete()
         save_psycho_result(user_id, f"[СТИЛЬ] {response}")
@@ -271,6 +274,7 @@ async def mood_graph(callback: types.CallbackQuery):
         return
     user_id = callback.from_user.id
     is_subscriber = get_user_subscription_status(user_id)
+    gender = get_user_gender(user_id)
     moods = get_week_moods(user_id)
     if not moods:
         await callback.message.answer("Нет данных за последнюю неделю. Записывайте настроение, чтобы увидеть график.")
@@ -286,11 +290,11 @@ async def mood_graph(callback: types.CallbackQuery):
     status_msg = await callback.message.answer("🧠 Анализирую динамику...")
     if is_subscriber:
         prompt = f"Настроение пользователя за последнюю неделю: {[(date, mood, comment) for date, mood, comment in moods]}. Дай развёрнутый психологический анализ (5-6 предложений) и практический совет, как улучшить эмоциональное состояние."
-        response = await get_yandex_gpt_response(prompt, user_id, function_name="mood_analysis")
+        response = await get_yandex_gpt_response(prompt, user_id, function_name="mood_analysis", gender=gender)
         reply_markup = None
     else:
         prompt = f"Настроение пользователя за последнюю неделю: {[(date, mood, comment) for date, mood, comment in moods]}. Дай короткий анализ (3-4 предложения) и один совет. В конце добавь фразу: «Полный анализ и практики по улучшению настроения – по подписке»."
-        response = await get_yandex_gpt_response(prompt, user_id, function_name="mood_analysis")
+        response = await get_yandex_gpt_response(prompt, user_id, function_name="mood_analysis", gender=gender)
         reply_markup = get_subscription_button()
     await status_msg.delete()
     text += f"\n🧠 *Анализ:*\n{response}"
