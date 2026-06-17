@@ -17,7 +17,6 @@ def register_test_group_handlers(dp, bot, admin_ids):
     async def test_group_start(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
-        # Показываем список активных групп для выбора
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT chat_id, is_active FROM group_chats WHERE is_active=1")
@@ -28,10 +27,16 @@ def register_test_group_handlers(dp, bot, admin_ids):
             await message.answer("Нет активных групп для теста.")
             return
 
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=f"Чат {chat_id}", callback_data=f"test_group_{chat_id}")]
-            for chat_id, _ in groups[:10]  # ограничим 10
-        ])
+        kb = InlineKeyboardMarkup(inline_keyboard=[])
+        for chat_id, _ in groups[:10]:
+            # Получаем название чата
+            try:
+                chat = await bot.get_chat(chat_id)
+                chat_name = chat.title or chat.first_name or str(chat_id)
+            except:
+                chat_name = f"Чат {chat_id}"
+            kb.inline_keyboard.append([InlineKeyboardButton(text=f"{chat_name} ({chat_id})", callback_data=f"test_group_{chat_id}")])
+
         kb.inline_keyboard.append([InlineKeyboardButton(text="❌ Отмена", callback_data="admin_cancel_action")])
 
         await message.answer("Выберите группу для тестовой рассылки:", reply_markup=kb)
@@ -42,16 +47,24 @@ def register_test_group_handlers(dp, bot, admin_ids):
         chat_id = int(callback.data.split("_")[-1])
         await state.update_data(chat_id=chat_id)
 
-        # Генерируем аффирмацию
+        # Генерируем аффирмацию и сохраняем в состояние
         affirmations = [
             "✨ Доброе утро, друзья! Пусть сегодняшний день принесёт вам вдохновение и лёгкость. Помните: даже маленький шаг меняет маршрут. Улыбнитесь – и мир улыбнётся вам в ответ.",
             "🌿 Иногда лучшее, что можно сделать для себя – просто остановиться и перевести дыхание. Вы уже делаете достаточно. Сегодня разрешите себе быть неидеальным. Это нормально.",
             "🔥 Ваше время – это ваша сила. Каждое утро – новый шанс начать сначала. Доверьтесь себе, и у вас всё получится. Мы рядом!"
         ]
         message_text = random.choice(affirmations)
+        await state.update_data(message_text=message_text)
+
+        # Получаем название чата
+        try:
+            chat = await bot.get_chat(chat_id)
+            chat_name = chat.title or chat.first_name or str(chat_id)
+        except:
+            chat_name = f"Чат {chat_id}"
 
         await callback.message.answer(
-            f"📤 *Тестовое сообщение для группы {chat_id}:*\n\n{message_text}\n\nОтправить?",
+            f"📤 *Тестовое сообщение для группы {chat_name} ({chat_id}):*\n\n{message_text}\n\nОтправить?",
             parse_mode="Markdown",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="✅ Отправить", callback_data="test_group_send")],
@@ -65,20 +78,12 @@ def register_test_group_handlers(dp, bot, admin_ids):
     async def test_group_send(callback: types.CallbackQuery, state: FSMContext):
         data = await state.get_data()
         chat_id = data.get("chat_id")
-        if not chat_id:
-            await callback.message.answer("Ошибка: не указан чат.")
+        message_text = data.get("message_text")
+        if not chat_id or not message_text:
+            await callback.message.answer("Ошибка: не указан чат или текст.")
             await state.clear()
             await callback.answer()
             return
-
-        # Берём то же сообщение, которое показали (сохраним в состоянии)
-        # Для простоты сгенерируем заново
-        affirmations = [
-            "✨ Доброе утро, друзья! Пусть сегодняшний день принесёт вам вдохновение и лёгкость. Помните: даже маленький шаг меняет маршрут. Улыбнитесь – и мир улыбнётся вам в ответ.",
-            "🌿 Иногда лучшее, что можно сделать для себя – просто остановиться и перевести дыхание. Вы уже делаете достаточно. Сегодня разрешите себе быть неидеальным. Это нормально.",
-            "🔥 Ваше время – это ваша сила. Каждое утро – новый шанс начать сначала. Доверьтесь себе, и у вас всё получится. Мы рядом!"
-        ]
-        message_text = random.choice(affirmations)
 
         try:
             await bot.send_message(chat_id, message_text, parse_mode="Markdown")

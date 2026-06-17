@@ -6,7 +6,6 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.enums import ChatType
 from keyboards import main_menu
 from database import get_connection
-from yandex_gpt import get_yandex_gpt_response
 from utils import (
     is_blacklisted, calculate_destiny_number, grant_achievement,
     save_cached_response, get_cached_response, update_last_active,
