@@ -7,7 +7,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, FSInputFile
-from keyboards import admin_menu, admin_menu_with_cancel, main_menu
+from keyboards import admin_menu, main_menu, cancel_button
 from database import get_connection
 from utils import (
     is_admin, add_subscription_days, add_to_blacklist,
@@ -32,13 +32,16 @@ class AdminStates(StatesGroup):
 
 def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
-    # ===== ОБРАБОТЧИК ОТМЕНЫ (для всех состояний) =====
-    @dp.message(F.text == "❌ Отмена")
-    async def cancel_action(message: types.Message, state: FSMContext):
-        if not is_admin(message.from_user.id, admin_ids):
+    # ===== ОБРАБОТЧИК ОТМЕНЫ ДЛЯ АДМИНКИ =====
+    @dp.callback_query(F.data == "admin_cancel_action")
+    async def admin_cancel_action(callback: types.CallbackQuery, state: FSMContext):
+        if not is_admin(callback.from_user.id, admin_ids):
+            await callback.answer("Нет доступа.")
             return
         await state.clear()
-        await message.answer("❌ Действие отменено. Возврат в админ-панель.", reply_markup=admin_menu)
+        await callback.message.delete()
+        await callback.message.answer("❌ Действие отменено. Возврат в админ-панель.", reply_markup=admin_menu)
+        await callback.answer()
 
     # ===== ВХОД В АДМИНКУ =====
     @dp.message(Command("admin"))
@@ -106,18 +109,16 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             await callback.answer()
             return
         await state.update_data(segment=segment)
-        await callback.message.answer("Отправьте сообщение для рассылки (текст, фото, документ). Для отмены нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+        await callback.message.answer(
+            "Отправьте сообщение для рассылки (текст, фото, документ).\nДля отмены нажмите кнопку ниже.",
+            reply_markup=cancel_button("admin_cancel_action")
+        )
         await state.set_state(AdminStates.waiting_broadcast)
         await callback.answer()
 
     @dp.message(AdminStates.waiting_broadcast)
     async def handle_broadcast(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
-            return
-        # Если пользователь ввёл "отмена" текстом (на всякий случай)
-        if message.text and message.text.lower() in ("отмена", "cancel"):
-            await state.clear()
-            await message.answer("Рассылка отменена.", reply_markup=admin_menu)
             return
         data = await state.get_data()
         segment = data.get("segment", "all")
@@ -172,9 +173,8 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             "Примеры:\n"
             "123456789 30\n"
             "@username 30\n"
-            "Алексей 30\n\n"
-            "Или нажмите «❌ Отмена» для выхода.",
-            reply_markup=admin_menu_with_cancel
+            "Алексей 30",
+            reply_markup=cancel_button("admin_cancel_action")
         )
         await state.set_state(AdminStates.waiting_reply_user_id)
 
@@ -182,20 +182,21 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     async def process_give_prompt(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
-        # Если пользователь ввёл "отмена" текстом
-        if message.text and message.text.lower() in ("отмена", "cancel"):
-            await state.clear()
-            await message.answer("Действие отменено.", reply_markup=admin_menu)
-            return
         parts = message.text.strip().split()
         if len(parts) < 2:
-            await message.answer("Ошибка. Введите ID/username/имя и дни через пробел.\nПример: 123456789 30\nИли нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+            await message.answer(
+                "Ошибка. Введите ID/username/имя и дни через пробел.\nПример: 123456789 30",
+                reply_markup=cancel_button("admin_cancel_action")
+            )
             return
         try:
             days = int(parts[-1])
             query = " ".join(parts[:-1])
         except ValueError:
-            await message.answer("Количество дней должно быть числом. Повторите ввод или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+            await message.answer(
+                "Количество дней должно быть числом. Повторите ввод.",
+                reply_markup=cancel_button("admin_cancel_action")
+            )
             return
 
         user_id = None
@@ -208,7 +209,10 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                 chat = await bot.get_chat(f"@{username}")
                 user_id = chat.id
             except:
-                await message.answer(f"Пользователь @{username} не найден в Telegram.", reply_markup=admin_menu_with_cancel)
+                await message.answer(
+                    f"Пользователь @{username} не найден в Telegram.",
+                    reply_markup=cancel_button("admin_cancel_action")
+                )
                 conn.close()
                 return
         else:
@@ -218,14 +222,20 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
                 if row:
                     user_id = row[0]
                 else:
-                    await message.answer(f"Пользователь с ID {query} не найден в БД.", reply_markup=admin_menu_with_cancel)
+                    await message.answer(
+                        f"Пользователь с ID {query} не найден в БД.",
+                        reply_markup=cancel_button("admin_cancel_action")
+                    )
                     conn.close()
                     return
             else:
                 cursor.execute("SELECT user_id, name FROM users WHERE LOWER(name) LIKE ?", (f"%{query.lower()}%",))
                 rows = cursor.fetchall()
                 if len(rows) == 0:
-                    await message.answer(f"Пользователь с именем «{query}» не найден.", reply_markup=admin_menu_with_cancel)
+                    await message.answer(
+                        f"Пользователь с именем «{query}» не найден.",
+                        reply_markup=cancel_button("admin_cancel_action")
+                    )
                     conn.close()
                     return
                 elif len(rows) > 1:
@@ -292,7 +302,7 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         await callback.message.answer("Действие отменено.", reply_markup=admin_menu)
         await callback.answer()
 
-    # ===== ПРОМОКОДЫ (с отменой) =====
+    # ===== ПРОМОКОДЫ =====
     @dp.message(F.text == "🎫 ПРОМОКОДЫ")
     async def promocodes_menu(message: types.Message):
         if not is_admin(message.from_user.id, admin_ids):
@@ -307,63 +317,68 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
     @dp.callback_query(F.data == "admin_create_promo")
     async def create_promo_start(callback: types.CallbackQuery, state: FSMContext):
-        await callback.message.answer("Введите код (латиница/цифры, без пробелов) или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+        await callback.message.answer(
+            "Введите код (латиница/цифры, без пробелов):",
+            reply_markup=cancel_button("admin_cancel_action")
+        )
         await state.set_state(AdminStates.waiting_promo_code)
         await callback.answer()
 
     @dp.message(AdminStates.waiting_promo_code)
     async def get_promo_code(message: types.Message, state: FSMContext):
-        if message.text and message.text.lower() in ("отмена", "cancel"):
-            await state.clear()
-            await message.answer("Действие отменено.", reply_markup=admin_menu)
-            return
         code = message.text.strip()
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT 1 FROM promocodes WHERE code=?", (code,))
         if cursor.fetchone():
-            await message.answer("Такой код уже существует. Придумайте другой или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+            await message.answer(
+                "Такой код уже существует. Придумайте другой.",
+                reply_markup=cancel_button("admin_cancel_action")
+            )
             conn.close()
             return
         conn.close()
         await state.update_data(code=code)
-        await message.answer("Введите количество дней (целое число):", reply_markup=admin_menu_with_cancel)
+        await message.answer(
+            "Введите количество дней (целое число):",
+            reply_markup=cancel_button("admin_cancel_action")
+        )
         await state.set_state(AdminStates.waiting_promo_days)
 
     @dp.message(AdminStates.waiting_promo_days)
     async def get_promo_days(message: types.Message, state: FSMContext):
-        if message.text and message.text.lower() in ("отмена", "cancel"):
-            await state.clear()
-            await message.answer("Действие отменено.", reply_markup=admin_menu)
-            return
         try:
             days = int(message.text.strip())
             await state.update_data(days=days)
-            await message.answer("Введите максимальное количество использований (0 = безлимит):", reply_markup=admin_menu_with_cancel)
+            await message.answer(
+                "Введите максимальное количество использований (0 = безлимит):",
+                reply_markup=cancel_button("admin_cancel_action")
+            )
             await state.set_state(AdminStates.waiting_promo_max_uses)
         except:
-            await message.answer("Ошибка. Введите целое число или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+            await message.answer(
+                "Ошибка. Введите целое число.",
+                reply_markup=cancel_button("admin_cancel_action")
+            )
 
     @dp.message(AdminStates.waiting_promo_max_uses)
     async def get_promo_max_uses(message: types.Message, state: FSMContext):
-        if message.text and message.text.lower() in ("отмена", "cancel"):
-            await state.clear()
-            await message.answer("Действие отменено.", reply_markup=admin_menu)
-            return
         try:
             max_uses = int(message.text.strip())
             await state.update_data(max_uses=max_uses)
-            await message.answer("Введите срок действия в формате ГГГГ-ММ-ДД (или 'never' для бессрочного):", reply_markup=admin_menu_with_cancel)
+            await message.answer(
+                "Введите срок действия в формате ГГГГ-ММ-ДД (или 'never' для бессрочного):",
+                reply_markup=cancel_button("admin_cancel_action")
+            )
             await state.set_state(AdminStates.waiting_promo_expiry)
         except:
-            await message.answer("Ошибка. Введите целое число или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+            await message.answer(
+                "Ошибка. Введите целое число.",
+                reply_markup=cancel_button("admin_cancel_action")
+            )
 
     @dp.message(AdminStates.waiting_promo_expiry)
     async def get_promo_expiry(message: types.Message, state: FSMContext):
-        if message.text and message.text.lower() in ("отмена", "cancel"):
-            await state.clear()
-            await message.answer("Действие отменено.", reply_markup=admin_menu)
-            return
         expiry = message.text.strip()
         data = await state.get_data()
         code = data["code"]
@@ -373,7 +388,10 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             try:
                 datetime.datetime.strptime(expiry, "%Y-%m-%d")
             except:
-                await message.answer("Неверный формат даты. Используйте ГГГГ-ММ-ДД или 'never'.\nИли нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+                await message.answer(
+                    "Неверный формат даты. Используйте ГГГГ-ММ-ДД или 'never'.",
+                    reply_markup=cancel_button("admin_cancel_action")
+                )
                 return
         else:
             expiry = None
@@ -533,16 +551,15 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     async def userinfo_start(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
-        await message.answer("Введите user_id пользователя или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+        await message.answer(
+            "Введите user_id пользователя:",
+            reply_markup=cancel_button("admin_cancel_action")
+        )
         await state.set_state(AdminStates.waiting_userinfo)
 
     @dp.message(AdminStates.waiting_userinfo)
     async def userinfo_show(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
-            return
-        if message.text and message.text.lower() in ("отмена", "cancel"):
-            await state.clear()
-            await message.answer("Действие отменено.", reply_markup=admin_menu)
             return
         try:
             uid = int(message.text.strip())
@@ -552,7 +569,10 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             row = cursor.fetchone()
             conn.close()
             if not row:
-                await message.answer("Пользователь не найден.", reply_markup=admin_menu_with_cancel)
+                await message.answer(
+                    "Пользователь не найден.",
+                    reply_markup=cancel_button("admin_cancel_action")
+                )
                 return
             name, birth, destiny, sub_active, sub_end, reg_date, last_active, referred, phone, city, timezone, birth_time, birth_place = row
             sub_status = "Активна" if sub_active else "Неактивна"
@@ -567,7 +587,10 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             text += f"📜 *Последние 5 сообщений:*\n{hist_text}"
             await message.answer(text, parse_mode="Markdown", reply_markup=admin_menu)
         except:
-            await message.answer("Ошибка. Введите числовой user_id или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+            await message.answer(
+                "Ошибка. Введите числовой user_id.",
+                reply_markup=cancel_button("admin_cancel_action")
+            )
         await state.clear()
 
     # ===== УПРАВЛЕНИЕ ГРУППАМИ =====
@@ -650,19 +673,15 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         current_price_stars = int(int(current_price_rub) * 2)
         await message.answer(
             f"💰 *Текущая цена:* {current_price_rub} ₽ (≈ {current_price_stars} Stars)\n\n"
-            "Введите новую цену в рублях (только число, например 249) или нажмите «❌ Отмена».",
+            "Введите новую цену в рублях (только число, например 249):",
             parse_mode="Markdown",
-            reply_markup=admin_menu_with_cancel
+            reply_markup=cancel_button("admin_cancel_action")
         )
         await state.set_state(AdminStates.waiting_new_price)
 
     @dp.message(AdminStates.waiting_new_price)
     async def set_price(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
-            return
-        if message.text and message.text.lower() in ("отмена", "cancel"):
-            await state.clear()
-            await message.answer("Действие отменено.", reply_markup=admin_menu)
             return
         try:
             price_rub = int(message.text.strip())
@@ -672,7 +691,10 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             admin_log(message.from_user.id, "change_price", f"new_price_rub={price_rub}, stars={stars}")
             await message.answer(f"✅ Цена изменена: {price_rub} ₽ (≈ {stars} Stars)", reply_markup=admin_menu)
         except:
-            await message.answer("Ошибка. Введите целое число или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+            await message.answer(
+                "Ошибка. Введите целое число.",
+                reply_markup=cancel_button("admin_cancel_action")
+            )
         await state.clear()
 
     # ===== ПРОМПТ =====
@@ -683,10 +705,9 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
         current_prompt = get_bot_config("system_prompt", "Не установлен")
         await message.answer(
             f"📝 *Текущий системный промпт:*\n\n{current_prompt}\n\n"
-            "Чтобы изменить, введите новый текст промпта (он заменит текущий).\n"
-            "Или нажмите «❌ Отмена» для выхода.",
+            "Чтобы изменить, введите новый текст промпта (он заменит текущий).",
             parse_mode="Markdown",
-            reply_markup=admin_menu_with_cancel
+            reply_markup=cancel_button("admin_cancel_action")
         )
         await state.set_state(AdminStates.waiting_new_prompt)
 
@@ -694,13 +715,12 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     async def set_prompt(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
-        if message.text and message.text.lower() in ("отмена", "cancel"):
-            await state.clear()
-            await message.answer("Действие отменено.", reply_markup=admin_menu)
-            return
         new_prompt = message.text.strip()
         if len(new_prompt) < 10:
-            await message.answer("Промпт должен быть не менее 10 символов. Попробуйте снова или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+            await message.answer(
+                "Промпт должен быть не менее 10 символов. Попробуйте снова.",
+                reply_markup=cancel_button("admin_cancel_action")
+            )
             return
         set_bot_config("system_prompt", new_prompt)
         admin_log(message.from_user.id, "change_prompt", f"new_prompt_length={len(new_prompt)}")
@@ -712,32 +732,33 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
     async def reply_to_user_start(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
-        await message.answer("Введите ID пользователя, которому хотите ответить, или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+        await message.answer(
+            "Введите ID пользователя, которому хотите ответить:",
+            reply_markup=cancel_button("admin_cancel_action")
+        )
         await state.set_state(AdminStates.waiting_reply_user_id)
 
     @dp.message(AdminStates.waiting_reply_user_id)
     async def reply_to_user_get_id(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
             return
-        if message.text and message.text.lower() in ("отмена", "cancel"):
-            await state.clear()
-            await message.answer("Действие отменено.", reply_markup=admin_menu)
-            return
         try:
             uid = int(message.text.strip())
             await state.update_data(reply_uid=uid)
-            await message.answer(f"Введите текст сообщения для пользователя {uid} (можно с HTML-разметкой).\nИли нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+            await message.answer(
+                f"Введите текст сообщения для пользователя {uid} (можно с HTML-разметкой):",
+                reply_markup=cancel_button("admin_cancel_action")
+            )
             await state.set_state(AdminStates.waiting_reply_text)
         except:
-            await message.answer("Ошибка. Введите числовой ID или нажмите «❌ Отмена».", reply_markup=admin_menu_with_cancel)
+            await message.answer(
+                "Ошибка. Введите числовой ID.",
+                reply_markup=cancel_button("admin_cancel_action")
+            )
 
     @dp.message(AdminStates.waiting_reply_text)
     async def reply_to_user_send(message: types.Message, state: FSMContext):
         if not is_admin(message.from_user.id, admin_ids):
-            return
-        if message.text and message.text.lower() in ("отмена", "cancel"):
-            await state.clear()
-            await message.answer("Действие отменено.", reply_markup=admin_menu)
             return
         data = await state.get_data()
         uid = data.get("reply_uid")
@@ -747,7 +768,10 @@ def register_admin_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
             admin_log(message.from_user.id, "reply_to_user", f"user_id={uid}")
             await message.answer(f"✅ Сообщение отправлено пользователю {uid}.", reply_markup=admin_menu)
         except Exception as e:
-            await message.answer(f"❌ Ошибка отправки: {str(e)}", reply_markup=admin_menu_with_cancel)
+            await message.answer(
+                f"❌ Ошибка отправки: {str(e)}",
+                reply_markup=cancel_button("admin_cancel_action")
+            )
         await state.clear()
 
     # ===== ВЫХОД ИЗ АДМИНКИ =====

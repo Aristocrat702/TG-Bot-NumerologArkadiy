@@ -5,7 +5,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, LabeledPrice, PreCheckoutQuery
 from aiogram.enums import ChatType
-from keyboards import profile_menu, main_menu, menu_button
+from keyboards import profile_menu, main_menu, menu_button, cancel_button
 from database import get_connection, get_user, update_user, get_subscription_status
 from yandex_gpt import get_yandex_gpt_response
 from utils import (
@@ -17,7 +17,7 @@ from utils import (
 )
 from settings import LEVELS, PAYMENTS_TOKEN
 
-router = Router()  # <-- ОБЯЗАТЕЛЬНО
+router = Router()
 
 MANUAL_TIMEZONES = {
     "стерлитамак": "Asia/Yekaterinburg",
@@ -51,7 +51,7 @@ class UserStates(StatesGroup):
     waiting_birth_time = State()
     waiting_birth_place = State()
 
-# ---------- ОБРАБОТЧИКИ ----------
+# ---------- ПРОФИЛЬ ----------
 @router.message(F.text == "👤 МОЙ ПРОФИЛЬ")
 async def show_profile(message: types.Message):
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -86,6 +86,9 @@ async def show_profile(message: types.Message):
     remaining_q = get_free_questions_remaining(user_id)
     level, xp, next_xp = calculate_level(user_id)
     level_name = LEVELS.get(level, {}).get("name", "Новичок")
+    # Прогресс-бар
+    progress = int((xp / next_xp) * 20) if next_xp > 0 else 0
+    bar = "█" * progress + "░" * (20 - progress)
     text = (f"┌─────────────────────┐\n"
             f"│ 👤 Имя: {name}\n"
             f"│ 🎂 Дата: {birth}\n"
@@ -97,18 +100,23 @@ async def show_profile(message: types.Message):
             f"│ 📅 До: {end_date_str}\n"
             f"│ 🎁 Бесплатных вопросов: {remaining_q}/5\n"
             f"│ 🏆 Уровень: {level} «{level_name}»\n"
+            f"│ 📊 [{bar}] {xp}/{next_xp} XP\n"
             f"│ 📞 Телефон: {phone}\n"
             f"│ 🌍 Город: {city}\n"
             f"└─────────────────────┘")
     await message.answer(text, reply_markup=profile_menu)
 
+# ---------- СМЕНА ИМЕНИ ----------
 @router.callback_query(F.data == "change_name")
 async def change_name_start(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
         await callback.message.answer("Доступно только в личном чате.")
         await callback.answer()
         return
-    await callback.message.answer("Введите новое имя (не менее 2 символов):")
+    await callback.message.answer(
+        "Введите новое имя (не менее 2 символов):",
+        reply_markup=cancel_button()
+    )
     await state.set_state(UserStates.waiting_new_name)
     await callback.answer()
 
@@ -117,7 +125,7 @@ async def change_name_save(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     new_name = message.text.strip()
     if len(new_name) < 2:
-        await message.answer("Имя должно быть не короче 2 символов.")
+        await message.answer("Имя должно быть не короче 2 символов.", reply_markup=cancel_button())
         return
     conn = get_connection()
     cursor = conn.cursor()
@@ -125,9 +133,10 @@ async def change_name_save(message: types.Message, state: FSMContext):
     conn.commit()
     conn.close()
     update_last_active(user_id)
-    await message.answer(f"Имя изменено на {new_name}.")
+    await message.answer(f"Имя изменено на {new_name}.", reply_markup=main_menu)
     await state.clear()
 
+# ---------- РЕФЕРАЛЬНАЯ ИНФОРМАЦИЯ ----------
 @router.callback_query(F.data == "referral_info")
 async def referral_info(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -148,6 +157,7 @@ async def referral_info(callback: types.CallbackQuery):
     await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
     await callback.answer()
 
+# ---------- ДОСТИЖЕНИЯ ----------
 @router.callback_query(F.data == "achievements")
 async def show_achievements(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -165,6 +175,7 @@ async def show_achievements(callback: types.CallbackQuery):
     await callback.message.answer(text, reply_markup=menu_button)
     await callback.answer()
 
+# ---------- НАСТРОЙКИ ----------
 @router.callback_query(F.data == "settings")
 async def settings_menu(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -190,6 +201,7 @@ async def settings_menu(callback: types.CallbackQuery):
     )
     await callback.answer()
 
+# ---------- ТЕЛЕФОН ----------
 @router.callback_query(F.data == "add_phone")
 async def add_phone_start(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -200,7 +212,7 @@ async def add_phone_start(callback: types.CallbackQuery, state: FSMContext):
         "Отправьте ваш номер телефона, нажав на кнопку ниже. Если номер уже есть, он будет заменён.",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📱 Отправить номер", callback_data="request_phone")],
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="settings")]
+            [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_action")]
         ])
     )
     await callback.answer()
@@ -233,6 +245,7 @@ async def save_phone(message: types.Message, state: FSMContext):
     await message.answer("Спасибо! Номер телефона сохранён (или обновлён).", reply_markup=main_menu)
     await state.clear()
 
+# ---------- ГОРОД ----------
 @router.callback_query(F.data == "add_city")
 async def add_city_start(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -241,9 +254,7 @@ async def add_city_start(callback: types.CallbackQuery, state: FSMContext):
         return
     await callback.message.answer(
         "Напишите название вашего города. Если город уже указан, он будет заменён.",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="settings")]
-        ])
+        reply_markup=cancel_button()
     )
     await state.set_state(UserStates.waiting_city)
     await callback.answer()
@@ -254,7 +265,7 @@ async def process_city(message: types.Message, state: FSMContext):
     city_input = message.text.strip()
     city_lower = city_input.lower()
     if len(city_input) < 2:
-        await message.answer("Пожалуйста, введите корректное название города (не менее 2 символов).")
+        await message.answer("Пожалуйста, введите корректное название города (не менее 2 символов).", reply_markup=cancel_button())
         return
 
     status_msg = await message.answer("🌍 Определяю местоположение и часовой пояс...")
@@ -280,13 +291,17 @@ async def process_city(message: types.Message, state: FSMContext):
         await status_msg.edit_text("❌ Не удалось определить город. Попробуйте написать его на русском или английском языке более точно.")
     await state.clear()
 
+# ---------- ВРЕМЯ РОЖДЕНИЯ ----------
 @router.callback_query(F.data == "add_birth_time")
 async def add_birth_time_start(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
         await callback.message.answer("Доступно только в личном чате.")
         await callback.answer()
         return
-    await callback.message.answer("Введите время рождения в формате ЧЧ:ММ (например, 15:30). Если не знаете – напишите «неизвестно».")
+    await callback.message.answer(
+        "Введите время рождения в формате ЧЧ:ММ (например, 15:30). Если не знаете – напишите «неизвестно».",
+        reply_markup=cancel_button()
+    )
     await state.set_state(UserStates.waiting_birth_time)
     await callback.answer()
 
@@ -299,16 +314,20 @@ async def save_birth_time(message: types.Message, state: FSMContext):
     cursor.execute("UPDATE users SET birth_time = ? WHERE user_id = ?", (time_str, user_id))
     conn.commit()
     conn.close()
-    await message.answer(f"✅ Время рождения сохранено: {time_str}")
+    await message.answer(f"✅ Время рождения сохранено: {time_str}", reply_markup=main_menu)
     await state.clear()
 
+# ---------- МЕСТО РОЖДЕНИЯ ----------
 @router.callback_query(F.data == "add_birth_place")
 async def add_birth_place_start(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
         await callback.message.answer("Доступно только в личном чате.")
         await callback.answer()
         return
-    await callback.message.answer("Введите город и страну рождения (например, Москва, Россия).")
+    await callback.message.answer(
+        "Введите город и страну рождения (например, Москва, Россия).",
+        reply_markup=cancel_button()
+    )
     await state.set_state(UserStates.waiting_birth_place)
     await callback.answer()
 
@@ -321,9 +340,10 @@ async def save_birth_place(message: types.Message, state: FSMContext):
     cursor.execute("UPDATE users SET birth_place = ? WHERE user_id = ?", (place, user_id))
     conn.commit()
     conn.close()
-    await message.answer(f"✅ Место рождения сохранено: {place}")
+    await message.answer(f"✅ Место рождения сохранено: {place}", reply_markup=main_menu)
     await state.clear()
 
+# ---------- ИСТОРИЯ ----------
 @router.callback_query(F.data == "history")
 async def show_history(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -343,6 +363,7 @@ async def show_history(callback: types.CallbackQuery):
     await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
     await callback.answer()
 
+# ---------- ДОБАВИТЬ В ГРУППУ ----------
 @router.callback_query(F.data == "add_to_group")
 async def add_to_group_info(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -364,6 +385,7 @@ async def add_to_group_info(callback: types.CallbackQuery):
     await callback.message.answer(text, parse_mode="Markdown", disable_web_page_preview=True)
     await callback.answer()
 
+# ---------- ПОМОЩЬ ----------
 @router.callback_query(F.data == "help")
 async def show_help(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -403,6 +425,7 @@ async def show_help(callback: types.CallbackQuery):
     await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
     await callback.answer()
 
+# ---------- КУПИТЬ ПОДПИСКУ ----------
 @router.callback_query(F.data == "buy_subscription")
 async def buy_subscription(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -423,13 +446,17 @@ async def buy_subscription(callback: types.CallbackQuery):
     )
     await callback.answer()
 
+# ---------- ПОДАРОК ПОДПИСКИ ----------
 @router.callback_query(F.data == "gift_subscription")
 async def gift_start(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
         await callback.message.answer("Доступно только в личном чате.")
         await callback.answer()
         return
-    await callback.message.answer("Введите @username друга, которому хотите подарить подписку (без @):")
+    await callback.message.answer(
+        "Введите @username друга, которому хотите подарить подписку (без @):",
+        reply_markup=cancel_button()
+    )
     await state.set_state(UserStates.waiting_gift_username)
     await callback.answer()
 
@@ -440,7 +467,7 @@ async def gift_process(message: types.Message, state: FSMContext):
         chat = await message.bot.get_chat(f"@{username}")
         gifted_user_id = chat.id
     except Exception:
-        await message.answer(f"❌ Не удалось найти пользователя @{username}. Проверьте правильность написания.")
+        await message.answer(f"❌ Не удалось найти пользователя @{username}. Проверьте правильность написания.", reply_markup=cancel_button())
         await state.clear()
         return
     price_rub = int(get_bot_config("subscription_price_rub", "249"))
@@ -457,10 +484,12 @@ async def gift_process(message: types.Message, state: FSMContext):
     )
     await state.clear()
 
+# ---------- ПРОДЛЕНИЕ ПОДПИСКИ (заглушка) ----------
 @router.callback_query(F.data == "renew_subscription")
 async def renew_subscription(callback: types.CallbackQuery):
     await buy_subscription(callback)
 
+# ---------- ОПЛАТА ----------
 @router.pre_checkout_query()
 async def pre_checkout(query: PreCheckoutQuery):
     await query.answer(ok=True)

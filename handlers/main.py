@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.enums import ChatType
-from keyboards import main_menu, quick_topics_menu, menu_button
+from keyboards import main_menu, quick_topics_menu, menu_button, cancel_button
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
 from utils import (
@@ -33,7 +33,7 @@ class MainStates(StatesGroup):
 last_answer = {}
 pending_matrix = {}
 
-# ---------- ОБРАБОТЧИКИ ----------
+# ---------- МОЁ ЧИСЛО ----------
 @router.message(F.text == "🔢 МОЁ ЧИСЛО")
 async def show_my_number(message: types.Message):
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -63,6 +63,7 @@ async def show_my_number(message: types.Message):
     await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}",
                          reply_markup=quick_topics_menu, parse_mode=None)
 
+# ---------- МАТРИЦА (асинхронная обработка) ----------
 async def process_matrix(user_id: int, destiny: int, name: str, bot: Bot, status_msg: types.Message, cache_key: str):
     prompt = f"Составь полную матрицу судьбы для числа {destiny}. Дай развёрнутую характеристику (10-15 предложений) по арканам."
     response = await get_yandex_gpt_response(prompt, user_id)
@@ -115,6 +116,7 @@ async def matrix_prompt(message: types.Message):
     pending_matrix[user_id] = status_msg
     asyncio.create_task(process_matrix(user_id, destiny, name, bot, status_msg, cache_key))
 
+# ---------- СКАЧАТЬ PDF ----------
 @router.callback_query(F.data == "download_pdf")
 async def download_pdf(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -150,12 +152,16 @@ async def download_pdf(callback: types.CallbackQuery):
         await callback.message.answer("Ошибка генерации PDF. Попробуйте позже.")
     await callback.answer()
 
+# ---------- СОВМЕСТИМОСТЬ ----------
 @router.message(F.text == "❤️ СОВМЕСТИМОСТЬ")
 async def ask_partner_birth(message: types.Message, state: FSMContext):
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
         await message.answer("Эта функция доступна только в личном чате.")
         return
-    await message.answer("Введите дату рождения партнёра в формате ДД.ММ.ГГГГ")
+    await message.answer(
+        "Введите дату рождения партнёра в формате ДД.ММ.ГГГГ",
+        reply_markup=cancel_button()
+    )
     await state.set_state(MainStates.waiting_partner_birth_date)
 
 @router.message(MainStates.waiting_partner_birth_date)
@@ -188,8 +194,9 @@ async def process_compatibility(message: types.Message, state: FSMContext):
         await message.answer(f"❤️ *Совместимость*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
         await state.clear()
     except Exception:
-        await message.answer("Неверный формат даты. Введите ДД.ММ.ГГГГ", reply_markup=menu_button)
+        await message.answer("Неверный формат даты. Введите ДД.ММ.ГГГГ", reply_markup=cancel_button())
 
+# ---------- КАРТА ДНЯ ----------
 @router.message(F.text == "🎁 КАРТА ДНЯ")
 async def daily_card(message: types.Message):
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -220,6 +227,7 @@ async def daily_card(message: types.Message):
     last_answer[user_id] = response
     await message.answer(f"🎁 *Карта дня*\n\n{response}{weather_str}", parse_mode="Markdown", reply_markup=menu_button)
 
+# ---------- ЗАДАТЬ ВОПРОС ----------
 @router.message(F.text == "💬 ЗАДАТЬ ВОПРОС")
 async def ask_question(message: types.Message, state: FSMContext):
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -227,13 +235,20 @@ async def ask_question(message: types.Message, state: FSMContext):
         return
     user_id = message.from_user.id
     if get_user_subscription_status(user_id):
-        await message.answer("Напишите ваш вопрос (по нумерологии или психологии). Я отвечу максимально честно.")
+        await message.answer(
+            "Напишите ваш вопрос (по нумерологии или психологии). Я отвечу максимально честно.",
+            reply_markup=cancel_button()
+        )
         await state.set_state(MainStates.waiting_question)
         return
 
     remaining = get_free_questions_remaining(user_id)
     if remaining > 0:
-        await message.answer(f"У вас осталось *{remaining}* бесплатных вопросов на сегодня. Напишите вопрос, я дам короткий ответ. А в подписке – полная информация и развёрнутые консультации.\n\nВаш вопрос:", parse_mode="Markdown")
+        await message.answer(
+            f"У вас осталось *{remaining}* бесплатных вопросов на сегодня. Напишите вопрос, я дам короткий ответ. А в подписке – полная информация и развёрнутые консультации.\n\nВаш вопрос:",
+            parse_mode="Markdown",
+            reply_markup=cancel_button()
+        )
         await state.set_state(MainStates.waiting_question)
     else:
         await message.answer("Вы исчерпали лимит бесплатных вопросов на сегодня. Оформите подписку в профиле – и получите безлимитные консультации, полную матрицу и прогнозы.", reply_markup=menu_button)
@@ -262,7 +277,9 @@ async def process_question(message: types.Message, state: FSMContext):
         await status_msg.delete()
         last_answer[user_id] = response
         add_xp(user_id, "ask_question")
-        await message.answer(response, parse_mode=None, reply_markup=menu_button)
+        await message.answer(response, parse_mode=None, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❓ Ещё вопрос", callback_data="ask_another_question")]
+        ]))
         await state.clear()
         return
 
@@ -277,9 +294,52 @@ async def process_question(message: types.Message, state: FSMContext):
     short_response = await get_yandex_gpt_response(prompt, user_id)
     increment_free_query(user_id)
     await status_msg.delete()
-    await message.answer(f"🔮 {short_response}\n\nУ вас осталось *{remaining-1}* бесплатных вопросов на сегодня. Хотите безлимит? Оформите подписку в профиле.", parse_mode="Markdown", reply_markup=menu_button)
+    await message.answer(
+        f"🔮 {short_response}\n\nУ вас осталось *{remaining-1}* бесплатных вопросов на сегодня. Хотите безлимит? Оформите подписку в профиле.",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="❓ Ещё вопрос", callback_data="ask_another_question")]
+        ])
+    )
     await state.clear()
 
+# ---------- КНОПКА "ЕЩЁ ВОПРОС" ----------
+@router.callback_query(F.data == "ask_another_question")
+async def ask_another_question(callback: types.CallbackQuery, state: FSMContext):
+    if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+        await callback.message.answer("Доступно только в личном чате.")
+        await callback.answer()
+        return
+    await callback.message.answer(
+        "Напишите ваш следующий вопрос (по нумерологии или психологии).",
+        reply_markup=cancel_button()
+    )
+    await state.set_state(MainStates.waiting_question)
+    await callback.answer()
+
+# ---------- БЫСТРЫЕ ТЕМЫ ----------
+@router.callback_query(F.data.startswith("quick_topic_"))
+async def quick_topic(callback: types.CallbackQuery):
+    if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+        await callback.message.answer("Доступно только в личном чате.")
+        await callback.answer()
+        return
+    user_id = callback.from_user.id
+    topic = callback.data.split("_")[-1]
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT destiny_number FROM users WHERE user_id=?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    destiny = row[0] if row else "?"
+    prompt = f"Человек с числом судьбы {destiny} спрашивает про {topic}. Дай краткую, но полезную характеристику (3-5 предложений) с советом."
+    status_msg = await callback.message.answer("🔮 Аркадий Викторович размышляет...")
+    response = await get_yandex_gpt_response(prompt, user_id)
+    await status_msg.delete()
+    await callback.message.answer(f"📌 *{topic.capitalize()}*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
+    await callback.answer()
+
+# ---------- КОМАНДА /MYNUMBER ----------
 @router.message(Command("mynumber"))
 async def mynumber_command(message: types.Message):
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
