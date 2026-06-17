@@ -1,0 +1,27 @@
+from aiogram import Dispatcher
+from .stats import register_stats_handlers
+from .broadcast import register_broadcast_handlers
+from .subscription import register_subscription_handlers
+from .promocodes import register_promocodes_handlers
+from .prompt import register_prompt_handlers
+from .blacklist import register_blacklist_handlers
+from .reply import register_reply_handlers
+from .price import register_price_handlers
+from .leaderboard import register_leaderboard_handlers
+from .logs import register_logs_handlers
+from .userinfo import register_userinfo_handlers
+from .groups_management import register_groups_management_handlers
+
+def register_admin_handlers(dp: Dispatcher, bot, admin_ids: list):
+    register_stats_handlers(dp, bot, admin_ids)
+    register_broadcast_handlers(dp, bot, admin_ids)
+    register_subscription_handlers(dp, bot, admin_ids)
+    register_promocodes_handlers(dp, bot, admin_ids)
+    register_prompt_handlers(dp, bot, admin_ids)
+    register_blacklist_handlers(dp, bot, admin_ids)
+    register_reply_handlers(dp, bot, admin_ids)
+    register_price_handlers(dp, bot, admin_ids)
+    register_leaderboard_handlers(dp, bot, admin_ids)
+    register_logs_handlers(dp, bot, admin_ids)
+    register_userinfo_handlers(dp, bot, admin_ids)
+    register_groups_management_handlers(dp, bot, admin_ids)

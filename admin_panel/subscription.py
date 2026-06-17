@@ -1,0 +1,147 @@
+from aiogram import types, F
+from aiogram.fsm.context import FSMContext
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from database import get_connection
+from keyboards import admin_menu, cancel_button
+from utils import is_admin, add_subscription_days, admin_log
+from .states import AdminStates
+
+def register_subscription_handlers(dp, bot, admin_ids):
+
+    @dp.message(F.text == "💰 ВЫДАТЬ ПОДПИСКУ")
+    async def give_sub(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        await message.answer(
+            "Введите ID, @username или имя пользователя и количество дней через пробел.\n"
+            "Примеры:\n"
+            "123456789 30\n"
+            "@username 30\n"
+            "Алексей 30",
+            reply_markup=cancel_button("admin_cancel_action")
+        )
+        await state.set_state(AdminStates.waiting_reply_user_id)
+
+    @dp.message(AdminStates.waiting_reply_user_id)
+    async def process_give_prompt(message: types.Message, state: FSMContext):
+        if not is_admin(message.from_user.id, admin_ids):
+            return
+        parts = message.text.strip().split()
+        if len(parts) < 2:
+            await message.answer(
+                "Ошибка. Введите ID/username/имя и дни через пробел.\nПример: 123456789 30",
+                reply_markup=cancel_button("admin_cancel_action")
+            )
+            return
+        try:
+            days = int(parts[-1])
+            query = " ".join(parts[:-1])
+        except ValueError:
+            await message.answer(
+                "Количество дней должно быть числом. Повторите ввод.",
+                reply_markup=cancel_button("admin_cancel_action")
+            )
+            return
+
+        user_id = None
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        if query.startswith("@"):
+            username = query[1:]
+            try:
+                chat = await bot.get_chat(f"@{username}")
+                user_id = chat.id
+            except:
+                await message.answer(
+                    f"Пользователь @{username} не найден в Telegram.",
+                    reply_markup=cancel_button("admin_cancel_action")
+                )
+                conn.close()
+                return
+        else:
+            if query.isdigit():
+                cursor.execute("SELECT user_id, name FROM users WHERE user_id = ?", (int(query),))
+                row = cursor.fetchone()
+                if row:
+                    user_id = row[0]
+                else:
+                    await message.answer(
+                        f"Пользователь с ID {query} не найден в БД.",
+                        reply_markup=cancel_button("admin_cancel_action")
+                    )
+                    conn.close()
+                    return
+            else:
+                cursor.execute("SELECT user_id, name FROM users WHERE LOWER(name) LIKE ?", (f"%{query.lower()}%",))
+                rows = cursor.fetchall()
+                if len(rows) == 0:
+                    await message.answer(
+                        f"Пользователь с именем «{query}» не найден.",
+                        reply_markup=cancel_button("admin_cancel_action")
+                    )
+                    conn.close()
+                    return
+                elif len(rows) > 1:
+                    kb = InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text=f"{row[1]} (ID {row[0]})", callback_data=f"select_user_{row[0]}")]
+                        for row in rows[:5]
+                    ])
+                    await message.answer(f"Найдено несколько пользователей с именем «{query}». Выберите:", reply_markup=kb)
+                    await state.update_data(give_days=days)
+                    await state.set_state(AdminStates.waiting_confirm_action)
+                    conn.close()
+                    return
+                else:
+                    user_id = rows[0][0]
+        conn.close()
+
+        if user_id:
+            await state.update_data(give_uid=user_id, give_days=days)
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="✅ Да", callback_data="confirm_give_yes")],
+                [InlineKeyboardButton(text="❌ Нет", callback_data="confirm_give_no")]
+            ])
+            conn2 = get_connection()
+            cursor2 = conn2.cursor()
+            cursor2.execute("SELECT name FROM users WHERE user_id=?", (user_id,))
+            row2 = cursor2.fetchone()
+            conn2.close()
+            name = row2[0] if row2 and row2[0] else "без имени"
+            await message.answer(f"Выдать подписку на {days} дней пользователю {user_id} ({name})? Подтвердите.", reply_markup=kb)
+
+    @dp.callback_query(F.data.startswith("select_user_"), AdminStates.waiting_confirm_action)
+    async def select_user_callback(callback: types.CallbackQuery, state: FSMContext):
+        user_id = int(callback.data.split("_")[-1])
+        data = await state.get_data()
+        days = data.get("give_days", 30)
+        await state.update_data(give_uid=user_id, give_days=days)
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM users WHERE user_id=?", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        name = row[0] if row and row[0] else "без имени"
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Да", callback_data="confirm_give_yes")],
+            [InlineKeyboardButton(text="❌ Нет", callback_data="confirm_give_no")]
+        ])
+        await callback.message.answer(f"Выдать подписку на {days} дней пользователю {user_id} ({name})? Подтвердите.", reply_markup=kb)
+        await callback.answer()
+
+    @dp.callback_query(F.data == "confirm_give_yes", AdminStates.waiting_confirm_action)
+    async def confirm_give(callback: types.CallbackQuery, state: FSMContext):
+        data = await state.get_data()
+        uid = data.get("give_uid")
+        days = data.get("give_days")
+        add_subscription_days(uid, days, check_referral=True, admin_id=callback.from_user.id)
+        await callback.message.answer(f"Выдана подписка на {days} дней пользователю {uid}", reply_markup=admin_menu)
+        await bot.send_message(uid, f"Администратор выдал вам подписку на {days} дней!")
+        await state.clear()
+        await callback.answer()
+
+    @dp.callback_query(F.data == "confirm_give_no", AdminStates.waiting_confirm_action)
+    async def cancel_give(callback: types.CallbackQuery, state: FSMContext):
+        await state.clear()
+        await callback.message.answer("Действие отменено.", reply_markup=admin_menu)
+        await callback.answer()
