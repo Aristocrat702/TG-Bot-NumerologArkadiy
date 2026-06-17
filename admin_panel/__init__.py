@@ -1,4 +1,5 @@
 from aiogram import Dispatcher
+from .admin import register_admin_entry_handler
 from .stats import register_stats_handlers
 from .broadcast import register_broadcast_handlers
 from .subscription import register_subscription_handlers
@@ -13,6 +14,7 @@ from .userinfo import register_userinfo_handlers
 from .groups_management import register_groups_management_handlers
 
 def register_admin_handlers(dp: Dispatcher, bot, admin_ids: list):
+    register_admin_entry_handler(dp, bot, admin_ids)
     register_stats_handlers(dp, bot, admin_ids)
     register_broadcast_handlers(dp, bot, admin_ids)
     register_subscription_handlers(dp, bot, admin_ids)
