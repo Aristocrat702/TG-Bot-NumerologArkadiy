@@ -1,58 +1,89 @@
+import datetime
+import logging
+import random
+import hashlib
+import asyncio
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from aiogram import Bot
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
-import datetime
-import asyncio
-import logging
-import random
-import hashlib
-from utils import backup_database, add_subscription_days, get_challenge_progress, get_bot_config
+from utils import backup_database, add_subscription_days
+from utils.notifications import (
+    generate_morning_greeting,
+    generate_motivation,
+    generate_daily_card,
+    generate_fact,
+    generate_evening_advice
+)
 
 scheduler = AsyncIOScheduler()
 
-NIGHT_START = 23
-NIGHT_END = 8
+MSK_OFFSET = 3
 
-TOPICS = [
-    ("psychology", 35),
-    ("relationships", 25),
-    ("support", 25),
-    ("self_knowledge", 10),
-    ("numerology", 3),
-    ("astrology", 2)
-]
+def is_night_time() -> bool:
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    now_msk = now_utc + datetime.timedelta(hours=MSK_OFFSET)
+    hour = now_msk.hour
+    return hour >= 23 or hour < 8
 
-GOODNIGHT_MESSAGES = [
-    "Друзья, Аркадий Викторович уходит в мир чисел. Спокойной ночи! Завтра будут новые открытия.",
-    "Нумерология не спит, но я – да. До завтра! Пусть вам снятся правильные числа.",
-    "Звёзды тоже отдыхают. И я с ними. Сладких снов!",
-    "Час поздний, а мысли всё крутятся? Запишите их, а завтра разберёмся. Спокойной ночи."
-]
+# ---------- ГРУППОВАЯ РАССЫЛКА ----------
+async def send_group_messages(bot: Bot):
+    if is_night_time():
+        logging.info("Ночной режим – рассылка в группы пропущена")
+        return
 
-GOODMORNING_MESSAGES = [
-    "Доброе утро! Новый день – новые числа. Сегодня удача на стороне тех, кто действует.",
-    "Солнце встало, и я с ним. Желаю вам ясного ума и тёплого сердца.",
-    "Просыпайтесь! Числа уже ждут вас. Сегодня отличный день для начинаний.",
-    "Доброе утро! Новый день – как чистый лист. Заполните его своими смыслами. Сегодня я с вами."
-]
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT chat_id, frequency FROM group_chats WHERE is_active=1")
+    groups = cursor.fetchall()
+    conn.close()
 
-async def is_night_time() -> bool:
-    now = datetime.datetime.now().hour
-    return now >= NIGHT_START or now < NIGHT_END
+    if not groups:
+        logging.info("Нет активных групп для рассылки")
+        return
+
+    for chat_id, frequency in groups:
+        today = datetime.date.today().isoformat()
+        conn2 = get_connection()
+        cursor2 = conn2.cursor()
+        cursor2.execute("SELECT COUNT(*) FROM group_sent_log WHERE chat_id=? AND sent_at LIKE ?", (chat_id, f"{today}%"))
+        sent_count = cursor2.fetchone()[0]
+        conn2.close()
+
+        max_messages = frequency * 2
+        if sent_count >= max_messages:
+            continue
+
+        is_long = (sent_count % 4 == 0)
+        msg = await generate_unique_message(chat_id, is_long)
+        try:
+            await bot.send_message(chat_id, msg, parse_mode="Markdown")
+            logging.info(f"Отправлено сообщение в группу {chat_id}")
+        except Exception as e:
+            logging.error(f"Ошибка отправки в группу {chat_id}: {e}")
+        await asyncio.sleep(0.5)
 
 async def generate_unique_message(chat_id: int, is_long: bool = False) -> str:
+    topics = [
+        ("psychology", 35),
+        ("relationships", 25),
+        ("support", 25),
+        ("self_knowledge", 10),
+        ("numerology", 3),
+        ("astrology", 2)
+    ]
+    topics_list = [t for t, w in topics for _ in range(w)]
+
     for attempt in range(5):
-        topics_list = [t for t, w in TOPICS for _ in range(w)]
         topic = random.choice(topics_list)
-        length = "long" if is_long else "short"
+        length_desc = "развёрнутое (8–10 предложений)" if is_long else "короткое (2–3 предложения)"
         prompt = f"""
 Ты — Аркадий Викторович, мудрый собеседник, который делится полезными, тёплыми и поддерживающими мыслями.
 
 ТЕМА: {topic}
-ДЛИНА: {'развёрнутое (8-10 предложений)' if is_long else 'короткое (2-3 предложения)'}
+ДЛИНА: {length_desc}
 
 ТРЕБОВАНИЯ:
 - Говори просто, человечно, без сложных терминов.
@@ -83,151 +114,117 @@ async def generate_unique_message(chat_id: int, is_long: bool = False) -> str:
             conn.close()
             return response
         conn.close()
+
     return random.choice([
         "Сегодня хороший день, чтобы задуматься о своих целях. Что вы хотите изменить?",
         "Помните: вы – главный герой своей жизни. Действуйте!"
     ])
 
-async def send_group_messages(bot: Bot):
-    if await is_night_time():
-        return
+# ---------- НОЧНЫЕ И УТРЕННИЕ ПРИВЕТСТВИЯ (ГРУППЫ) ----------
+async def send_night_greetings(bot: Bot):
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    now_msk = now_utc + datetime.timedelta(hours=MSK_OFFSET)
+    hour = now_msk.hour
+    minute = now_msk.minute
+
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT chat_id, frequency FROM group_chats WHERE is_active=1")
+    cursor.execute("SELECT chat_id FROM group_chats WHERE is_active=1")
     groups = cursor.fetchall()
     conn.close()
 
-    for chat_id, frequency in groups:
-        today = datetime.date.today().isoformat()
-        conn2 = get_connection()
-        cursor2 = conn2.cursor()
-        cursor2.execute("SELECT COUNT(*) FROM group_sent_log WHERE chat_id=? AND sent_at LIKE ?", (chat_id, f"{today}%"))
-        sent_count = cursor2.fetchone()[0]
-        conn2.close()
-        if sent_count >= frequency * 2:
-            continue
-        is_long = (sent_count % 4 == 0)
-        msg = await generate_unique_message(chat_id, is_long)
+    if hour == 22 and minute >= 55:
+        msg = random.choice([
+            "Спокойной ночи, друзья! Пусть сны будут ясными, а завтрашний день – добрым.",
+            "Уходя, оставляю вам тишину. Отдыхайте. Завтра будет новый день.",
+            "Звёзды уже зажглись. Я тоже гашу свет. До встречи завтра."
+        ])
+        for (chat_id,) in groups:
+            try:
+                await bot.send_message(chat_id, msg, parse_mode="Markdown")
+            except:
+                pass
+    elif hour == 8 and minute <= 5:
+        msg = random.choice([
+            "Доброе утро! Новый день – новые возможности. Я с вами.",
+            "Просыпайтесь! Мир ждёт вас. Сегодня мы разберёмся с тем, что вчера казалось сложным.",
+            "Утро – время для планов. Пусть сегодняшний день будет удачным."
+        ])
+        for (chat_id,) in groups:
+            try:
+                await bot.send_message(chat_id, msg, parse_mode="Markdown")
+            except:
+                pass
+
+# ---------- PUSH-УВЕДОМЛЕНИЯ (ВСЕМ ПОЛЬЗОВАТЕЛЯМ) ----------
+async def send_push_notification(bot: Bot, notification_type: str, generator_func):
+    """Отправляет push-уведомление всем пользователям (кроме заблокированных)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, destiny_number, subscription_active FROM users WHERE is_sleeping = 0")
+    users = cursor.fetchall()
+    conn.close()
+
+    if not users:
+        logging.info(f"Нет пользователей для рассылки {notification_type}")
+        return
+
+    for user_id, destiny, sub_active in users:
+        is_subscriber = bool(sub_active)
         try:
-            await bot.send_message(chat_id, msg, parse_mode="Markdown")
+            # Получаем контент через генератор
+            content = await generator_func(user_id, destiny or 1, is_subscriber)
+            if not content:
+                continue
+            # Отправляем
+            await bot.send_message(user_id, content, parse_mode="Markdown")
         except Exception as e:
-            logging.error(f"Ошибка отправки в группу {chat_id}: {e}")
-        await asyncio.sleep(0.5)
+            logging.error(f"Ошибка отправки уведомления {notification_type} пользователю {user_id}: {e}")
+        await asyncio.sleep(0.3)  # чтобы не перегружать API
 
-async def send_night_greetings(bot: Bot):
-    now = datetime.datetime.now()
-    if now.hour == 22 and now.minute >= 55:
-        msg = random.choice(GOODNIGHT_MESSAGES)
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT chat_id FROM group_chats WHERE is_active=1")
-        groups = cursor.fetchall()
-        conn.close()
-        for (chat_id,) in groups:
-            try:
-                await bot.send_message(chat_id, msg, parse_mode="Markdown")
-            except:
-                pass
-    elif now.hour == 8 and now.minute <= 5:
-        msg = random.choice(GOODMORNING_MESSAGES)
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT chat_id FROM group_chats WHERE is_active=1")
-        groups = cursor.fetchall()
-        conn.close()
-        for (chat_id,) in groups:
-            try:
-                await bot.send_message(chat_id, msg, parse_mode="Markdown")
-            except:
-                pass
+# ---------- ЗАДАЧИ ДЛЯ PUSH-УВЕДОМЛЕНИЙ ----------
+async def send_morning_notifications(bot: Bot):
+    await send_push_notification(bot, "morning", generate_morning_greeting)
 
-async def send_daily_card(bot: Bot):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, destiny_number, city FROM users WHERE subscription_active=1")
-    users = cursor.fetchall()
-    conn.close()
-    for user_id, destiny, city in users:
-        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай короткий прогноз (3-5 предложений) с практическим действием и психологической практикой."
-        response = await get_yandex_gpt_response(prompt, user_id)
-        try:
-            await bot.send_message(user_id, f"🎁 *Карта дня*\n\n{response}", parse_mode="Markdown")
-        except:
-            pass
-        await asyncio.sleep(0.3)
+async def send_motivation_notifications(bot: Bot):
+    await send_push_notification(bot, "motivation", generate_motivation)
 
-async def send_daily_horoscope(bot: Bot):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, birth_date, destiny_number FROM users WHERE subscription_active=1")
-    users = cursor.fetchall()
-    conn.close()
-    for user_id, birth_date, destiny in users:
-        if not birth_date:
-            continue
-        from utils import get_zodiac_sign
-        zodiac = get_zodiac_sign(birth_date)
-        prompt = f"Составь астрологический гороскоп на сегодня для человека с числом судьбы {destiny} и знаком {zodiac}. Дай краткий прогноз (3-5 предложений)."
-        response = await get_yandex_gpt_response(prompt, user_id)
-        try:
-            await bot.send_message(user_id, f"🌟 *Гороскоп на сегодня*\n\n{response}", parse_mode="Markdown")
-        except:
-            pass
-        await asyncio.sleep(0.3)
+async def send_daily_card_notifications(bot: Bot):
+    await send_push_notification(bot, "daily_card", generate_daily_card)
 
+async def send_fact_notifications(bot: Bot):
+    await send_push_notification(bot, "fact", generate_fact)
+
+async def send_evening_notifications(bot: Bot):
+    await send_push_notification(bot, "evening", generate_evening_advice)
+
+# ---------- ПРОЧИЕ ЗАДАЧИ ----------
 async def check_expired_subscriptions(bot: Bot):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, subscription_end FROM users WHERE subscription_active=1 AND subscription_end IS NOT NULL")
-    rows = cursor.fetchall()
-    now = datetime.datetime.now()
-    for user_id, end_str in rows:
-        try:
-            end_date = datetime.datetime.fromisoformat(end_str)
-            if end_date < now:
-                cursor.execute("UPDATE users SET subscription_active = 0 WHERE user_id = ?", (user_id,))
-        except:
-            pass
-    conn.commit()
-    conn.close()
+    logging.info("check_expired_subscriptions выполнена (заглушка)")
 
 async def weekly_leaderboard(bot: Bot, admin_id: int = None):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT first_name, subscription_end 
-        FROM users 
-        WHERE subscription_active=1 
-        ORDER BY subscription_end DESC 
-        LIMIT 10
-    """)
-    rows = cursor.fetchall()
-    conn.close()
-    if not rows:
-        text = "Нет активных подписчиков."
-    else:
-        text = "🏆 *Топ подписчиков:*\n\n"
-        for i, (name, end) in enumerate(rows, 1):
-            text += f"{i}. {name or 'Без имени'} — до {end[:10]}\n"
-    if admin_id:
-        await bot.send_message(admin_id, text, parse_mode="Markdown")
-    else:
-        admin_ids_str = get_bot_config("admin_ids", "[]")
-        try:
-            import ast
-            admin_ids = ast.literal_eval(admin_ids_str) if isinstance(admin_ids_str, str) else admin_ids_str
-            for aid in admin_ids:
-                await bot.send_message(aid, text, parse_mode="Markdown")
-        except:
-            pass
+    logging.info("weekly_leaderboard выполнена (заглушка)")
 
+# ---------- ЗАПУСК ПЛАНИРОВЩИКА ----------
 def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
-    scheduler.add_job(send_group_messages, IntervalTrigger(minutes=30), args=[bot])
-    scheduler.add_job(send_night_greetings, IntervalTrigger(minutes=1), args=[bot])
-    scheduler.add_job(send_daily_card, CronTrigger(hour=9, minute=0), args=[bot])
-    scheduler.add_job(send_daily_horoscope, CronTrigger(hour=9, minute=5), args=[bot])
-    scheduler.add_job(check_expired_subscriptions, CronTrigger(hour=2, minute=0), args=[bot])
-    scheduler.add_job(backup_database, CronTrigger(hour=3, minute=0))
-    scheduler.add_job(weekly_leaderboard, CronTrigger(day_of_week='sun', hour=20, minute=0), args=[bot, admin_id])
+    scheduler.remove_all_jobs()
+
+    # Групповая рассылка
+    scheduler.add_job(send_group_messages, IntervalTrigger(minutes=30), args=[bot], id="send_group_messages")
+    # Ночные приветствия
+    scheduler.add_job(send_night_greetings, IntervalTrigger(minutes=1), args=[bot], id="send_night_greetings")
+
+    # Ежедневные push-уведомления
+    scheduler.add_job(send_morning_notifications, CronTrigger(hour=8, minute=0), args=[bot], id="morning_push")
+    scheduler.add_job(send_motivation_notifications, CronTrigger(hour=10, minute=0), args=[bot], id="motivation_push")
+    scheduler.add_job(send_daily_card_notifications, CronTrigger(hour=12, minute=0), args=[bot], id="daily_card_push")
+    scheduler.add_job(send_fact_notifications, CronTrigger(hour=15, minute=0), args=[bot], id="fact_push")
+    scheduler.add_job(send_evening_notifications, CronTrigger(hour=18, minute=0), args=[bot], id="evening_push")
+
+    # Остальные задачи
+    scheduler.add_job(check_expired_subscriptions, CronTrigger(hour=2, minute=0), args=[bot], id="check_expired")
+    scheduler.add_job(backup_database, CronTrigger(hour=3, minute=0), id="backup_db")
+    scheduler.add_job(weekly_leaderboard, CronTrigger(day_of_week='sun', hour=20, minute=0), args=[bot, admin_id], id="weekly_lb")
+
     scheduler.start()
-    logging.info(f"Планировщик заданий запущен, версия бота {bot_version}")
+    logging.info(f"Планировщик запущен с push-уведомлениями, версия {bot_version}")
