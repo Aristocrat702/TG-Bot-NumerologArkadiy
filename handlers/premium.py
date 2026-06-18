@@ -16,7 +16,7 @@ async def premium_menu(message: types.Message):
         await message.answer("Доступно только в личном чате.")
         return
     await message.answer(
-        "💎 *Эксклюзивные функции*\n\n"
+        "💎 <b>Эксклюзивные функции</b>\n\n"
         "Здесь собраны все возможности, доступные только по подписке:\n"
         "• 🔮 Полная матрица судьбы (22 аркана) – твой жизненный код\n"
         "• 💸 Денежный код – стратегия увеличения дохода\n"
@@ -82,13 +82,12 @@ async def premium_matrix(callback: types.CallbackQuery):
             "4. <b>Один главный совет на год</b>.\n\n"
             "Сделай ответ глубоким, практичным, без общих фраз. Говори уверенно, как эксперт. "
             "Используй HTML-теги для форматирования: <b>жирный</b>, <i>курсив</i>, эмодзи для разделения блоков.\n"
-            "Никаких дисклеймеров, никаких «нумерология не наука». Ты даёшь рабочий инструмент."
+            "Никаких дисклеймеров."
         )
         response = await get_yandex_gpt_response(prompt, user_id, function_name="premium_matrix")
         await status_msg.delete()
         if "Ошибка" not in response and "Нейросеть" not in response and "таймаут" not in response:
             save_cached_response(user_id, cache_key, response)
-    # Отправляем только текст, без PDF
     await callback.message.answer(
         f"🔮 <b>Матрица судьбы</b>\n\n{response}",
         parse_mode="HTML",

@@ -43,16 +43,9 @@ async def natal_chart(callback: types.CallbackQuery):
         await callback.answer()
         return
     birth_date = row[0]
-    birth_time = row[1] if row[1] else "неизвестно"
-    birth_place = row[2] if row[2] else "не указано"
 
     status_msg = await callback.message.answer("🌌 Аркадий Викторович строит вашу натальную карту...")
-    prompt = (
-        f"Дай очень краткое описание (2-3 предложения) того, что можно узнать из натальной карты человека, родившегося {birth_date}. "
-        "Сделай так, чтобы человек заинтересовался. В конце добавь фразу: "
-        "«Полная натальная карта с планетами и аспектами – по подписке в разделе «Эксклюзив»». "
-        "Используй HTML-форматирование для выделения ключевых фраз."
-    )
+    prompt = f"Дай очень краткое описание (2-3 предложения) того, что можно узнать из натальной карты человека, родившегося {birth_date}. Сделай так, чтобы человек заинтересовался. В конце добавь фразу: «Полная натальная карта с планетами и аспектами – по подписке в разделе «Эксклюзив»». Используй HTML-теги для выделения ключевых фраз."
     response = await get_yandex_gpt_response(prompt, user_id, function_name="natal", gender=gender)
     await status_msg.delete()
     await callback.message.answer(
@@ -85,12 +78,7 @@ async def transits(callback: types.CallbackQuery):
     zodiac = get_zodiac_sign(birth_date)
 
     status_msg = await callback.message.answer("🔄 Аркадий Викторович анализирует транзиты...")
-    prompt = (
-        f"Дай краткое описание транзитов (2-3 предложения) для человека со знаком {zodiac} на ближайший месяц. "
-        "Сделай так, чтобы человеку захотелось узнать больше. В конце добавь фразу: "
-        "«Полный прогноз транзитов с датами – по подписке в разделе «Эксклюзив»». "
-        "Используй HTML-форматирование."
-    )
+    prompt = f"Дай краткое описание транзитов (2-3 предложения) для человека со знаком {zodiac} на ближайший месяц. Сделай так, чтобы человеку захотелось узнать больше. В конце добавь фразу: «Полный прогноз транзитов с датами – по подписке в разделе «Эксклюзив»». Используй HTML-теги для выделения ключевых фраз."
     response = await get_yandex_gpt_response(prompt, user_id, function_name="transits", gender=gender)
     await status_msg.delete()
     await callback.message.answer(
@@ -123,12 +111,7 @@ async def solar(callback: types.CallbackQuery):
     zodiac = get_zodiac_sign(birth_date)
 
     status_msg = await callback.message.answer("☀️ Аркадий Викторович рассчитывает соляр...")
-    prompt = (
-        f"Дай краткое описание соляра (2-3 предложения) для человека со знаком {zodiac} на предстоящий год. "
-        "Сделай так, чтобы человек почувствовал, что это важно. В конце добавь фразу: "
-        "«Полный прогноз соляра на год – по подписке в разделе «Эксклюзив»». "
-        "Используй HTML-форматирование."
-    )
+    prompt = f"Дай краткое описание соляра (2-3 предложения) для человека со знаком {zodiac} на предстоящий год. Сделай так, чтобы человек почувствовал, что это важно. В конце добавь фразу: «Полный прогноз соляра на год – по подписке в разделе «Эксклюзив»». Используй HTML-теги для выделения ключевых фраз."
     response = await get_yandex_gpt_response(prompt, user_id, function_name="solar", gender=gender)
     await status_msg.delete()
     await callback.message.answer(
@@ -171,20 +154,11 @@ async def horoscope_daily(callback: types.CallbackQuery):
     else:
         status_msg = await callback.message.answer("🔮 Аркадий Викторович составляет гороскоп...")
         if is_subscriber:
-            prompt = (
-                f"Составь астрологический гороскоп на сегодня ({today.strftime('%d.%m.%Y')}) для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. "
-                "Дай развёрнутый прогноз (6-7 предложений) по 2 сферам (любовь и работа/деньги). Добавь совет на день. "
-                "Используй HTML-форматирование."
-            )
+            prompt = f"Составь астрологический гороскоп на сегодня ({today.strftime('%d.%m.%Y')}) для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. Дай развёрнутый прогноз (6-7 предложений) по 2 сферам (любовь и работа/деньги). Добавь совет на день. Используй HTML-теги для выделения ключевых фраз."
             response = await get_yandex_gpt_response(prompt, user_id, function_name="horoscope_daily", gender=gender)
             reply_markup = menu_button
         else:
-            prompt = (
-                f"Составь астрологический гороскоп на сегодня ({today.strftime('%d.%m.%Y')}) для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. "
-                "Дай краткий прогноз (5-6 предложений): что важно сегодня, дай один совет, задай вопрос для размышления. "
-                "В конце добавь фразу: «Полный гороскоп на месяц и ежедневные прогнозы – по подписке». "
-                "Используй HTML-форматирование."
-            )
+            prompt = f"Составь астрологический гороскоп на сегодня ({today.strftime('%d.%m.%Y')}) для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. Дай краткий прогноз (5-6 предложений): что важно сегодня, дай один совет, задай вопрос для размышления. В конце добавь фразу: «Полный гороскоп на месяц и ежедневные прогнозы – по подписке». Используй HTML-теги для выделения ключевых фраз."
             response = await get_yandex_gpt_response(prompt, user_id, function_name="horoscope_daily", gender=gender)
             reply_markup = get_subscription_button()
         await status_msg.delete()
@@ -231,11 +205,7 @@ async def horoscope_monthly(callback: types.CallbackQuery):
             response = cached
         else:
             status_msg = await callback.message.answer("🔮 Аркадий Викторович составляет гороскоп...")
-            prompt = (
-                f"Составь астрологический гороскоп на месяц {month_name} для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. "
-                "Дай развёрнутый прогноз (8-10 предложений) по сферам: любовь, деньги, здоровье. Укажи благоприятные периоды и дай общий совет. "
-                "Используй HTML-форматирование."
-            )
+            prompt = f"Составь астрологический гороскоп на месяц {month_name} для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. Дай развёрнутый прогноз (8-10 предложений) по сферам: любовь, деньги, здоровье. Укажи благоприятные периоды и дай общий совет. Используй HTML-теги для выделения ключевых фраз."
             response = await get_yandex_gpt_response(prompt, user_id, function_name="horoscope_monthly", gender=gender)
             await status_msg.delete()
             if "Ошибка" not in response and "Нейросеть" not in response and "таймаут" not in response:
@@ -248,13 +218,7 @@ async def horoscope_monthly(callback: types.CallbackQuery):
     else:
         # Краткий вариант для бесплатных
         status_msg = await callback.message.answer("🔮 Аркадий Викторович даёт краткий прогноз...")
-        prompt = (
-            f"Составь краткий, но очень точный астрологический прогноз на месяц {month_name} для человека со знаком {zodiac} и числом судьбы {destiny}. "
-            "Дай 4 предложения: что его ждёт в любви, деньгах, здоровье – и один самый важный совет. "
-            "Сделай так, чтобы человек почувствовал, что это про него. "
-            "В конце добавь фразу: «Полный гороскоп на месяц с деталями – по подписке». "
-            "Используй HTML-форматирование."
-        )
+        prompt = f"Составь краткий, но очень точный астрологический прогноз на месяц {month_name} для человека со знаком {zodiac} и числом судьбы {destiny}. Дай 4 предложения: что его ждёт в любви, деньгах, здоровье – и один самый важный совет. Сделай так, чтобы человек почувствовал, что это про него. В конце добавь фразу: «Полный гороскоп на месяц с деталями – по подписке». Используй HTML-теги для выделения ключевых фраз."
         response = await get_yandex_gpt_response(prompt, user_id, function_name="horoscope_monthly_free", gender=gender)
         await status_msg.delete()
         kb = InlineKeyboardMarkup(inline_keyboard=[

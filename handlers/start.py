@@ -161,7 +161,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
         "Готов узнать своё число судьбы?"
     )
 
-    # Кнопка "Начать"
     start_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 Узнать своё число", callback_data="start_onboarding")]
     ])
@@ -172,7 +171,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
         reply_markup=start_keyboard,
         disable_web_page_preview=True
     )
-    # Устанавливаем состояние ожидания имени (будет вызвано после нажатия кнопки)
     await state.set_state(UserStates.waiting_full_name)
 
 @router.callback_query(F.data == "start_onboarding")
@@ -265,7 +263,6 @@ async def process_birth_date_from_poll(message: types.Message, state: FSMContext
         else:
             address = "друг мой"
         
-        # Поздравление с регистрацией
         await message.answer(
             f"🔢 <b>Ваше число судьбы: {destiny}</b>\n\n"
             f"Спасибо, {name}! Теперь вы можете использовать главное меню, {address}.\n\n"

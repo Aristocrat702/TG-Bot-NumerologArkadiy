@@ -13,7 +13,7 @@ async def sexology_menu(message: types.Message):
         await message.answer("Доступно только в личном чате.")
         return
     await message.answer(
-        "🧠 *Сексология*\n\n"
+        "🧠 <b>Сексология</b>\n\n"
         "Здесь вы можете читать полезные статьи об интимной жизни, отношениях и психологии секса.\n\n"
         "Выберите действие:",
         parse_mode="HTML",
@@ -34,7 +34,7 @@ async def sexology_articles_list(callback: types.CallbackQuery):
         )
         await callback.answer()
         return
-    text = "📚 *Статьи по сексологии*\n\n"
+    text = "📚 <b>Статьи по сексологии</b>\n\n"
     for article in articles:
         text += f"• <a href='https://t.me/NumerologArkadiy_bot?start=article_sexology_{article['id']}'>{article['title']}</a>\n"
     await callback.message.answer(text, parse_mode="HTML", reply_markup=menu_button)

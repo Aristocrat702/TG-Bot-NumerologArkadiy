@@ -6,13 +6,13 @@ from .main import router as main_router
 from .challenge import router as challenge_router
 from .promo import router as promo_router
 from .common import router as common_router
-# from .horoscope import router as horoscope_router   # <-- УДАЛЁН (конфликтует с astro)
+# from .horoscope import router as horoscope_router   # Удалён, чтобы избежать конфликтов
 from .astro import router as astro_router
 from .groups import router as groups_router
 from .help import router as help_router
 from .premium import router as premium_router
 from .sexology import router as sexology_router
-from .dreams import router as dreams_router          # <-- НОВЫЙ
+from .dreams import router as dreams_router
 
 def register_handlers(dp: Dispatcher, bot, admin_ids, bot_version):
     dp.include_router(start_router)
@@ -22,10 +22,10 @@ def register_handlers(dp: Dispatcher, bot, admin_ids, bot_version):
     dp.include_router(challenge_router)
     dp.include_router(promo_router)
     dp.include_router(common_router)
-    # dp.include_router(horoscope_router)   # <-- ЗАКОММЕНТИРОВАНО
+    # dp.include_router(horoscope_router)   # Закомментирован
     dp.include_router(astro_router)
     dp.include_router(groups_router)
     dp.include_router(help_router)
     dp.include_router(premium_router)
     dp.include_router(sexology_router)
-    dp.include_router(dreams_router)        # <-- НОВЫЙ
+    dp.include_router(dreams_router)

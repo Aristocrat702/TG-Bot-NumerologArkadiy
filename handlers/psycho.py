@@ -164,7 +164,7 @@ async def process_psycho_answer(callback: types.CallbackQuery, state: FSMContext
                 "Используй HTML-форматирование для структурирования ответа."
             )
             response = await get_yandex_gpt_response(prompt, user_id, function_name="psycho_test", gender=gender)
-            reply_markup = None
+            reply_markup = main_menu
         else:
             prompt = (
                 f"Пользователь {name} с числом судьбы {destiny} ответил на вопросы психологического теста: {answers}. "
@@ -424,7 +424,7 @@ async def mood_graph(callback: types.CallbackQuery):
             "Используй HTML-форматирование."
         )
         response = await get_yandex_gpt_response(prompt, user_id, function_name="mood_analysis", gender=gender)
-        reply_markup = None
+        reply_markup = main_menu
     else:
         prompt = (
             f"Настроение пользователя за последнюю неделю: {[(date, mood, comment) for date, mood, comment in moods]}. "

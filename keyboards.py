@@ -43,7 +43,7 @@ premium_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ========== ПОДМЕНЮ СЕКСОЛОГИИ (БЕЗ КНОПКИ ВОПРОСА) ==========
+# ========== ПОДМЕНЮ СЕКСОЛОГИИ (только статьи) ==========
 sexology_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="📚 Статьи", callback_data="sexology_articles")],
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]

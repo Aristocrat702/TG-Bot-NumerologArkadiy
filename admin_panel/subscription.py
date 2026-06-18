@@ -13,12 +13,14 @@ def register_subscription_handlers(dp, bot, admin_ids):
         if not is_admin(message.from_user.id, admin_ids):
             return
         await message.answer(
+            "💰 <b>Выдача подписки</b>\n\n"
             "Введите ID, @username или имя пользователя и количество дней через пробел.\n"
             "Примеры:\n"
-            "123456789 30\n"
-            "@username 30\n"
-            "Алексей 30\n\n"
+            "<code>123456789 30</code>\n"
+            "<code>@username 30</code>\n"
+            "<code>Алексей 30</code>\n\n"
             "⚠️ Если пользователь ещё не написал боту /start, используйте его числовой ID.",
+            parse_mode="HTML",
             reply_markup=cancel_button("admin_cancel_action")
         )
         await state.set_state(AdminStates.waiting_reply_user_id)
@@ -30,7 +32,8 @@ def register_subscription_handlers(dp, bot, admin_ids):
         parts = message.text.strip().split()
         if len(parts) < 2:
             await message.answer(
-                "Ошибка. Введите ID/username/имя и дни через пробел.\nПример: 123456789 30",
+                "❌ Ошибка. Введите ID/username/имя и дни через пробел.\nПример: <code>123456789 30</code>",
+                parse_mode="HTML",
                 reply_markup=cancel_button("admin_cancel_action")
             )
             return
@@ -39,7 +42,7 @@ def register_subscription_handlers(dp, bot, admin_ids):
             query = " ".join(parts[:-1])
         except ValueError:
             await message.answer(
-                "Количество дней должно быть числом. Повторите ввод.",
+                "❌ Количество дней должно быть числом. Повторите ввод.",
                 reply_markup=cancel_button("admin_cancel_action")
             )
             return
@@ -65,12 +68,13 @@ def register_subscription_handlers(dp, bot, admin_ids):
                         "Решение:\n"
                         "1. Попросите пользователя написать боту любое сообщение (например, /start).\n"
                         "2. Или узнайте его числовой ID (через @userinfobot) и введите его вместо @username.\n\n"
-                        "Пример: 123456789 30",
+                        "Пример: <code>123456789 30</code>",
+                        parse_mode="HTML",
                         reply_markup=cancel_button("admin_cancel_action")
                     )
                 else:
                     await message.answer(
-                        f"Ошибка при поиске @{username}: {e}",
+                        f"❌ Ошибка при поиске @{username}: {e}",
                         reply_markup=cancel_button("admin_cancel_action")
                     )
                 conn.close()
@@ -86,7 +90,7 @@ def register_subscription_handlers(dp, bot, admin_ids):
                     user_id = row[0]
                     user_name = row[1]
                 else:
-                    # Пробуем получить из Telegram по ID (даже если не писал боту, ID может сработать)
+                    # Пробуем получить из Telegram по ID (даже если не писал боту)
                     try:
                         chat = await bot.get_chat(uid)
                         user_id = chat.id
@@ -120,7 +124,7 @@ def register_subscription_handlers(dp, bot, admin_ids):
                             )
                         else:
                             await message.answer(
-                                f"Ошибка: {e}",
+                                f"❌ Ошибка: {e}",
                                 reply_markup=cancel_button("admin_cancel_action")
                             )
                         conn.close()
@@ -143,6 +147,7 @@ def register_subscription_handlers(dp, bot, admin_ids):
         if user_id:
             existing = get_user(user_id)
             if not existing:
+                # Создаём запись с базовыми данными
                 create_user(user_id, name=user_name or str(user_id), birth_date=None, destiny_number=0)
                 await message.answer(f"👤 Пользователь {user_id} ({user_name}) был автоматически добавлен в БД.")
             # Сохраняем в состояние
