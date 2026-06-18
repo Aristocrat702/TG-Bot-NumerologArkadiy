@@ -67,7 +67,6 @@ async def dream_process(message: types.Message, state: FSMContext):
     gender = get_user_gender(user_id)
     status_msg = await message.answer("🌙 Аркадий Викторович толкует ваш сон...")
 
-    # Получаем число судьбы и знак зодиака
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT destiny_number, birth_date FROM users WHERE user_id=?", (user_id,))
@@ -83,7 +82,7 @@ async def dream_process(message: types.Message, state: FSMContext):
             f"Человек с числом судьбы {destiny} и знаком зодиака {zodiac} увидел сон: {dream_text}. "
             "Дай развёрнутое толкование (8-10 предложений) с практическими советами, учти его число и знак. "
             "Структурируй ответ: ключевые символы, связь с текущей ситуацией, задание на день. "
-            "Будь тёплым и мудрым. Используй HTML-форматирование."
+            "Будь тёплым и мудрым. Используй HTML-теги <b>, <i> без <p>."
         )
         interpretation = await get_yandex_gpt_response(prompt, user_id, function_name="dream_interpretation", gender=gender)
         reply_markup = menu_button
@@ -92,13 +91,12 @@ async def dream_process(message: types.Message, state: FSMContext):
             f"Человек увидел сон: {dream_text}. "
             "Дай краткое толкование (4-5 предложений), которое затронет его глубокие переживания. "
             "В конце добавь фразу: «Полное толкование с практическими рекомендациями – по подписке». "
-            "Используй HTML-форматирование."
+            "Используй HTML-теги <b>, <i> без <p>."
         )
         interpretation = await get_yandex_gpt_response(prompt, user_id, function_name="dream_interpretation", gender=gender)
         reply_markup = get_subscription_button()
 
     await status_msg.delete()
-    # Сохраняем в БД
     save_dream(user_id, dream_text, interpretation)
     update_last_active(user_id)
     await message.answer(
@@ -108,6 +106,7 @@ async def dream_process(message: types.Message, state: FSMContext):
     )
     await state.clear()
 
+# ===== НОВАЯ ИСТОРИЯ СНОВ С КНОПКАМИ =====
 @router.callback_query(F.data == "dream_history")
 async def dream_history(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -115,15 +114,58 @@ async def dream_history(callback: types.CallbackQuery):
         await callback.answer()
         return
     user_id = callback.from_user.id
-    dreams = get_user_dreams(user_id, limit=5)
+    dreams = get_user_dreams(user_id, limit=20)
     if not dreams:
         await callback.message.answer("Вы ещё не записывали сны. Расскажите свой первый сон!", reply_markup=menu_button)
         await callback.answer()
         return
-    text = "📖 <b>Ваши последние сны:</b>\n\n"
-    for i, (dream, interp, date) in enumerate(dreams, 1):
-        text += f"{i}. 🗓️ {date[:10]}\n"
-        text += f"📝 Сон: {dream[:100]}...\n"
-        text += f"🔮 Толкование: {interp[:150]}...\n\n"
-    await callback.message.answer(text, parse_mode="HTML", reply_markup=menu_button)
+
+    # Формируем список с кнопками по датам
+    kb = InlineKeyboardMarkup(inline_keyboard=[])
+    for i, (dream, interp, date) in enumerate(dreams):
+        # Берём первые 30 символов сна как описание
+        short = dream[:30] + "..." if len(dream) > 30 else dream
+        kb.inline_keyboard.append([
+            InlineKeyboardButton(
+                text=f"🗓 {date[:10]} – {short}",
+                callback_data=f"dream_view_{i}"
+            )
+        ])
+    kb.inline_keyboard.append([InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")])
+
+    await callback.message.answer(
+        "📖 <b>Ваши сны:</b>\n\nНажмите на дату, чтобы посмотреть полный сон и толкование.",
+        parse_mode="HTML",
+        reply_markup=kb
+    )
+    # Сохраняем список снов в состоянии, чтобы потом достать по индексу
+    await callback.bot.session.set_data(callback.from_user.id, {"dreams_list": dreams})
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("dream_view_"))
+async def dream_view(callback: types.CallbackQuery):
+    if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+        await callback.message.answer("Доступно только в личном чате.")
+        await callback.answer()
+        return
+    # Получаем индекс из callback_data
+    index = int(callback.data.split("_")[-1])
+    # Получаем сохранённый список снов
+    data = await callback.bot.session.get_data(callback.from_user.id)
+    dreams = data.get("dreams_list")
+    if not dreams or index >= len(dreams):
+        await callback.message.answer("Сон не найден. Попробуйте снова.")
+        await callback.answer()
+        return
+    dream, interp, date = dreams[index]
+    text = (
+        f"📖 <b>Сон от {date[:10]}</b>\n\n"
+        f"📝 <b>Текст сна:</b>\n{dream}\n\n"
+        f"🔮 <b>Толкование:</b>\n{interp}"
+    )
+    # Кнопка "Назад к списку"
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 К списку снов", callback_data="dream_history")]
+    ])
+    await callback.message.answer(text, parse_mode="HTML", reply_markup=kb)
     await callback.answer()

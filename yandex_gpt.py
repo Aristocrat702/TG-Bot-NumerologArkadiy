@@ -2,6 +2,7 @@
 import os
 import time
 import asyncio
+import re
 from dotenv import load_dotenv
 from database import get_prompts_for_function, get_user
 
@@ -12,6 +13,24 @@ YANDEX_FOLDER_ID = os.getenv("YANDEX_FOLDER_ID")
 
 _failure_count = 0
 _last_failure_time = 0
+
+def clean_response(text: str) -> str:
+    """Очищает ответ от недопустимых тегов и заменяет Markdown на HTML."""
+    if not text:
+        return text
+    
+    # 1. Заменяем **текст** на <b>текст</b>
+    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    # 2. Заменяем *текст* на <i>текст</i> (если не перекрывается с жирным)
+    text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<i>\1</i>', text)
+    # 3. Удаляем все блочные теги, которые не поддерживает Telegram
+    block_tags = ['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br', 'span', 'ul', 'ol', 'li']
+    for tag in block_tags:
+        text = re.sub(rf'<{tag}[^>]*>', '', text, flags=re.IGNORECASE)
+        text = re.sub(rf'</{tag}>', '', text, flags=re.IGNORECASE)
+    # 4. Убираем лишние пустые строки
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
 
 async def get_yandex_gpt_response(prompt: str, user_id: int, function_name: str = "default", gender: str = None) -> str:
     global _failure_count, _last_failure_time
@@ -45,13 +64,12 @@ async def get_yandex_gpt_response(prompt: str, user_id: int, function_name: str 
     else:
         system_prompt += " Обращайся к пользователю нейтрально: «друг мой», «уважаемый» (универсально)."
 
-    # СТРОГИЙ ЗАПРЕТ НА БЛОЧНЫЕ ТЕГИ
     system_prompt += (
         "\n\n<b>ВАЖНОЕ ТРЕБОВАНИЕ ПО ФОРМАТИРОВАНИЮ ОТВЕТОВ:</b>\n"
         "Используй только разрешённые теги: <b>, <i>, <u>, <s>, <a>, <code>, <pre>.\n"
         "ЗАПРЕЩЕНО ИСПОЛЬЗОВАТЬ ЛЮБЫЕ БЛОЧНЫЕ ТЕГИ: <p>, <div>, <h1>-<h6>, <br>, <span>, <ul>, <ol>, <li>.\n"
         "Для переноса строк используй обычный перевод строки (\\n).\n"
-        "Не используй Markdown (звёздочки, подчёркивания).\n"
+        "Не используй Markdown (звёздочки, подчёркивания) — я сам преобразую их в HTML.\n"
         "Форматируй ответ структурированно, с эмодзи для разделения блоков.\n"
         "Никогда не используй тег <p>."
     )
@@ -84,7 +102,8 @@ async def get_yandex_gpt_response(prompt: str, user_id: int, function_name: str 
                 if resp.status == 200:
                     result = await resp.json()
                     _failure_count = 0
-                    return result["result"]["alternatives"][0]["message"]["text"]
+                    raw = result["result"]["alternatives"][0]["message"]["text"]
+                    return clean_response(raw)
                 else:
                     _failure_count += 1
                     _last_failure_time = time.time()
