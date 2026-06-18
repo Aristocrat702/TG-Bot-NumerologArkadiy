@@ -18,10 +18,7 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
     
-    if table_exists(cursor, "users"):
-        conn.close()
-        return
-    
+    # ===== СОЗДАНИЕ ТАБЛИЦ (ЕСЛИ НЕТ) =====
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -51,8 +48,10 @@ def init_db():
         )
     ''')
     
+    # ===== МИГРАЦИИ (ВСЕГДА ВЫПОЛНЯЮТСЯ) =====
     cursor.execute("PRAGMA table_info(users)")
     columns = [col[1] for col in cursor.fetchall()]
+    
     if 'free_sexology_queries_today' not in columns:
         cursor.execute("ALTER TABLE users ADD COLUMN free_sexology_queries_today INTEGER DEFAULT 0")
     if 'gender' not in columns:
@@ -62,6 +61,7 @@ def init_db():
     if 'streak_days' not in columns:
         cursor.execute("ALTER TABLE users ADD COLUMN streak_days INTEGER DEFAULT 0")
     
+    # Остальные таблицы
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS sexology_articles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,7 +72,6 @@ def init_db():
             topic TEXT
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS psychology_articles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -83,7 +82,6 @@ def init_db():
             topic TEXT
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS prompts (
             function_name TEXT PRIMARY KEY,
@@ -93,7 +91,6 @@ def init_db():
             updated_at TEXT
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_visits (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -104,7 +101,6 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(user_id)
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS group_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -116,7 +112,6 @@ def init_db():
             FOREIGN KEY (chat_id) REFERENCES group_chats(chat_id)
         )
     ''')
-    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS messages_cache (
             user_id INTEGER,
