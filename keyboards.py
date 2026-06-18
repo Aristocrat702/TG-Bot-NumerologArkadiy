@@ -18,39 +18,26 @@ psycho_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🧠 ПСИХОТЕСТ", callback_data="psycho_test")],
     [InlineKeyboardButton(text="😊 ДНЕВНИК НАСТРОЕНИЯ", callback_data="mood_diary")],
     [InlineKeyboardButton(text="🎨 СТИЛЬ И УДАЧА", callback_data="style_test")],
-    [InlineKeyboardButton(text="📘 МОИ РЕЗУЛЬТАТЫ ТЕСТА", callback_data="my_psycho_result")],
+    [InlineKeyboardButton(text="📘 МОИ РЕЗУЛЬТАТЫ", callback_data="my_psycho_result")],
     [InlineKeyboardButton(text="🔙 НАЗАД", callback_data="psycho_back")]
 ])
 
 # ========== ПОДМЕНЮ АСТРОЛОГИИ ==========
 astro_submenu = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="🌌 Натальная карта", callback_data="astro_natal")],
+    [InlineKeyboardButton(text="🔄 Транзиты", callback_data="astro_transits")],
+    [InlineKeyboardButton(text="☀️ Соляр", callback_data="astro_solar")],
     [InlineKeyboardButton(text="📅 Гороскоп на день", callback_data="horoscope_daily")],
-    [InlineKeyboardButton(text="🔄 Транзиты (тизер)", callback_data="astro_transits")],
+    [InlineKeyboardButton(text="📆 Гороскоп на месяц", callback_data="horoscope_monthly")],
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ========== ПОДМЕНЮ ЭКСКЛЮЗИВ ==========
-premium_submenu = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="🔮 Полная матрица судьбы", callback_data="premium_matrix")],
-    [InlineKeyboardButton(text="💸 Денежный код", callback_data="premium_money_code")],
-    [InlineKeyboardButton(text="🌌 Полная натальная карта", callback_data="premium_natal")],
-    [InlineKeyboardButton(text="☀️ Соляр", callback_data="premium_solar")],
-    [InlineKeyboardButton(text="📆 Гороскоп на месяц", callback_data="premium_horoscope_monthly")],
-    [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
-])
-
-# ========== ПОДМЕНЮ СЕКСОЛОГИИ ==========
-sexology_submenu = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="❓ Задать вопрос", callback_data="sexology_ask")],
-    [InlineKeyboardButton(text="📚 Статьи", callback_data="sexology_articles")],
-    [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
-])
-
-# ========== ПРОФИЛЬ ==========
+# ========== ПРОФИЛЬ (основное меню) ==========
 profile_main_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings")],
     [InlineKeyboardButton(text="⭐ КУПИТЬ ПОДПИСКУ", callback_data="buy_subscription"),
      InlineKeyboardButton(text="🎁 ПОДАРИТЬ ПОДПИСКУ", callback_data="gift_subscription")],
+    [InlineKeyboardButton(text="💸 ДЕНЕЖНЫЙ КОД", callback_data="money_code")],
     [InlineKeyboardButton(text="🎁 РЕФЕРАЛЫ", callback_data="referral_info"),
      InlineKeyboardButton(text="🏆 ДОСТИЖЕНИЯ", callback_data="achievements")],
     [InlineKeyboardButton(text="🏆 РЕЙТИНГ", callback_data="leaderboard"),
@@ -71,7 +58,7 @@ profile_settings_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_profile")]
 ])
 
-# ========== ОСТАЛЬНЫЕ ==========
+# ========== БЫСТРЫЕ ТЕМЫ ==========
 quick_topics_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="💰 Деньги", callback_data="quick_topic_money"),
      InlineKeyboardButton(text="❤️ Любовь", callback_data="quick_topic_love")],
@@ -93,24 +80,32 @@ challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ========== АДМИН-МЕНЮ (с новыми кнопками) ==========
+# ========== АДМИН-МЕНЮ (обновлённое) ==========
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="📊 СТАТИСТИКА АКТИВНОСТИ"), KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ")],
-        [KeyboardButton(text="✉️ РАССЫЛКА"), KeyboardButton(text="💰 ВЫДАТЬ ПОДПИСКУ")],
-        [KeyboardButton(text="🎫 ПРОМОКОДЫ"), KeyboardButton(text="🔧 ПРОМПТ")],
-        [KeyboardButton(text="📤 ЭКСПОРТ БАЗЫ"), KeyboardButton(text="📤 ЭКСПОРТ АКТИВНОСТИ")],
+        # Длинные кнопки – по одной на строку
+        [KeyboardButton(text="📊 СТАТИСТИКА АКТИВНОСТИ")],
+        # Короткие – по две
+        [KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ"), KeyboardButton(text="✉️ РАССЫЛКА")],
+        [KeyboardButton(text="💰 ВЫДАТЬ ПОДПИСКУ"), KeyboardButton(text="🎫 ПРОМОКОДЫ")],
+        [KeyboardButton(text="🔧 ПРОМПТ"), KeyboardButton(text="📤 ЭКСПОРТ БАЗЫ")],
+        # Длинная кнопка
+        [KeyboardButton(text="📤 ЭКСПОРТ АКТИВНОСТИ")],
+        # Две длинные – в паре
         [KeyboardButton(text="📥 СБОР СООБЩЕНИЙ"), KeyboardButton(text="📤 ВЫГРУЗИТЬ СООБЩЕНИЯ")],
         [KeyboardButton(text="🚫 БЛЭК-ЛИСТ"), KeyboardButton(text="💬 ОТВЕТИТЬ")],
         [KeyboardButton(text="💰 ЦЕНА ПОДПИСКИ"), KeyboardButton(text="🏆 ЛИДЕРБОРД")],
         [KeyboardButton(text="📋 ЛОГИ"), KeyboardButton(text="👤 ИНФО ПОЛЬЗОВАТЕЛЯ")],
         [KeyboardButton(text="👥 УПРАВЛЕНИЕ ГРУППАМИ"), KeyboardButton(text="📤 ТЕСТ ГРУППЫ")],
-        [KeyboardButton(text="🔧 УПРАВЛЕНИЕ ПРОМПТАМИ"), KeyboardButton(text="📰 СТАТЬИ СЕКСОЛОГИИ")],
+        # Длинные кнопки – по одной
+        [KeyboardButton(text="🔧 УПРАВЛЕНИЕ ПРОМПТАМИ")],
+        [KeyboardButton(text="📰 СТАТЬИ СЕКСОЛОГИИ")],
         [KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
     ],
     resize_keyboard=True
 )
 
+# ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 def cancel_button(callback_data: str = "cancel_action") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="❌ Отмена", callback_data=callback_data)]
