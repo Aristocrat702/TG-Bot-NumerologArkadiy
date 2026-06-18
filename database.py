@@ -5,14 +5,25 @@ import time
 DB_PATH = "arkadiy_bot.db"
 
 def get_connection():
-    conn = sqlite3.connect(DB_PATH)
+    """Возвращает соединение с БД с таймаутом 20 секунд."""
+    conn = sqlite3.connect(DB_PATH, timeout=20)
     conn.row_factory = sqlite3.Row
     return conn
+
+def table_exists(cursor, table_name):
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+    return cursor.fetchone() is not None
 
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
     
+    # Если таблица users уже существует, пропускаем создание (чтобы избежать блокировок)
+    if table_exists(cursor, "users"):
+        conn.close()
+        return
+    
+    # Создание таблиц
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
