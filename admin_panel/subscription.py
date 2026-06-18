@@ -1,7 +1,7 @@
 from aiogram import types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from database import get_connection
+from database import get_connection, create_user, get_user
 from keyboards import admin_menu, cancel_button
 from utils import is_admin, add_subscription_days, admin_log
 from .states import AdminStates
@@ -44,44 +44,64 @@ def register_subscription_handlers(dp, bot, admin_ids):
             return
 
         user_id = None
+        user_name = None
         conn = get_connection()
         cursor = conn.cursor()
 
+        # Поиск по @username
         if query.startswith("@"):
             username = query[1:]
             try:
                 chat = await bot.get_chat(f"@{username}")
                 user_id = chat.id
-            except:
+                user_name = chat.first_name or chat.username
+            except Exception as e:
                 await message.answer(
-                    f"Пользователь @{username} не найден в Telegram.",
+                    f"Пользователь @{username} не найден в Telegram. Ошибка: {e}",
                     reply_markup=cancel_button("admin_cancel_action")
                 )
                 conn.close()
                 return
         else:
+            # Поиск по ID или имени
             if query.isdigit():
-                cursor.execute("SELECT user_id, name FROM users WHERE user_id = ?", (int(query),))
+                uid = int(query)
+                # Проверяем в БД
+                cursor.execute("SELECT user_id, name FROM users WHERE user_id = ?", (uid,))
                 row = cursor.fetchone()
                 if row:
                     user_id = row[0]
+                    user_name = row[1]
                 else:
-                    await message.answer(
-                        f"Пользователь с ID {query} не найден в БД.",
-                        reply_markup=cancel_button("admin_cancel_action")
-                    )
-                    conn.close()
-                    return
+                    # Пробуем получить из Telegram по ID
+                    try:
+                        chat = await bot.get_chat(uid)
+                        user_id = chat.id
+                        user_name = chat.first_name or chat.username or str(uid)
+                    except:
+                        await message.answer(
+                            f"Пользователь с ID {uid} не найден ни в БД, ни в Telegram.",
+                            reply_markup=cancel_button("admin_cancel_action")
+                        )
+                        conn.close()
+                        return
             else:
+                # Поиск по имени в БД
                 cursor.execute("SELECT user_id, name FROM users WHERE LOWER(name) LIKE ?", (f"%{query.lower()}%",))
                 rows = cursor.fetchall()
                 if len(rows) == 0:
-                    await message.answer(
-                        f"Пользователь с именем «{query}» не найден.",
-                        reply_markup=cancel_button("admin_cancel_action")
-                    )
-                    conn.close()
-                    return
+                    # Не нашли в БД – пробуем поискать по username в Telegram (без @)
+                    try:
+                        chat = await bot.get_chat(f"@{query}")
+                        user_id = chat.id
+                        user_name = chat.first_name or chat.username
+                    except:
+                        await message.answer(
+                            f"Пользователь с именем «{query}» не найден ни в БД, ни в Telegram.",
+                            reply_markup=cancel_button("admin_cancel_action")
+                        )
+                        conn.close()
+                        return
                 elif len(rows) > 1:
                     kb = InlineKeyboardMarkup(inline_keyboard=[
                         [InlineKeyboardButton(text=f"{row[1]} (ID {row[0]})", callback_data=f"select_user_{row[0]}")]
@@ -94,9 +114,16 @@ def register_subscription_handlers(dp, bot, admin_ids):
                     return
                 else:
                     user_id = rows[0][0]
-        conn.close()
+                    user_name = rows[0][1]
 
+        # Если нашли user_id, но его нет в БД – создаём
         if user_id:
+            existing = get_user(user_id)
+            if not existing:
+                # Создаём запись с базовыми данными
+                create_user(user_id, name=user_name or str(user_id), birth_date=None, destiny_number=0)
+                await message.answer(f"👤 Пользователь {user_id} ({user_name}) был автоматически добавлен в БД.")
+            # Сохраняем в состояние
             await state.update_data(give_uid=user_id, give_days=days)
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="✅ Да", callback_data="confirm_give_yes")],
@@ -107,8 +134,10 @@ def register_subscription_handlers(dp, bot, admin_ids):
             cursor2.execute("SELECT name FROM users WHERE user_id=?", (user_id,))
             row2 = cursor2.fetchone()
             conn2.close()
-            name = row2[0] if row2 and row2[0] else "без имени"
+            name = row2[0] if row2 and row2[0] else user_name or "без имени"
             await message.answer(f"Выдать подписку на {days} дней пользователю {user_id} ({name})? Подтвердите.", reply_markup=kb)
+
+        conn.close()
 
     @dp.callback_query(F.data.startswith("select_user_"), AdminStates.waiting_confirm_action)
     async def select_user_callback(callback: types.CallbackQuery, state: FSMContext):
@@ -136,7 +165,10 @@ def register_subscription_handlers(dp, bot, admin_ids):
         days = data.get("give_days")
         add_subscription_days(uid, days, check_referral=True, admin_id=callback.from_user.id)
         await callback.message.answer(f"Выдана подписка на {days} дней пользователю {uid}", reply_markup=admin_menu)
-        await bot.send_message(uid, f"Администратор выдал вам подписку на {days} дней!")
+        try:
+            await bot.send_message(uid, f"Администратор выдал вам подписку на {days} дней! Теперь вам доступны все премиум-функции бота.")
+        except:
+            pass
         await state.clear()
         await callback.answer()
 
