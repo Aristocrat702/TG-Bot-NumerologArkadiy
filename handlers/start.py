@@ -14,9 +14,16 @@ from utils import (
 )
 from utils.misc import log_user_visit_wrapper
 from utils.gender import detect_gender_by_name
-from settings import BOT_VERSION
+from settings import BOT_VERSION   # <-- добавлен импорт
 
 router = Router()
+
+# Список названий кнопок главного меню (чтобы отсекать их при вводе имени)
+MAIN_MENU_BUTTONS = [
+    "🔢 МОЁ ЧИСЛО", "🎁 КАРТА ДНЯ", "❤️ СОВМЕСТИМОСТЬ",
+    "💬 ЗАДАТЬ ВОПРОС", "🧠 ПСИХОЛОГИЯ", "🌟 АСТРОЛОГИЯ",
+    "💎 ЭКСКЛЮЗИВ", "🧠 СЕКСОЛОГИЯ", "👤 МОЙ ПРОФИЛЬ"
+]
 
 class UserStates(StatesGroup):
     waiting_full_name = State()
@@ -30,14 +37,11 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await message.answer("Вы заблокированы.")
         return
 
-    # В группах полностью игнорируем команду /start
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
         return
 
-    # Логируем визит
     log_user_visit_wrapper(user_id, source="start")
 
-    # Реферальная ссылка
     args = message.text.split()
     if len(args) > 1 and args[1].startswith("ref_"):
         referrer_id = int(args[1][4:])
@@ -56,14 +60,14 @@ async def cmd_start(message: types.Message, state: FSMContext):
 
     if row and row[0] and row[1]:
         user_version = row[2] if row[2] else "0.0.0"
-        if user_version != bot_version:
+        if user_version != BOT_VERSION:   # <-- используем BOT_VERSION
             conn = get_connection()
             cursor = conn.cursor()
-            cursor.execute("UPDATE users SET bot_version = ? WHERE user_id = ?", (bot_version, user_id))
+            cursor.execute("UPDATE users SET bot_version = ? WHERE user_id = ?", (BOT_VERSION, user_id))
             conn.commit()
             conn.close()
             await message.answer(
-                f"🔔 Обновление до версии {bot_version}!\n"
+                f"🔔 Обновление до версии {BOT_VERSION}!\n"
                 "• Психологический тест\n"
                 "• Дневник настроения\n"
                 "• Уровни и опыт\n"
@@ -72,23 +76,19 @@ async def cmd_start(message: types.Message, state: FSMContext):
                 reply_markup=main_menu
             )
         else:
-            greeting = "🔮 С возвращением"
-            # Обращение с учётом пола (если известен)
+            name = row[0]
             gender = row[3] if row[3] else "unknown"
             if gender == "male":
-                greeting += ", уважаемый!"
+                greeting = f"🔮 С возвращением, уважаемый {name}!"
             elif gender == "female":
-                greeting += ", дорогая!"
+                greeting = f"🔮 С возвращением, дорогая {name}!"
             else:
-                greeting += f", {row[0]}!"
-            await message.answer(
-                f"{greeting}",
-                reply_markup=main_menu
-            )
+                greeting = f"🔮 С возвращением, {name}!"
+            await message.answer(greeting, reply_markup=main_menu)
         await state.clear()
         return
 
-    # Новый пользователь – усиленное приветствие
+    # Новый пользователь – убираем клавиатуру, чтобы не нажимал кнопки
     first_name = message.from_user.first_name
     await message.answer(
         f"✨ Добро пожаловать, {first_name}!\n\n"
@@ -102,7 +102,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
         "💸 Рассчитать денежный код и стратегию увеличения дохода (по подписке)\n"
         "🧠 Задать вопросы по сексологии и читать полезные статьи\n\n"
         "💎 Подписка (всего 249 ₽/мес) открывает все эксклюзивные функции.\n\n"
-        "Для начала давайте познакомимся. Как вас зовут?"
+        "Для начала давайте познакомимся. Как вас зовут?",
+        reply_markup=types.ReplyKeyboardRemove()  # убираем клавиатуру
     )
     await state.set_state(UserStates.waiting_full_name)
 
@@ -110,13 +111,20 @@ async def cmd_start(message: types.Message, state: FSMContext):
 async def process_full_name(message: types.Message, state: FSMContext):
     name = message.text.strip()
     if len(name) < 2:
-        await message.answer("Имя должно быть не менее 2 символов.")
+        await message.answer("Имя должно быть не менее 2 символов.", reply_markup=types.ReplyKeyboardRemove())
         return
-    # Определяем пол
+
+    # Если пользователь нажал кнопку меню вместо ввода имени – просим заново
+    if name in MAIN_MENU_BUTTONS:
+        await message.answer(
+            "Пожалуйста, введите ваше настоящее имя, а не кнопку меню.",
+            reply_markup=types.ReplyKeyboardRemove()
+        )
+        return
+
     gender = await detect_gender_by_name(name)
     await state.update_data(name=name, gender=gender)
     
-    # Обращение с учётом пола
     if gender == "male":
         address = "дорогой"
     elif gender == "female":
@@ -126,7 +134,8 @@ async def process_full_name(message: types.Message, state: FSMContext):
     
     await message.answer(
         f"Отлично, {name}! {address.capitalize()}, теперь укажите вашу дату рождения в формате ДД.ММ.ГГГГ (например, 15.06.1985).\n\n"
-        "Это нужно для расчёта вашего числа судьбы."
+        "Это нужно для расчёта вашего числа судьбы.",
+        reply_markup=types.ReplyKeyboardRemove()  # убираем клавиатуру
     )
     await state.set_state(UserStates.waiting_birth_date_from_poll)
 
@@ -134,6 +143,15 @@ async def process_full_name(message: types.Message, state: FSMContext):
 async def process_birth_date_from_poll(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     text = message.text.strip()
+
+    # Если пользователь ввёл название кнопки – игнорируем
+    if text in MAIN_MENU_BUTTONS:
+        await message.answer(
+            "Пожалуйста, введите дату рождения в формате ДД.ММ.ГГГГ.",
+            reply_markup=types.ReplyKeyboardRemove()
+        )
+        return
+
     try:
         day, month, year = map(int, text.split('.'))
         birth_date = f"{day:02d}.{month:02d}.{year:04d}"
@@ -141,7 +159,7 @@ async def process_birth_date_from_poll(message: types.Message, state: FSMContext
         birth = datetime.date(year, month, day)
         age = today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
         if age < 18:
-            await message.answer("Работаю только с совершеннолетними.")
+            await message.answer("Работаю только с совершеннолетними.", reply_markup=types.ReplyKeyboardRemove())
             return
         destiny = calculate_destiny_number(birth_date)
         data = await state.get_data()
@@ -160,7 +178,6 @@ async def process_birth_date_from_poll(message: types.Message, state: FSMContext
         conn.commit()
         conn.close()
         
-        # Персонализированное поздравление
         if gender == "male":
             address = "уважаемый"
         elif gender == "female":
@@ -171,9 +188,12 @@ async def process_birth_date_from_poll(message: types.Message, state: FSMContext
         await message.answer(
             f"🔢 Ваше число судьбы: {destiny}\n\n"
             f"Спасибо, {name}! Теперь вы можете использовать главное меню, {address}.",
-            reply_markup=main_menu
+            reply_markup=main_menu  # показываем главное меню после регистрации
         )
         grant_achievement(user_id, "first_calculation")
         await state.clear()
     except Exception:
-        await message.answer("Неверный формат. Введите дату в формате ДД.ММ.ГГГГ")
+        await message.answer(
+            "Неверный формат. Введите дату в формате ДД.ММ.ГГГГ.",
+            reply_markup=types.ReplyKeyboardRemove()
+        )
