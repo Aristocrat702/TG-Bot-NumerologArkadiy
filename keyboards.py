@@ -8,7 +8,7 @@ main_menu = ReplyKeyboardMarkup(
         [KeyboardButton(text="❤️ СОВМЕСТИМОСТЬ"), KeyboardButton(text="💬 КОНСУЛЬТАЦИЯ")],
         [KeyboardButton(text="🧠 ПСИХОЛОГИЯ"), KeyboardButton(text="🌟 АСТРОЛОГИЯ")],
         [KeyboardButton(text="💎 ЭКСКЛЮЗИВ"), KeyboardButton(text="🧠 СЕКСОЛОГИЯ")],
-        [KeyboardButton(text="🌙 ТОЛКОВАНИЕ СНОВ"), KeyboardButton(text="👤 МОЙ ПРОФИЛЬ")]  # <-- НОВАЯ КНОПКА
+        [KeyboardButton(text="🌙 ТОЛКОВАНИЕ СНОВ"), KeyboardButton(text="👤 МОЙ ПРОФИЛЬ")]
     ],
     resize_keyboard=True
 )
@@ -43,9 +43,8 @@ premium_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ========== ПОДМЕНЮ СЕКСОЛОГИИ ==========
+# ========== ПОДМЕНЮ СЕКСОЛОГИИ (БЕЗ КНОПКИ ВОПРОСА) ==========
 sexology_submenu = InlineKeyboardMarkup(inline_keyboard=[
-    [InlineKeyboardButton(text="❓ Задать вопрос", callback_data="sexology_ask")],
     [InlineKeyboardButton(text="📚 Статьи", callback_data="sexology_articles")],
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
@@ -97,7 +96,7 @@ challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ========== АДМИН-МЕНЮ (с единой кнопкой «СТАТЬИ») ==========
+# ========== АДМИН-МЕНЮ ==========
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📊 СТАТИСТИКА АКТИВНОСТИ")],

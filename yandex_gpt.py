@@ -20,27 +20,27 @@ async def get_yandex_gpt_response(prompt: str, user_id: int, function_name: str 
     if _failure_count >= 3 and (time.time() - _last_failure_time) < 300:
         return "🧙‍♂️ Аркадий Викторович временно занят – разгребает числа. Попробуйте через пару минут."
 
-    # ИСПРАВЛЕНО: если gender не передан, пытаемся определить, но только если user_id != 0
+    # Определяем пол, если не передан
     if gender is None and user_id != 0:
         user = get_user(user_id)
         if user:
-            # user может быть sqlite3.Row (индексный доступ) или dict
             if isinstance(user, dict):
                 gender = user.get("gender", "unknown")
             else:
-                # предполагаем, что поле gender на позиции 22 (см. структуру таблицы)
                 gender = user[22] if len(user) > 22 and user[22] else "unknown"
         else:
             gender = "unknown"
     elif gender is None:
         gender = "unknown"
 
+    # Получаем промпты для функции
     prompts = get_prompts_for_function(function_name)
     if prompts:
         system_prompt = prompts["system"]
     else:
         system_prompt = "Ты — Аркадий Викторович, практикующий нумеролог, психолог и астролог с 20-летним стажем..."
 
+    # Добавляем обращение по полу
     if gender == "male":
         system_prompt += " Обращайся к пользователю как к мужчине: используй «уважаемый», «дорогой», «мой хороший». Не используй женские обращения."
     elif gender == "female":
@@ -48,7 +48,22 @@ async def get_yandex_gpt_response(prompt: str, user_id: int, function_name: str 
     else:
         system_prompt += " Обращайся к пользователю нейтрально: «друг мой», «уважаемый» (универсально)."
 
-    # ===== УВЕЛИЧИВАЕМ ТОКЕНЫ ДЛЯ СТАТЕЙ =====
+    # ===== ДОБАВЛЯЕМ ИНСТРУКЦИЮ ПО ФОРМАТИРОВАНИЮ ОТВЕТОВ =====
+    system_prompt += (
+        "\n\n<b>ВАЖНОЕ ТРЕБОВАНИЕ ПО ФОРМАТИРОВАНИЮ:</b>\n"
+        "Все ответы должны быть отформатированы с использованием <b>HTML-тегов</b> для красивого и структурированного отображения.\n"
+        "Используй следующие теги:\n"
+        "• <b>жирный текст</b> — для заголовков и ключевых фраз\n"
+        "• <i>курсив</i> — для выделения важных мыслей\n"
+        "• <u>подчёркнутый</u> — для акцентов\n"
+        "• <code>код</code> — для чисел, дат, имён\n\n"
+        "Для разделения смысловых блоков используй эмодзи (например, 📌 🔹 💡 ⭐ ✅).\n"
+        "Структурируй ответ: заголовки, подпункты, итоговый вывод.\n"
+        "НЕ ИСПОЛЬЗУЙ Markdown (звёздочки **, подчёркивания __, и т.п.) — только HTML-теги и эмодзи.\n"
+        "Сделай ответ максимально наглядным и удобным для чтения в Telegram."
+    )
+
+    # Определяем max_tokens
     if function_name == "article_generation":
         max_tokens = 1500
     else:

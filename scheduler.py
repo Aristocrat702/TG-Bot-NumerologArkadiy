@@ -22,7 +22,7 @@ from utils.notifications import (
     generate_adaptive_14_days,
     generate_subscription_reminder
 )
-from utils.misc import get_inactivity_days, check_and_expire_subscriptions  # <-- ДОБАВЛЕНО
+from utils.misc import get_inactivity_days, check_and_expire_subscriptions
 
 # Импорты для статей
 from database import add_psychology_article, get_psychology_articles, add_sexology_article, get_sexology_articles, get_bot_config
@@ -65,7 +65,7 @@ async def send_group_messages(bot: Bot):
         is_long = (sent_count % 4 == 0)
         msg = await generate_unique_message(chat_id, is_long)
         try:
-            await bot.send_message(chat_id, msg, parse_mode="Markdown")
+            await bot.send_message(chat_id, msg, parse_mode="HTML")
             logging.info(f"✅ Отправлено сообщение в группу {chat_id}")
         except Exception as e:
             logging.error(f"❌ Ошибка отправки в группу {chat_id}: {e}")
@@ -95,6 +95,7 @@ async def generate_unique_message(chat_id: int, is_long: bool = False) -> str:
 - Избегай политики, религии, осуждения.
 - Не используй штампы вроде «вы должны».
 - Сообщение должно быть уникальным, не повторять предыдущие формулировки.
+- Используй HTML-форматирование: <b>жирный</b> для ключевых фраз, эмодзи для разделения блоков.
 Напиши только текст сообщения, без лишних вступлений.
 """
         response = await get_yandex_gpt_response(prompt, 0, function_name="group_messages")
@@ -151,7 +152,7 @@ async def send_night_greeting(bot: Bot):
             "Звёзды уже зажглись. Я тоже гашу свет. До встречи завтра."
         ])
         try:
-            await bot.send_message(chat_id, msg, parse_mode="Markdown")
+            await bot.send_message(chat_id, msg, parse_mode="HTML")
             cursor2.execute(
                 "INSERT INTO group_sent_log (chat_id, sent_at, message_hash, content_type) VALUES (?, ?, ?, ?)",
                 (chat_id, datetime.datetime.now().isoformat(), hashlib.sha256(msg.encode()).hexdigest(), "night_greeting")
@@ -193,7 +194,7 @@ async def send_morning_greeting(bot: Bot):
             "Утро – время для планов. Пусть сегодняшний день будет удачным."
         ])
         try:
-            await bot.send_message(chat_id, msg, parse_mode="Markdown")
+            await bot.send_message(chat_id, msg, parse_mode="HTML")
             cursor2.execute(
                 "INSERT INTO group_sent_log (chat_id, sent_at, message_hash, content_type) VALUES (?, ?, ?, ?)",
                 (chat_id, datetime.datetime.now().isoformat(), hashlib.sha256(msg.encode()).hexdigest(), "morning_greeting")
@@ -221,7 +222,7 @@ async def send_push_notification(bot: Bot, notification_type: str, generator_fun
             text, reply_markup = await generator_func(user_id, destiny or 1, is_subscriber)
             if not text:
                 continue
-            await bot.send_message(user_id, text, parse_mode="Markdown", reply_markup=reply_markup)
+            await bot.send_message(user_id, text, parse_mode="HTML", reply_markup=reply_markup)
         except Exception as e:
             logging.error(f"Ошибка отправки уведомления {notification_type} пользователю {user_id}: {e}")
         await asyncio.sleep(0.3)
@@ -264,7 +265,7 @@ async def send_adaptive_notifications(bot: Bot):
         else:
             continue
         try:
-            await bot.send_message(user_id, text, parse_mode="Markdown", reply_markup=reply_markup)
+            await bot.send_message(user_id, text, parse_mode="HTML", reply_markup=reply_markup)
             logging.info(f"Отправлено адаптивное уведомление пользователю {user_id} (дней: {days})")
         except Exception as e:
             logging.error(f"Ошибка отправки адаптивного уведомления пользователю {user_id}: {e}")
@@ -284,13 +285,13 @@ async def send_subscription_reminder(bot: Bot):
             end_date = datetime.datetime.fromisoformat(end_str)
             if end_date <= three_days_later and end_date > now:
                 text, reply_markup = await generate_subscription_reminder(user_id, destiny or 1)
-                await bot.send_message(user_id, text, parse_mode="Markdown", reply_markup=reply_markup)
+                await bot.send_message(user_id, text, parse_mode="HTML", reply_markup=reply_markup)
                 logging.info(f"Отправлено напоминание о подписке пользователю {user_id}")
         except Exception as e:
             logging.error(f"Ошибка отправки напоминания о подписке пользователю {user_id}: {e}")
         await asyncio.sleep(0.3)
 
-# ---------- СТАТЬИ ----------
+# ---------- СТАТЬИ (обновлённый промпт с HTML) ----------
 async def generate_sexology_articles(bot: Bot):
     conn = get_connection()
     cursor = conn.cursor()
@@ -304,7 +305,13 @@ async def generate_sexology_articles(bot: Bot):
         return
     topics = random.sample(SEXOLOGY_TOPICS, min(articles_per_week, len(SEXOLOGY_TOPICS)))
     for topic in topics:
-        prompt = f"Напиши короткую полезную статью (5-7 предложений) на тему '{topic}'. Используй стиль Аркадия Викторовича: тепло, профессионально, без сложных терминов. Добавь интригу в конце."
+        prompt = (
+            f"Напиши короткую полезную статью (5-7 предложений) на тему '{topic}'. "
+            "Используй стиль Аркадия Викторовича: тепло, профессионально, без сложных терминов. "
+            "Добавь интригу в конце. "
+            "Используй HTML-форматирование: <b>жирный</b> для ключевых фраз, эмодзи для разделения блоков. "
+            "Структурируй текст: введение, основная мысль, практический совет, итог."
+        )
         content = await get_yandex_gpt_response(prompt, 0, function_name="article_generation")
         add_sexology_article(topic, content, topic, "pending")
         logging.info(f"Сгенерирована статья сексологии на тему: {topic}")
@@ -323,15 +330,19 @@ async def generate_psychology_articles(bot: Bot):
         return
     topics = random.sample(PSYCHOLOGY_TOPICS, min(articles_per_week, len(PSYCHOLOGY_TOPICS)))
     for topic in topics:
-        prompt = f"Напиши короткую полезную статью (5-7 предложений) на тему '{topic}'. Используй стиль Аркадия Викторовича: тепло, профессионально, без сложных терминов. Добавь интригу в конце."
+        prompt = (
+            f"Напиши короткую полезную статью (5-7 предложений) на тему '{topic}'. "
+            "Используй стиль Аркадия Викторовича: тепло, профессионально, без сложных терминов. "
+            "Добавь интригу в конце. "
+            "Используй HTML-форматирование: <b>жирный</b> для ключевых фраз, эмодзи для разделения блоков. "
+            "Структурируй текст: введение, основная мысль, практический совет, итог."
+        )
         content = await get_yandex_gpt_response(prompt, 0, function_name="article_generation")
         add_psychology_article(topic, content, topic, "pending")
         logging.info(f"Сгенерирована психологическая статья на тему: {topic}")
     logging.info("Генерация психологических статей завершена")
 
-# ---------- ПРОЧИЕ (заглушки) ----------
-# Функция check_expired_subscriptions УДАЛЕНА – теперь используется check_and_expire_subscriptions из utils.misc
-
+# ---------- ПРОЧИЕ ----------
 async def weekly_leaderboard(bot: Bot, admin_id: int = None):
     logging.info("weekly_leaderboard выполнена (заглушка)")
 
@@ -350,7 +361,7 @@ def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     scheduler.add_job(send_subscription_reminder, CronTrigger(hour=10, minute=0), args=[bot], id="subscription_reminder")
     scheduler.add_job(generate_sexology_articles, CronTrigger(day_of_week='tue,fri', hour=12, minute=0), args=[bot], id="generate_sexology_articles")
     scheduler.add_job(generate_psychology_articles, CronTrigger(day_of_week='mon,thu', hour=12, minute=0), args=[bot], id="generate_psychology_articles")
-    # ИСПРАВЛЕНО: теперь реальная проверка подписок
+    # Проверка подписок
     scheduler.add_job(check_and_expire_subscriptions, CronTrigger(hour=2, minute=0), id="check_expired")
     scheduler.add_job(backup_database, CronTrigger(hour=3, minute=0), id="backup_db")
     scheduler.add_job(weekly_leaderboard, CronTrigger(day_of_week='sun', hour=20, minute=0), args=[bot, admin_id], id="weekly_lb")

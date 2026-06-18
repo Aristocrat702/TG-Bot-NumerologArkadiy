@@ -22,12 +22,12 @@ async def dream_menu(message: types.Message):
         await message.answer("Доступно только в личном чате.")
         return
     await message.answer(
-        "🌙 *Толкование снов*\n\n"
+        "🌙 <b>Толкование снов</b>\n\n"
         "Опишите ваш сон кратко (2-3 предложения), и я дам его толкование.\n"
-        "Для бесплатных пользователей – короткий ответ с основной мыслью.\n"
+        "Для бесплатных пользователей – короткий ответ с основной идеей.\n"
         "По подписке – полный разбор с учётом вашего числа судьбы и знака зодиака.\n\n"
         "Также вы можете посмотреть свои предыдущие сны.",
-        parse_mode="Markdown",
+        parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📝 Рассказать сон", callback_data="dream_new")],
             [InlineKeyboardButton(text="📖 Мои сны", callback_data="dream_history")],
@@ -79,12 +79,21 @@ async def dream_process(message: types.Message, state: FSMContext):
         zodiac = get_zodiac_sign(row[1])
 
     if is_subscriber:
-        prompt = f"Человек с числом судьбы {destiny} и знаком зодиака {zodiac} увидел сон: {dream_text}. Дай развёрнутое толкование (8-10 предложений) с практическими советами, учти его число и знак. Будь тёплым и мудрым."
+        prompt = (
+            f"Человек с числом судьбы {destiny} и знаком зодиака {zodiac} увидел сон: {dream_text}. "
+            "Дай развёрнутое толкование (8-10 предложений) с практическими советами, учти его число и знак. "
+            "Структурируй ответ: ключевые символы, связь с текущей ситуацией, задание на день. "
+            "Будь тёплым и мудрым. Используй HTML-форматирование."
+        )
         interpretation = await get_yandex_gpt_response(prompt, user_id, function_name="dream_interpretation", gender=gender)
         reply_markup = menu_button
     else:
-        # ИСПРАВЛЕНО: убрана фраза "с интригой"
-        prompt = f"Человек увидел сон: {dream_text}. Дай краткое толкование (4-5 предложений), которое затронет его глубокие переживания. В конце добавь фразу: «Полное толкование с практическими рекомендациями – по подписке»."
+        prompt = (
+            f"Человек увидел сон: {dream_text}. "
+            "Дай краткое толкование (4-5 предложений), которое затронет его глубокие переживания. "
+            "В конце добавь фразу: «Полное толкование с практическими рекомендациями – по подписке». "
+            "Используй HTML-форматирование."
+        )
         interpretation = await get_yandex_gpt_response(prompt, user_id, function_name="dream_interpretation", gender=gender)
         reply_markup = get_subscription_button()
 
@@ -93,8 +102,8 @@ async def dream_process(message: types.Message, state: FSMContext):
     save_dream(user_id, dream_text, interpretation)
     update_last_active(user_id)
     await message.answer(
-        f"🌙 *Толкование вашего сна:*\n\n{interpretation}",
-        parse_mode="Markdown",
+        f"🌙 <b>Толкование вашего сна:</b>\n\n{interpretation}",
+        parse_mode="HTML",
         reply_markup=reply_markup
     )
     await state.clear()
@@ -111,10 +120,10 @@ async def dream_history(callback: types.CallbackQuery):
         await callback.message.answer("Вы ещё не записывали сны. Расскажите свой первый сон!", reply_markup=menu_button)
         await callback.answer()
         return
-    text = "📖 *Ваши последние сны:*\n\n"
+    text = "📖 <b>Ваши последние сны:</b>\n\n"
     for i, (dream, interp, date) in enumerate(dreams, 1):
         text += f"{i}. 🗓️ {date[:10]}\n"
         text += f"📝 Сон: {dream[:100]}...\n"
         text += f"🔮 Толкование: {interp[:150]}...\n\n"
-    await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
+    await callback.message.answer(text, parse_mode="HTML", reply_markup=menu_button)
     await callback.answer()

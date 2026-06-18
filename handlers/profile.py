@@ -14,7 +14,7 @@ from utils import (
     get_user_subscription_status, calculate_level,
     get_city_coords, get_timezone_by_coords, translate_timezone,
     format_subscription_remaining, get_bot_config, set_bot_config,
-    get_user_gender
+    get_user_gender, get_user_stats, get_leaderboard
 )
 from settings import LEVELS, PAYMENTS_TOKEN
 
@@ -89,22 +89,24 @@ async def show_profile(message: types.Message):
     level_name = LEVELS.get(level, {}).get("name", "Новичок")
     progress = int((xp / next_xp) * 20) if next_xp > 0 else 0
     bar = "█" * progress + "░" * (20 - progress)
-    text = (f"┌─────────────────────┐\n"
-            f"│ 👤 Имя: {name}\n"
-            f"│ 🎂 Дата: {birth}\n"
-            f"│ 🕒 Время рождения: {birth_time}\n"
-            f"│ 📍 Место: {birth_place}\n"
-            f"│ 🔢 Число: {destiny}\n"
-            f"│ 💳 Подписка: {'Активна' if sub_active else 'Неактивна'}\n"
-            f"│ ⏳ {remaining_str}\n"
-            f"│ 📅 До: {end_date_str}\n"
-            f"│ 🎁 Бесплатных вопросов: {remaining_q}/5\n"
-            f"│ 🏆 Уровень: {level} «{level_name}»\n"
-            f"│ 📊 [{bar}] {xp}/{next_xp} XP\n"
-            f"│ 📞 Телефон: {phone}\n"
-            f"│ 🌍 Город: {city}\n"
-            f"└─────────────────────┘")
-    await message.answer(text, parse_mode="Markdown", reply_markup=profile_main_menu)
+    text = (
+        f"┌─────────────────────┐\n"
+        f"│ 👤 Имя: {name}\n"
+        f"│ 🎂 Дата: {birth}\n"
+        f"│ 🕒 Время рождения: {birth_time}\n"
+        f"│ 📍 Место: {birth_place}\n"
+        f"│ 🔢 Число: {destiny}\n"
+        f"│ 💳 Подписка: {'Активна' if sub_active else 'Неактивна'}\n"
+        f"│ ⏳ {remaining_str}\n"
+        f"│ 📅 До: {end_date_str}\n"
+        f"│ 🎁 Бесплатных вопросов: {remaining_q}/5\n"
+        f"│ 🏆 Уровень: {level} «{level_name}»\n"
+        f"│ 📊 [{bar}] {xp}/{next_xp} XP\n"
+        f"│ 📞 Телефон: {phone}\n"
+        f"│ 🌍 Город: {city}\n"
+        f"└─────────────────────┘"
+    )
+    await message.answer(text, parse_mode="HTML", reply_markup=profile_main_menu)
 
 # ==================== ВОЗВРАТ В ПРОФИЛЬ ====================
 @router.callback_query(F.data == "back_to_profile")
@@ -113,7 +115,7 @@ async def back_to_profile(callback: types.CallbackQuery):
         await callback.message.answer("Доступно только в личном чате.")
         await callback.answer()
         return
-    await callback.message.edit_text("👤 *Мой профиль*", parse_mode="Markdown", reply_markup=profile_main_menu)
+    await callback.message.edit_text("👤 <b>Мой профиль</b>", parse_mode="HTML", reply_markup=profile_main_menu)
     await callback.answer()
 
 # ==================== НАСТРОЙКИ ====================
@@ -124,8 +126,8 @@ async def settings_menu(callback: types.CallbackQuery):
         await callback.answer()
         return
     await callback.message.edit_text(
-        "⚙️ *Настройки*\n\nВыберите, что хотите изменить:",
-        parse_mode="Markdown",
+        "⚙️ <b>Настройки</b>\n\nВыберите, что хотите изменить:",
+        parse_mode="HTML",
         reply_markup=profile_settings_menu
     )
     await callback.answer()
@@ -157,7 +159,7 @@ async def change_name_save(message: types.Message, state: FSMContext):
     conn.commit()
     conn.close()
     update_last_active(user_id)
-    await message.answer(f"Имя изменено на {new_name}.", reply_markup=main_menu)
+    await message.answer(f"✅ Имя изменено на <b>{new_name}</b>.", parse_mode="HTML", reply_markup=main_menu)
     await state.clear()
 
 # ==================== РЕФЕРАЛЫ ====================
@@ -171,17 +173,17 @@ async def referral_info(callback: types.CallbackQuery):
     link = generate_referral_link(user_id)
     stats = get_referral_stats(user_id)
     text = (
-        "🎁 *Реферальная программа*\n\n"
+        "🎁 <b>Реферальная программа</b>\n\n"
         "Отправьте другу ссылку. Как только друг оформит подписку, вы получите +7 дней полного доступа в подарок.\n\n"
         f"Ваша ссылка: {link}\n\n"
-        f"Приведено друзей с подпиской: *{stats['paid']}*\n"
-        f"Всего переходов: *{stats['total']}*\n\n"
+        f"Приведено друзей с подпиской: <b>{stats['paid']}</b>\n"
+        f"Всего переходов: <b>{stats['total']}</b>\n\n"
         "Чем больше друзей, тем больше бонусных дней!"
     )
-    await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
+    await callback.message.answer(text, parse_mode="HTML", reply_markup=menu_button)
     await callback.answer()
 
-# ==================== ДОСТИЖЕНИЯ (обновлённые) ====================
+# ==================== ДОСТИЖЕНИЯ ====================
 ACHIEVEMENTS_TRANSLATE = {
     "first_calculation": {"name": "Первый расчёт числа судьбы", "xp": 50, "icon": "⭐"},
     "challenge_completed": {"name": "Челлендж 7 дней пройден", "xp": 100, "icon": "🔥"},
@@ -203,11 +205,11 @@ async def show_achievements(callback: types.CallbackQuery):
     if not achievements:
         text = "🏆 Пока нет достижений. Начните с расчёта числа судьбы!"
     else:
-        text = "🏆 *Ваши достижения:*\n\n"
+        text = "🏆 <b>Ваши достижения:</b>\n\n"
         for ach, date in achievements:
             info = ACHIEVEMENTS_TRANSLATE.get(ach, {"name": ach, "xp": 0, "icon": "🏅"})
             text += f"{info['icon']} {info['name']} — {date[:10]} (+{info['xp']} XP)\n"
-    await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
+    await callback.message.answer(text, parse_mode="HTML", reply_markup=menu_button)
     await callback.answer()
 
 # ==================== ТЕЛЕФОН ====================
@@ -251,7 +253,7 @@ async def save_phone(message: types.Message, state: FSMContext):
     cursor.execute("UPDATE users SET phone = ? WHERE user_id = ?", (phone, user_id))
     conn.commit()
     conn.close()
-    await message.answer("Спасибо! Номер телефона сохранён (или обновлён).", reply_markup=main_menu)
+    await message.answer("✅ Спасибо! Номер телефона сохранён (или обновлён).", reply_markup=main_menu)
     await state.clear()
 
 # ==================== ГОРОД ====================
@@ -295,7 +297,7 @@ async def process_city(message: types.Message, state: FSMContext):
         cursor.execute("UPDATE users SET city = ?, timezone = ? WHERE user_id = ?", (city_input, timezone_raw, user_id))
         conn.commit()
         conn.close()
-        await status_msg.edit_text(f"✅ Город *{city_input}* сохранён.\n🗓️ Часовой пояс: {timezone_ru}")
+        await status_msg.edit_text(f"✅ Город <b>{city_input}</b> сохранён.\n🗓️ Часовой пояс: {timezone_ru}", parse_mode="HTML")
     else:
         await status_msg.edit_text("❌ Не удалось определить город. Попробуйте написать его на русском или английском языке более точно.")
     await state.clear()
@@ -365,11 +367,11 @@ async def show_history(callback: types.CallbackQuery):
     if not history:
         text = "История пуста."
     else:
-        text = "📜 *Последние 10 сообщений:*\n\n"
+        text = "📜 <b>Последние 10 сообщений:</b>\n\n"
         for role, msg, ts in history:
             emoji = "👤" if role == "user" else "🤖"
             text += f"{ts[:16]} {emoji} {msg[:80]}\n"
-    await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
+    await callback.message.answer(text, parse_mode="HTML", reply_markup=menu_button)
     await callback.answer()
 
 # ==================== ДОБАВИТЬ В ГРУППУ ====================
@@ -382,16 +384,16 @@ async def add_to_group_info(callback: types.CallbackQuery):
     bot_username = (await callback.bot.get_me()).username
     invite_link = f"https://t.me/{bot_username}?startgroup=start"
     text = (
-        "👥 *Как добавить бота в групповой чат или канал:*\n\n"
+        "👥 <b>Как добавить бота в групповой чат или канал:</b>\n\n"
         "1. Нажмите на ссылку ниже, чтобы добавить бота в ваш чат:\n"
-        f"👉 [Добавить бота в группу]({invite_link})\n\n"
-        "2. Бот будет работать как обычный участник – права администратора **не нужны**.\n"
-        "3. После добавления просто напишите в чате команду `/startarkadiy` – и бот активируется.\n"
+        f"👉 <a href='{invite_link}'>Добавить бота в группу</a>\n\n"
+        "2. Бот будет работать как обычный участник – права администратора <b>не нужны</b>.\n"
+        "3. После добавления просто напишите в чате команду <code>/startarkadiy</code> – и бот активируется.\n"
         "4. Бот будет присылать полезные мысли, психологические советы и поддержку (до 2 сообщений в час).\n"
-        "5. Если захотите отключить – напишите в чате `/stoparkadiy`.\n\n"
+        "5. Если захотите отключить – напишите в чате <code>/stoparkadiy</code>.\n\n"
         "Никаких сложных настроек не требуется. Всё работает автоматически."
     )
-    await callback.message.answer(text, parse_mode="Markdown", disable_web_page_preview=True)
+    await callback.message.answer(text, parse_mode="HTML", disable_web_page_preview=True)
     await callback.answer()
 
 # ==================== О БОТЕ ====================
@@ -402,16 +404,16 @@ async def show_help(callback: types.CallbackQuery):
         await callback.answer()
         return
     text = (
-        "ℹ️ *О боте «Аркадий Викторович»*\n\n"
+        "ℹ️ <b>О боте «Аркадий Викторович»</b>\n\n"
         "Я — ваш личный нумеролог, психолог, астролог и сексолог. Вот что я умею:\n\n"
-        "🧠 *Бесплатные возможности:*\n"
+        "🧠 <b>Бесплатные возможности:</b>\n"
         "• 🔢 Ваше число судьбы и его характеристика\n"
         "• ❤️ Совместимость с партнёром\n"
         "• 🎁 Карта дня с прогнозом и погодой\n"
         "• 💬 Консультация – 5 бесплатных вопросов в день\n"
         "• 🧠 Психотест, дневник настроения, самодиагностика стресса, тип личности\n"
         "• 🌟 Гороскоп на день\n\n"
-        "💎 *Подписка (всего 249 ₽/мес) — это ваш ключ к полному доступу:*\n"
+        "💎 <b>Подписка (всего 249 ₽/мес) — это ваш ключ к полному доступу:</b>\n"
         "• 🔮 Полная матрица судьбы (22 аркана) с PDF-отчётом\n"
         "• 💬 Безлимитные консультации\n"
         "• 📅 Гороскоп на месяц и ежедневные прогнозы\n"
@@ -419,15 +421,15 @@ async def show_help(callback: types.CallbackQuery):
         "• 💸 Денежный код – персональная стратегия увеличения дохода\n"
         "• 📊 Персональные психологические рекомендации\n"
         "• 🔔 Ежедневные мотивирующие фразы и аффирмации\n\n"
-        "👥 *Для групповых чатов:*\n"
+        "👥 <b>Для групповых чатов:</b>\n"
         "• Активация: /startarkadiy\n"
         "• Деактивация: /stoparkadiy\n"
         "• Бот автоматически делится полезными мыслями и поддержкой.\n\n"
-        "📌 *Управление ботом — только через кнопки меню!*"
-        "\n\n👤 *Поддержка:* @Aristocrat102\n"
+        "📌 Управление ботом — только через кнопки меню!\n\n"
+        "👤 <b>Поддержка:</b> @Aristocrat102\n"
         "Версия бота: 2.1.0"
     )
-    await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
+    await callback.message.answer(text, parse_mode="HTML", reply_markup=menu_button)
     await callback.answer()
 
 # ==================== КУПИТЬ ПОДПИСКУ ====================
@@ -505,7 +507,7 @@ async def successful_payment(message: types.Message):
         gifted_user_id = int(payload.split("_")[1])
         add_subscription_days(gifted_user_id, 30, check_referral=False, admin_id=0)
         grant_achievement(gifted_user_id, "subscription_bought")
-        await message.bot.send_message(gifted_user_id, "🎁 *Вам подарили месяц подписки!*\n\nТеперь вам доступны: матрица судьбы, безлимитные вопросы, прогнозы, гороскопы и психологические практики. Спасибо вашему другу!", parse_mode="Markdown")
+        await message.bot.send_message(gifted_user_id, "🎁 <b>Вам подарили месяц подписки!</b>\n\nТеперь вам доступны: матрица судьбы, безлимитные вопросы, прогнозы, гороскопы и психологические практики. Спасибо вашему другу!", parse_mode="HTML")
         await message.answer("✅ Подарок отправлен! Спасибо за доверие.")
     else:
         add_subscription_days(message.from_user.id, 30, check_referral=False, admin_id=0)
@@ -520,34 +522,20 @@ async def my_stats(callback: types.CallbackQuery):
         await callback.answer()
         return
     user_id = callback.from_user.id
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM dialog_history WHERE user_id = ? AND role = 'user'", (user_id,))
-    total_questions = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM psycho_results WHERE user_id = ?", (user_id,))
-    total_tests = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM mood_log WHERE user_id = ?", (user_id,))
-    total_moods = cursor.fetchone()[0]
-    cursor.execute("SELECT streak_days FROM users WHERE user_id = ?", (user_id,))
-    row = cursor.fetchone()
-    streak = row[0] if row and row[0] is not None else 0
-    # Количество достижений
-    cursor.execute("SELECT COUNT(*) FROM achievements WHERE user_id = ?", (user_id,))
-    total_achievements = cursor.fetchone()[0]
-    conn.close()
+    stats = get_user_stats(user_id)
     level, xp, next_xp = calculate_level(user_id)
     level_name = LEVELS.get(level, {}).get("name", "Новичок")
     text = (
-        f"📊 *Моя статистика*\n\n"
-        f"💬 Задано вопросов: {total_questions}\n"
-        f"🧠 Пройдено тестов: {total_tests}\n"
-        f"😊 Записей настроения: {total_moods}\n"
-        f"🔥 Дней подряд в боте: {streak}\n"
-        f"🏆 Достижений: {total_achievements}\n"
+        f"📊 <b>Моя статистика</b>\n\n"
+        f"💬 Задано вопросов: {stats['total_questions']}\n"
+        f"🧠 Пройдено тестов: {stats['total_tests']}\n"
+        f"😊 Записей настроения: {stats['total_moods']}\n"
+        f"🔥 Дней подряд в боте: {stats['streak']}\n"
+        f"🏆 Достижений: {len(get_achievements(user_id))}\n"
         f"🏆 Уровень: {level} «{level_name}»\n"
         f"⭐ XP: {xp} / {next_xp}"
     )
-    await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
+    await callback.message.answer(text, parse_mode="HTML", reply_markup=menu_button)
     await callback.answer()
 
 # ==================== КОМАНДЫ ДЛЯ ПОДПИСКИ НА РАССЫЛКУ ====================
@@ -578,13 +566,12 @@ async def show_leaderboard(callback: types.CallbackQuery):
         await callback.message.answer("Доступно только в личном чате.")
         await callback.answer()
         return
-    from utils.misc import get_leaderboard
     user_id = callback.from_user.id
     all_users = get_leaderboard(limit=10, only_subscribers=False)
     subscribers = get_leaderboard(limit=10, only_subscribers=True)
 
-    text = "🏆 *Рейтинг пользователей*\n\n"
-    text += "👥 *Все пользователи:*\n"
+    text = "🏆 <b>Рейтинг пользователей</b>\n\n"
+    text += "👥 <b>Все пользователи:</b>\n"
     if all_users:
         for i, (uid, name, xp, level) in enumerate(all_users, 1):
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
@@ -592,7 +579,7 @@ async def show_leaderboard(callback: types.CallbackQuery):
     else:
         text += "Нет данных.\n"
 
-    text += "\n💎 *Подписчики:*\n"
+    text += "\n💎 <b>Подписчики:</b>\n"
     if subscribers:
         for i, (uid, name, xp, level) in enumerate(subscribers, 1):
             medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
@@ -600,5 +587,5 @@ async def show_leaderboard(callback: types.CallbackQuery):
     else:
         text += "Нет данных.\n"
 
-    await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
+    await callback.message.answer(text, parse_mode="HTML", reply_markup=menu_button)
     await callback.answer()

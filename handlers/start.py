@@ -5,7 +5,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.enums import ChatType
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardRemove
 from keyboards import main_menu
 from database import get_connection, update_user_gender
 from yandex_gpt import get_yandex_gpt_response
@@ -23,7 +23,7 @@ router = Router()
 MAIN_MENU_BUTTONS = [
     "🔢 МОЁ ЧИСЛО", "🎁 КАРТА ДНЯ", "❤️ СОВМЕСТИМОСТЬ",
     "💬 КОНСУЛЬТАЦИЯ", "🧠 ПСИХОЛОГИЯ", "🌟 АСТРОЛОГИЯ",
-    "💎 ЭКСКЛЮЗИВ", "🧠 СЕКСОЛОГИЯ", "👤 МОЙ ПРОФИЛЬ"
+    "💎 ЭКСКЛЮЗИВ", "🧠 СЕКСОЛОГИЯ", "🌙 ТОЛКОВАНИЕ СНОВ", "👤 МОЙ ПРОФИЛЬ"
 ]
 
 class UserStates(StatesGroup):
@@ -39,6 +39,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
         return
 
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+        await message.answer("Используйте /startarkadiy для активации бота в группе.")
         return
 
     log_user_visit_wrapper(user_id, source="start")
@@ -69,7 +70,11 @@ async def cmd_start(message: types.Message, state: FSMContext):
                 conn.close()
                 if row:
                     title, content = row
-                    await message.answer(f"📖 *{title}*\n\n{content}", parse_mode="Markdown", reply_markup=main_menu)
+                    await message.answer(
+                        f"📖 <b>{title}</b>\n\n{content}",
+                        parse_mode="HTML",
+                        reply_markup=main_menu
+                    )
                     return
                 else:
                     await message.answer("Статья не найдена или ещё не опубликована.", reply_markup=main_menu)
@@ -97,6 +102,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     row = cursor.fetchone()
     conn.close()
 
+    # Если пользователь уже зарегистрирован
     if row and row[0] and row[1]:
         user_version = row[2] if row[2] else "0.0.0"
         if user_version != BOT_VERSION:
@@ -106,58 +112,68 @@ async def cmd_start(message: types.Message, state: FSMContext):
             conn.commit()
             conn.close()
             await message.answer(
-                f"🔔 Обновление до версии {BOT_VERSION}!\n"
-                "• Психологический тест\n"
-                "• Дневник настроения\n"
-                "• Уровни и опыт\n"
-                "• Совместимость по знакам\n"
-                "Нажмите /menu, чтобы продолжить.",
+                f"🔔 <b>Обновление до версии {BOT_VERSION}!</b>\n\n"
+                "• Улучшенные платные функции с практическими инструкциями\n"
+                "• Новый раздел «Толкование снов»\n"
+                "• Обновлённые промпты с HTML-форматированием\n"
+                "• Мотивационные уведомления без рекламы\n\n"
+                "Нажмите кнопку ниже, чтобы продолжить.",
+                parse_mode="HTML",
                 reply_markup=main_menu
             )
         else:
             name = row[0]
             gender = row[3] if row[3] else "unknown"
             if gender == "male":
-                greeting = f"🔮 С возвращением, уважаемый {name}!"
+                greeting = f"🔮 <b>С возвращением, уважаемый {name}!</b>"
             elif gender == "female":
-                greeting = f"🔮 С возвращением, дорогая {name}!"
+                greeting = f"🔮 <b>С возвращением, дорогая {name}!</b>"
             else:
-                greeting = f"🔮 С возвращением, {name}!"
-            await message.answer(greeting, reply_markup=main_menu)
+                greeting = f"🔮 <b>С возвращением, {name}!</b>"
+            await message.answer(greeting, parse_mode="HTML", reply_markup=main_menu)
         await state.clear()
         return
 
-    # ===== НОВОЕ КРАСОЧНОЕ ПРИВЕТСТВИЕ =====
+    # ===== НОВОЕ ПРИВЕТСТВИЕ ДЛЯ НОВЫХ ПОЛЬЗОВАТЕЛЕЙ =====
+    first_name = message.from_user.first_name
     welcome_text = (
-        "🌟 *Добро пожаловать в «Аркадий Викторович»!*\n\n"
+        "🌟 <b>Добро пожаловать в «Аркадий Викторович»!</b>\n\n"
         "👋 Я — Аркадий, твой личный цифровой наставник.\n"
         "Не просто бот, а место, где числа, звёзды и психология встречаются, чтобы помочь тебе разобраться в себе.\n\n"
-        "🔮 *Что ты здесь найдёшь?*\n\n"
-        "🧠 *Бесплатно:*\n"
-        "• 🔢 Своё число судьбы и его силу\n"
-        "• 🎁 Карту дня с прогнозом и советом\n"
-        "• ❤️ Совместимость с партнёром\n"
-        "• 🌟 Гороскоп на сегодня\n"
-        "• 🧠 Психотесты, дневник настроения, самодиагностику\n"
-        "• 💬 Консультацию (5 вопросов в день)\n"
-        "• 📚 Интересные статьи по психологии и сексологии\n"
-        "• 🌙 Толкование снов\n\n"
-        "💎 *По подписке (всего 249 ₽/мес):*\n"
-        "• 🔮 Полная матрица судьбы — 22 аркана, твой жизненный код\n"
-        "• 💸 Денежный код — стратегия увеличения дохода\n"
-        "• 🌌 Полная натальная карта — все планеты и дома\n"
-        "• ☀️ Соляр — прогноз на год\n"
-        "• 📆 Гороскоп на месяц с деталями\n"
-        "• 💬 Безлимитные консультации\n"
-        "• 🧠 Психологические практики и аудио‑медитации (скоро)\n\n"
-        "🔥 *Здесь ты не просто получаешь ответы — ты начинаешь понимать себя.*\n\n"
-        "👇 *Нажми кнопку ниже, и начнём!*"
+        "🔮 <b>Что ты здесь найдёшь?</b>\n\n"
+        "🧠 <b>Бесплатно:</b>\n"
+        "• Своё число судьбы и его силу\n"
+        "• Карту дня с прогнозом и советом\n"
+        "• Совместимость с партнёром\n"
+        "• Гороскоп на сегодня\n"
+        "• Психотесты, дневник настроения, самодиагностику\n"
+        "• Консультацию (5 вопросов в день)\n"
+        "• Интересные статьи по психологии и сексологии\n\n"
+        "💎 <b>По подписке (всего 249 ₽/мес):</b>\n"
+        "• Полная матрица судьбы — 22 аркана, твой жизненный код\n"
+        "• Денежный код — стратегия увеличения дохода\n"
+        "• Полная натальная карта — все планеты и дома\n"
+        "• Соляр — прогноз на год\n"
+        "• Гороскоп на месяц с деталями\n"
+        "• Безлимитные консультации\n"
+        "• Психологические практики и аудио-медитации (скоро)\n\n"
+        "🔥 Здесь ты не просто получаешь ответы — ты начинаешь понимать себя.\n\n"
+        "Готов узнать своё число судьбы?"
     )
-    kb = InlineKeyboardMarkup(inline_keyboard=[
+
+    # Кнопка "Начать"
+    start_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🚀 Узнать своё число", callback_data="start_onboarding")]
     ])
-    await message.answer(welcome_text, parse_mode="Markdown", reply_markup=kb)
-    await state.clear()
+
+    await message.answer(
+        welcome_text,
+        parse_mode="HTML",
+        reply_markup=start_keyboard,
+        disable_web_page_preview=True
+    )
+    # Устанавливаем состояние ожидания имени (будет вызвано после нажатия кнопки)
+    await state.set_state(UserStates.waiting_full_name)
 
 @router.callback_query(F.data == "start_onboarding")
 async def start_onboarding(callback: types.CallbackQuery, state: FSMContext):
@@ -166,9 +182,8 @@ async def start_onboarding(callback: types.CallbackQuery, state: FSMContext):
         await callback.answer()
         return
     await callback.message.answer(
-        "✨ Отлично! Давай познакомимся.\n\n"
-        "Как тебя зовут? (Напиши своё имя)",
-        reply_markup=types.ReplyKeyboardRemove()
+        "Отлично! Давай познакомимся. Как тебя зовут?",
+        reply_markup=ReplyKeyboardRemove()
     )
     await state.set_state(UserStates.waiting_full_name)
     await callback.answer()
@@ -177,13 +192,13 @@ async def start_onboarding(callback: types.CallbackQuery, state: FSMContext):
 async def process_full_name(message: types.Message, state: FSMContext):
     name = message.text.strip()
     if len(name) < 2:
-        await message.answer("Имя должно быть не менее 2 символов.", reply_markup=types.ReplyKeyboardRemove())
+        await message.answer("Имя должно быть не менее 2 символов.", reply_markup=ReplyKeyboardRemove())
         return
 
     if name in MAIN_MENU_BUTTONS:
         await message.answer(
             "Пожалуйста, введите ваше настоящее имя, а не кнопку меню.",
-            reply_markup=types.ReplyKeyboardRemove()
+            reply_markup=ReplyKeyboardRemove()
         )
         return
 
@@ -198,9 +213,10 @@ async def process_full_name(message: types.Message, state: FSMContext):
         address = "друг мой"
     
     await message.answer(
-        f"Отлично, {name}! {address.capitalize()}, теперь укажите вашу дату рождения в формате ДД.ММ.ГГГГ (например, 15.06.1985).\n\n"
+        f"Отлично, {name}! {address.capitalize()}, теперь укажите вашу дату рождения в формате <b>ДД.ММ.ГГГГ</b> (например, 15.06.1985).\n\n"
         "Это нужно для расчёта вашего числа судьбы.",
-        reply_markup=types.ReplyKeyboardRemove()
+        parse_mode="HTML",
+        reply_markup=ReplyKeyboardRemove()
     )
     await state.set_state(UserStates.waiting_birth_date_from_poll)
 
@@ -212,7 +228,7 @@ async def process_birth_date_from_poll(message: types.Message, state: FSMContext
     if text in MAIN_MENU_BUTTONS:
         await message.answer(
             "Пожалуйста, введите дату рождения в формате ДД.ММ.ГГГГ.",
-            reply_markup=types.ReplyKeyboardRemove()
+            reply_markup=ReplyKeyboardRemove()
         )
         return
 
@@ -223,7 +239,7 @@ async def process_birth_date_from_poll(message: types.Message, state: FSMContext
         birth = datetime.date(year, month, day)
         age = today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
         if age < 18:
-            await message.answer("Работаю только с совершеннолетними.", reply_markup=types.ReplyKeyboardRemove())
+            await message.answer("Работаю только с совершеннолетними.", reply_markup=ReplyKeyboardRemove())
             return
         destiny = calculate_destiny_number(birth_date)
         data = await state.get_data()
@@ -249,9 +265,12 @@ async def process_birth_date_from_poll(message: types.Message, state: FSMContext
         else:
             address = "друг мой"
         
+        # Поздравление с регистрацией
         await message.answer(
-            f"🔢 Ваше число судьбы: {destiny}\n\n"
-            f"Спасибо, {name}! Теперь вы можете использовать главное меню, {address}.",
+            f"🔢 <b>Ваше число судьбы: {destiny}</b>\n\n"
+            f"Спасибо, {name}! Теперь вы можете использовать главное меню, {address}.\n\n"
+            "Нажмите кнопку ниже, чтобы начать.",
+            parse_mode="HTML",
             reply_markup=main_menu
         )
         grant_achievement(user_id, "first_calculation")
@@ -259,5 +278,5 @@ async def process_birth_date_from_poll(message: types.Message, state: FSMContext
     except Exception:
         await message.answer(
             "Неверный формат. Введите дату в формате ДД.ММ.ГГГГ.",
-            reply_markup=types.ReplyKeyboardRemove()
+            reply_markup=ReplyKeyboardRemove()
         )
