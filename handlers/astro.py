@@ -6,7 +6,7 @@ from aiogram.enums import ChatType
 from keyboards import astro_submenu, main_menu, menu_button
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
-from utils import update_last_active, get_zodiac_sign, get_user_subscription_status
+from utils import update_last_active, get_zodiac_sign, get_user_subscription_status, get_cached_response, save_cached_response
 from utils.misc import get_user_gender
 from utils.notifications import get_subscription_button
 
@@ -14,7 +14,8 @@ router = Router()
 
 def register_astro_handlers(dp: Dispatcher, bot: Bot, admin_ids: list):
 
-    @dp.message(F.text == "🌟 АСТРОЛОГИЯ")
+    # ===== ВОССТАНОВЛЕН ОБРАБОТЧИК ДЛЯ АСТРОЛОГИИ =====
+    @router.message(F.text == "🌟 АСТРОЛОГИЯ")
     async def astro_menu(message: types.Message):
         if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
             await message.answer("Эта функция доступна только в личном чате.")

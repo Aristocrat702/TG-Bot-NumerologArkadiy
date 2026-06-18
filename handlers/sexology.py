@@ -140,23 +140,14 @@ async def sexology_articles_list(callback: types.CallbackQuery):
         return
     text = "📚 *Статьи по сексологии*\n\n"
     for article in articles:
-        text += f"• [{article['title']}](https://t.me/NumerologArkadiy_bot?start=article_{article['id']}) – {article['created_at'][:10]}\n"
+        # Убрана дата
+        text += f"• [{article['title']}](https://t.me/NumerologArkadiy_bot?start=article_sexology_{article['id']})\n"
     await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
     await callback.answer()
 
-@router.message(F.text.startswith("/start article_"))
+@router.message(F.text.startswith("/start article_sexology_"))
+@router.message(F.text.startswith("/start article_psychology_"))
 async def article_deeplink(message: types.Message):
-    parts = message.text.split("_")
-    if len(parts) < 2:
-        return
-    article_id = int(parts[1])
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT title, content FROM sexology_articles WHERE id = ? AND status = 'published'", (article_id,))
-    row = cursor.fetchone()
-    conn.close()
-    if not row:
-        await message.answer("Статья не найдена или ещё не опубликована.", reply_markup=menu_button)
-        return
-    title, content = row
-    await message.answer(f"📖 *{title}*\n\n{content}", parse_mode="Markdown", reply_markup=menu_button)
+    # Обработка deep link для статей (если пользователь ввел вручную)
+    # Но основной обработчик в start.py
+    pass

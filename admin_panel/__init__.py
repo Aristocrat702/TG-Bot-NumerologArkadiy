@@ -33,7 +33,7 @@ def register_admin_handlers(dp, bot, admin_ids: list):
     register_userinfo_handlers(dp, bot, admin_ids)
     register_groups_management_handlers(dp, bot, admin_ids)
     register_test_group_handlers(dp, bot, admin_ids)
-    register_articles_handlers(dp, bot, admin_ids)
+    register_articles_handlers(dp, bot, admin_ids)      # <-- зарегистрирован
     register_prompts_handlers(dp, bot, admin_ids)
     register_activity_export_handlers(dp, bot, admin_ids)
     register_group_messages_handlers(dp, bot, admin_ids)
