@@ -97,7 +97,7 @@ challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ========== АДМИН-МЕНЮ (с кнопкой очистки) ==========
+# ========== АДМИН-МЕНЮ (с единой кнопкой «СТАТЬИ») ==========
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📊 СТАТИСТИКА АКТИВНОСТИ")],
@@ -111,7 +111,7 @@ admin_menu = ReplyKeyboardMarkup(
         [KeyboardButton(text="📋 ЛОГИ"), KeyboardButton(text="👤 ИНФО ПОЛЬЗОВАТЕЛЯ")],
         [KeyboardButton(text="👥 УПРАВЛЕНИЕ ГРУППАМИ"), KeyboardButton(text="📤 ТЕСТ ГРУППЫ")],
         [KeyboardButton(text="🔧 УПРАВЛЕНИЕ ПРОМПТАМИ")],
-        [KeyboardButton(text="📰 СТАТЬИ СЕКСОЛОГИИ")],
+        [KeyboardButton(text="📰 СТАТЬИ")],
         [KeyboardButton(text="🗑️ ОЧИСТКА БД")],
         [KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
     ],

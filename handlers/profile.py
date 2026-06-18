@@ -181,15 +181,15 @@ async def referral_info(callback: types.CallbackQuery):
     await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
     await callback.answer()
 
-# ==================== ДОСТИЖЕНИЯ (с переводом) ====================
+# ==================== ДОСТИЖЕНИЯ (обновлённые) ====================
 ACHIEVEMENTS_TRANSLATE = {
-    "first_calculation": "Первый расчёт числа судьбы",
-    "challenge_completed": "Челлендж 7 дней пройден",
-    "subscription_bought": "Подписка куплена",
-    "referral_subscription": "Реферал привёл подписку",
-    "questions_100": "Задано 100 вопросов",
-    "streak_7_days": "7 дней подряд в боте",
-    "all_tests_passed": "Прошёл все тесты"
+    "first_calculation": {"name": "Первый расчёт числа судьбы", "xp": 50, "icon": "⭐"},
+    "challenge_completed": {"name": "Челлендж 7 дней пройден", "xp": 100, "icon": "🔥"},
+    "subscription_bought": {"name": "Подписка куплена", "xp": 50, "icon": "💎"},
+    "referral_subscription": {"name": "Реферал привёл подписку", "xp": 150, "icon": "🎁"},
+    "questions_100": {"name": "Задано 100 вопросов", "xp": 30, "icon": "💬"},
+    "streak_7_days": {"name": "7 дней подряд в боте", "xp": 40, "icon": "🔥"},
+    "all_tests_passed": {"name": "Прошёл все тесты", "xp": 60, "icon": "🧠"}
 }
 
 @router.callback_query(F.data == "achievements")
@@ -205,8 +205,8 @@ async def show_achievements(callback: types.CallbackQuery):
     else:
         text = "🏆 *Ваши достижения:*\n\n"
         for ach, date in achievements:
-            name = ACHIEVEMENTS_TRANSLATE.get(ach, ach)
-            text += f"• {name} — {date[:10]}\n"
+            info = ACHIEVEMENTS_TRANSLATE.get(ach, {"name": ach, "xp": 0, "icon": "🏅"})
+            text += f"{info['icon']} {info['name']} — {date[:10]} (+{info['xp']} XP)\n"
     await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
     await callback.answer()
 
@@ -504,10 +504,12 @@ async def successful_payment(message: types.Message):
     if payload.startswith("gift_"):
         gifted_user_id = int(payload.split("_")[1])
         add_subscription_days(gifted_user_id, 30, check_referral=False, admin_id=0)
+        grant_achievement(gifted_user_id, "subscription_bought")
         await message.bot.send_message(gifted_user_id, "🎁 *Вам подарили месяц подписки!*\n\nТеперь вам доступны: матрица судьбы, безлимитные вопросы, прогнозы, гороскопы и психологические практики. Спасибо вашему другу!", parse_mode="Markdown")
         await message.answer("✅ Подарок отправлен! Спасибо за доверие.")
     else:
         add_subscription_days(message.from_user.id, 30, check_referral=False, admin_id=0)
+        grant_achievement(message.from_user.id, "subscription_bought")
         await message.answer("✅ Подписка активирована на 30 дней! Теперь вам доступны матрица судьбы, безлимитные вопросы и все премиум-функции. Спасибо, что с нами!")
 
 # ==================== МОЯ СТАТИСТИКА ====================
@@ -520,32 +522,19 @@ async def my_stats(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     conn = get_connection()
     cursor = conn.cursor()
-    # Подсчёт вопросов (из dialog_history)
     cursor.execute("SELECT COUNT(*) FROM dialog_history WHERE user_id = ? AND role = 'user'", (user_id,))
     total_questions = cursor.fetchone()[0]
-    # Количество пройденных тестов (psycho_results)
     cursor.execute("SELECT COUNT(*) FROM psycho_results WHERE user_id = ?", (user_id,))
     total_tests = cursor.fetchone()[0]
-    # Количество записей настроения
     cursor.execute("SELECT COUNT(*) FROM mood_log WHERE user_id = ?", (user_id,))
     total_moods = cursor.fetchone()[0]
-    # Дней подряд (streak) – вычисляем через last_active
-    cursor.execute("SELECT last_active FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT streak_days FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
+    streak = row[0] if row and row[0] is not None else 0
+    # Количество достижений
+    cursor.execute("SELECT COUNT(*) FROM achievements WHERE user_id = ?", (user_id,))
+    total_achievements = cursor.fetchone()[0]
     conn.close()
-    streak = 0
-    if row and row[0]:
-        try:
-            last_active = datetime.datetime.fromisoformat(row[0])
-            now = datetime.datetime.now()
-            diff = now - last_active
-            if diff.days == 0:
-                streak = 1  # сегодня заходил
-                # Проверим, был ли вчера (можно добавить более сложную логику, но пока так)
-                # Для простоты оставим 1, если сегодня был активен
-            # В будущем можно добавить более точный расчёт streak
-        except:
-            pass
     level, xp, next_xp = calculate_level(user_id)
     level_name = LEVELS.get(level, {}).get("name", "Новичок")
     text = (
@@ -554,6 +543,7 @@ async def my_stats(callback: types.CallbackQuery):
         f"🧠 Пройдено тестов: {total_tests}\n"
         f"😊 Записей настроения: {total_moods}\n"
         f"🔥 Дней подряд в боте: {streak}\n"
+        f"🏆 Достижений: {total_achievements}\n"
         f"🏆 Уровень: {level} «{level_name}»\n"
         f"⭐ XP: {xp} / {next_xp}"
     )
