@@ -32,6 +32,23 @@ astro_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
+# ========== ПОДМЕНЮ ЭКСКЛЮЗИВ ==========
+premium_submenu = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="🔮 Полная матрица судьбы", callback_data="premium_matrix")],
+    [InlineKeyboardButton(text="💸 Денежный код", callback_data="premium_money_code")],
+    [InlineKeyboardButton(text="🌌 Полная натальная карта", callback_data="premium_natal")],
+    [InlineKeyboardButton(text="☀️ Соляр", callback_data="premium_solar")],
+    [InlineKeyboardButton(text="📆 Гороскоп на месяц", callback_data="premium_horoscope_monthly")],
+    [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
+])
+
+# ========== ПОДМЕНЮ СЕКСОЛОГИИ ==========
+sexology_submenu = InlineKeyboardMarkup(inline_keyboard=[
+    [InlineKeyboardButton(text="❓ Задать вопрос", callback_data="sexology_ask")],
+    [InlineKeyboardButton(text="📚 Статьи", callback_data="sexology_articles")],
+    [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
+])
+
 # ========== ПРОФИЛЬ (основное меню) ==========
 profile_main_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings")],
@@ -83,21 +100,16 @@ challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
 # ========== АДМИН-МЕНЮ (обновлённое) ==========
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
-        # Длинные кнопки – по одной на строку
         [KeyboardButton(text="📊 СТАТИСТИКА АКТИВНОСТИ")],
-        # Короткие – по две
         [KeyboardButton(text="👥 СПИСОК ЮЗЕРОВ"), KeyboardButton(text="✉️ РАССЫЛКА")],
         [KeyboardButton(text="💰 ВЫДАТЬ ПОДПИСКУ"), KeyboardButton(text="🎫 ПРОМОКОДЫ")],
         [KeyboardButton(text="🔧 ПРОМПТ"), KeyboardButton(text="📤 ЭКСПОРТ БАЗЫ")],
-        # Длинная кнопка
         [KeyboardButton(text="📤 ЭКСПОРТ АКТИВНОСТИ")],
-        # Две длинные – в паре
         [KeyboardButton(text="📥 СБОР СООБЩЕНИЙ"), KeyboardButton(text="📤 ВЫГРУЗИТЬ СООБЩЕНИЯ")],
         [KeyboardButton(text="🚫 БЛЭК-ЛИСТ"), KeyboardButton(text="💬 ОТВЕТИТЬ")],
         [KeyboardButton(text="💰 ЦЕНА ПОДПИСКИ"), KeyboardButton(text="🏆 ЛИДЕРБОРД")],
         [KeyboardButton(text="📋 ЛОГИ"), KeyboardButton(text="👤 ИНФО ПОЛЬЗОВАТЕЛЯ")],
         [KeyboardButton(text="👥 УПРАВЛЕНИЕ ГРУППАМИ"), KeyboardButton(text="📤 ТЕСТ ГРУППЫ")],
-        # Длинные кнопки – по одной
         [KeyboardButton(text="🔧 УПРАВЛЕНИЕ ПРОМПТАМИ")],
         [KeyboardButton(text="📰 СТАТЬИ СЕКСОЛОГИИ")],
         [KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
