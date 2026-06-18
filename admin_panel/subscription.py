@@ -17,7 +17,8 @@ def register_subscription_handlers(dp, bot, admin_ids):
             "Примеры:\n"
             "123456789 30\n"
             "@username 30\n"
-            "Алексей 30",
+            "Алексей 30\n\n"
+            "⚠️ Если пользователь ещё не написал боту /start, используйте его числовой ID.",
             reply_markup=cancel_button("admin_cancel_action")
         )
         await state.set_state(AdminStates.waiting_reply_user_id)
@@ -56,10 +57,22 @@ def register_subscription_handlers(dp, bot, admin_ids):
                 user_id = chat.id
                 user_name = chat.first_name or chat.username
             except Exception as e:
-                await message.answer(
-                    f"Пользователь @{username} не найден в Telegram. Ошибка: {e}",
-                    reply_markup=cancel_button("admin_cancel_action")
-                )
+                error_msg = str(e).lower()
+                if "chat not found" in error_msg:
+                    await message.answer(
+                        f"⚠️ Пользователь @{username} не найден в Telegram.\n\n"
+                        "Причина: он ещё не взаимодействовал с ботом (не написал /start).\n"
+                        "Решение:\n"
+                        "1. Попросите пользователя написать боту любое сообщение (например, /start).\n"
+                        "2. Или узнайте его числовой ID (через @userinfobot) и введите его вместо @username.\n\n"
+                        "Пример: 123456789 30",
+                        reply_markup=cancel_button("admin_cancel_action")
+                    )
+                else:
+                    await message.answer(
+                        f"Ошибка при поиске @{username}: {e}",
+                        reply_markup=cancel_button("admin_cancel_action")
+                    )
                 conn.close()
                 return
         else:
@@ -73,14 +86,15 @@ def register_subscription_handlers(dp, bot, admin_ids):
                     user_id = row[0]
                     user_name = row[1]
                 else:
-                    # Пробуем получить из Telegram по ID
+                    # Пробуем получить из Telegram по ID (даже если не писал боту, ID может сработать)
                     try:
                         chat = await bot.get_chat(uid)
                         user_id = chat.id
                         user_name = chat.first_name or chat.username or str(uid)
                     except:
                         await message.answer(
-                            f"Пользователь с ID {uid} не найден ни в БД, ни в Telegram.",
+                            f"⚠️ Пользователь с ID {uid} не найден ни в БД, ни в Telegram.\n"
+                            "Убедитесь, что ID верный, или попросите пользователя написать /start.",
                             reply_markup=cancel_button("admin_cancel_action")
                         )
                         conn.close()
@@ -95,11 +109,20 @@ def register_subscription_handlers(dp, bot, admin_ids):
                         chat = await bot.get_chat(f"@{query}")
                         user_id = chat.id
                         user_name = chat.first_name or chat.username
-                    except:
-                        await message.answer(
-                            f"Пользователь с именем «{query}» не найден ни в БД, ни в Telegram.",
-                            reply_markup=cancel_button("admin_cancel_action")
-                        )
+                    except Exception as e:
+                        error_msg = str(e).lower()
+                        if "chat not found" in error_msg:
+                            await message.answer(
+                                f"⚠️ Пользователь с именем «{query}» не найден.\n"
+                                "Возможно, он ещё не взаимодействовал с ботом.\n"
+                                "Попробуйте ввести его числовой ID.",
+                                reply_markup=cancel_button("admin_cancel_action")
+                            )
+                        else:
+                            await message.answer(
+                                f"Ошибка: {e}",
+                                reply_markup=cancel_button("admin_cancel_action")
+                            )
                         conn.close()
                         return
                 elif len(rows) > 1:
@@ -120,7 +143,6 @@ def register_subscription_handlers(dp, bot, admin_ids):
         if user_id:
             existing = get_user(user_id)
             if not existing:
-                # Создаём запись с базовыми данными
                 create_user(user_id, name=user_name or str(user_id), birth_date=None, destiny_number=0)
                 await message.answer(f"👤 Пользователь {user_id} ({user_name}) был автоматически добавлен в БД.")
             # Сохраняем в состояние
@@ -164,7 +186,7 @@ def register_subscription_handlers(dp, bot, admin_ids):
         uid = data.get("give_uid")
         days = data.get("give_days")
         add_subscription_days(uid, days, check_referral=True, admin_id=callback.from_user.id)
-        await callback.message.answer(f"Выдана подписка на {days} дней пользователю {uid}", reply_markup=admin_menu)
+        await callback.message.answer(f"✅ Выдана подписка на {days} дней пользователю {uid}", reply_markup=admin_menu)
         try:
             await bot.send_message(uid, f"Администратор выдал вам подписку на {days} дней! Теперь вам доступны все премиум-функции бота.")
         except:
