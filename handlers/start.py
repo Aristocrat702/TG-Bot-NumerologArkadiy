@@ -5,6 +5,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.enums import ChatType
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from keyboards import main_menu
 from database import get_connection, update_user_gender
 from yandex_gpt import get_yandex_gpt_response
@@ -21,7 +22,7 @@ router = Router()
 
 MAIN_MENU_BUTTONS = [
     "🔢 МОЁ ЧИСЛО", "🎁 КАРТА ДНЯ", "❤️ СОВМЕСТИМОСТЬ",
-    "💬 ЗАДАТЬ ВОПРОС", "🧠 ПСИХОЛОГИЯ", "🌟 АСТРОЛОГИЯ",
+    "💬 КОНСУЛЬТАЦИЯ", "🧠 ПСИХОЛОГИЯ", "🌟 АСТРОЛОГИЯ",
     "💎 ЭКСКЛЮЗИВ", "🧠 СЕКСОЛОГИЯ", "👤 МОЙ ПРОФИЛЬ"
 ]
 
@@ -68,7 +69,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
                 conn.close()
                 if row:
                     title, content = row
-                    # ИСПРАВЛЕНО: добавлено меню
                     await message.answer(f"📖 *{title}*\n\n{content}", parse_mode="Markdown", reply_markup=main_menu)
                     return
                 else:
@@ -127,23 +127,51 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await state.clear()
         return
 
-    first_name = message.from_user.first_name
-    await message.answer(
-        f"✨ Добро пожаловать, {first_name}!\n\n"
-        "Я — Аркадий Викторович, ваш личный нумеролог, психолог, астролог и сексолог с 20-летним стажем.\n\n"
-        "Здесь вы сможете:\n"
-        "🔢 Узнать своё число судьбы и получить персонализированную характеристику\n"
-        "🎁 Получить карту дня с прогнозом и практическими советами\n"
-        "❤️ Проверить совместимость с партнёром\n"
-        "🧠 Пройти психологические тесты и вести дневник настроения\n"
-        "🌟 Получить гороскоп на день и эксклюзивные прогнозы по подписке\n"
-        "💸 Рассчитать денежный код и стратегию увеличения дохода (по подписке)\n"
-        "🧠 Задать вопросы по сексологии и читать полезные статьи\n\n"
-        "💎 Подписка (всего 249 ₽/мес) открывает все эксклюзивные функции.\n\n"
-        "Для начала давайте познакомимся. Как вас зовут?",
+    # ===== НОВОЕ КРАСОЧНОЕ ПРИВЕТСТВИЕ =====
+    welcome_text = (
+        "🌟 *Добро пожаловать в «Аркадий Викторович»!*\n\n"
+        "👋 Я — Аркадий, твой личный цифровой наставник.\n"
+        "Не просто бот, а место, где числа, звёзды и психология встречаются, чтобы помочь тебе разобраться в себе.\n\n"
+        "🔮 *Что ты здесь найдёшь?*\n\n"
+        "🧠 *Бесплатно:*\n"
+        "• 🔢 Своё число судьбы и его силу\n"
+        "• 🎁 Карту дня с прогнозом и советом\n"
+        "• ❤️ Совместимость с партнёром\n"
+        "• 🌟 Гороскоп на сегодня\n"
+        "• 🧠 Психотесты, дневник настроения, самодиагностику\n"
+        "• 💬 Консультацию (5 вопросов в день)\n"
+        "• 📚 Интересные статьи по психологии и сексологии\n"
+        "• 🌙 Толкование снов\n\n"
+        "💎 *По подписке (всего 249 ₽/мес):*\n"
+        "• 🔮 Полная матрица судьбы — 22 аркана, твой жизненный код\n"
+        "• 💸 Денежный код — стратегия увеличения дохода\n"
+        "• 🌌 Полная натальная карта — все планеты и дома\n"
+        "• ☀️ Соляр — прогноз на год\n"
+        "• 📆 Гороскоп на месяц с деталями\n"
+        "• 💬 Безлимитные консультации\n"
+        "• 🧠 Психологические практики и аудио‑медитации (скоро)\n\n"
+        "🔥 *Здесь ты не просто получаешь ответы — ты начинаешь понимать себя.*\n\n"
+        "👇 *Нажми кнопку ниже, и начнём!*"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🚀 Узнать своё число", callback_data="start_onboarding")]
+    ])
+    await message.answer(welcome_text, parse_mode="Markdown", reply_markup=kb)
+    await state.clear()
+
+@router.callback_query(F.data == "start_onboarding")
+async def start_onboarding(callback: types.CallbackQuery, state: FSMContext):
+    if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+        await callback.message.answer("Доступно только в личном чате.")
+        await callback.answer()
+        return
+    await callback.message.answer(
+        "✨ Отлично! Давай познакомимся.\n\n"
+        "Как тебя зовут? (Напиши своё имя)",
         reply_markup=types.ReplyKeyboardRemove()
     )
     await state.set_state(UserStates.waiting_full_name)
+    await callback.answer()
 
 @router.message(UserStates.waiting_full_name)
 async def process_full_name(message: types.Message, state: FSMContext):

@@ -7,7 +7,8 @@ from keyboards import premium_submenu, menu_button
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
 from utils import get_user_subscription_status, get_cached_response, save_cached_response, get_zodiac_sign, update_last_active
-from utils.pdf import generate_pdf_matrix   # <-- ДОБАВЛЕНО
+# Импорт PDF временно закомментирован, чтобы не было ошибки
+# from utils.pdf import generate_pdf_matrix
 
 router = Router()
 
@@ -19,7 +20,7 @@ async def premium_menu(message: types.Message):
     await message.answer(
         "💎 *Эксклюзивные функции*\n\n"
         "Здесь собраны все возможности, доступные только по подписке:\n"
-        "• 🔮 Полная матрица судьбы (22 аркана) с PDF\n"
+        "• 🔮 Полная матрица судьбы (22 аркана) с глубоким разбором\n"
         "• 💸 Денежный код – стратегия увеличения дохода\n"
         "• 🌌 Полная натальная карта\n"
         "• ☀️ Соляр\n"
@@ -56,7 +57,7 @@ async def premium_matrix(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT destiny_number, name FROM users WHERE user_id=?", (user_id,))
+    cursor.execute("SELECT destiny_number, name, gender FROM users WHERE user_id=?", (user_id,))
     row = cursor.fetchone()
     conn.close()
     if not row or not row[0]:
@@ -65,33 +66,22 @@ async def premium_matrix(callback: types.CallbackQuery):
         return
     destiny = row[0]
     name = row[1] if row[1] else "пользователь"
+    gender = row[2] if row[2] else "unknown"
     cache_key = f"matrix_{destiny}"
     cached = get_cached_response(user_id, cache_key)
     if cached:
         response = cached
-        # Генерируем PDF даже для кэшированного ответа
-        pdf_bytes = generate_pdf_matrix(user_id, name, destiny, response)
-        if pdf_bytes:
-            pdf_file = BufferedInputFile(pdf_bytes, filename=f"matrix_{user_id}.pdf")
-            await callback.message.answer_document(pdf_file, caption="🔮 Ваша матрица судьбы в PDF")
-        else:
-            await callback.message.answer("⚠️ Не удалось сгенерировать PDF, но вот текст:")
         await callback.message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
         await callback.answer()
         return
     status_msg = await callback.message.answer("📜 Аркадий Викторович составляет вашу матрицу... Это может занять до 2 минут.")
-    prompt = f"Составь полную матрицу судьбы для числа {destiny}. Дай развёрнутую характеристику (10-15 предложений) по арканам."
+    # Усиленный промпт для матрицы
+    prompt = f"Составь полную матрицу судьбы для числа {destiny}. Опиши 22 аркана (каждый 1-2 предложения). В конце дай: 1. Твою главную жизненную задачу. 2. Три конкретных шага, которые помогут её реализовать. 3. Самый сильный твой талант и как его применить. Ответ должен быть глубоким, практичным и персонализированным. Учти, что пользователь — {gender} с именем {name}."
     response = await get_yandex_gpt_response(prompt, user_id, function_name="premium_matrix")
     await status_msg.delete()
     if "Ошибка" not in response and "Нейросеть" not in response and "таймаут" not in response:
         save_cached_response(user_id, cache_key, response)
-    # ГЕНЕРАЦИЯ PDF
-    pdf_bytes = generate_pdf_matrix(user_id, name, destiny, response)
-    if pdf_bytes:
-        pdf_file = BufferedInputFile(pdf_bytes, filename=f"matrix_{user_id}.pdf")
-        await callback.message.answer_document(pdf_file, caption="🔮 Ваша матрица судьбы в PDF")
-    else:
-        await callback.message.answer("⚠️ Не удалось сгенерировать PDF, но вот текст:")
+    # Кнопка PDF убрана – информация выводится только в чате
     await callback.message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
     update_last_active(user_id)
     await callback.answer()
@@ -107,7 +97,7 @@ async def premium_money_code(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT name, birth_date, destiny_number FROM users WHERE user_id=?", (user_id,))
+    cursor.execute("SELECT name, birth_date, destiny_number, gender FROM users WHERE user_id=?", (user_id,))
     row = cursor.fetchone()
     conn.close()
     if not row or not row[1]:
@@ -117,8 +107,9 @@ async def premium_money_code(callback: types.CallbackQuery):
     name = row[0] or "пользователь"
     birth_date = row[1]
     destiny = row[2] or "?"
+    gender = row[3] if row[3] else "unknown"
     status_msg = await callback.message.answer("💸 Аркадий Викторович рассчитывает ваш денежный код...")
-    prompt = f"Рассчитай денежный код для человека {name} с датой рождения {birth_date} и числом судьбы {destiny}. Дай развёрнутый ответ (8-10 предложений): что такое денежный код, как его использовать, конкретные рекомендации по улучшению финансового потока, благоприятные дни для денежных операций."
+    prompt = f"Рассчитай денежный код для человека {name} с датой рождения {birth_date} и числом судьбы {destiny}. Дай развёрнутый ответ (10-12 предложений): что такое денежный код, как его использовать, конкретные рекомендации по улучшению финансового потока, благоприятные дни для денежных операций. Учти пол пользователя ({gender})."
     response = await get_yandex_gpt_response(prompt, user_id, function_name="premium_money_code")
     await status_msg.delete()
     await callback.message.answer(f"💸 *Ваш денежный код*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
@@ -136,7 +127,7 @@ async def premium_natal(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT birth_date, birth_time, birth_place FROM users WHERE user_id=?", (user_id,))
+    cursor.execute("SELECT birth_date, birth_time, birth_place, gender FROM users WHERE user_id=?", (user_id,))
     row = cursor.fetchone()
     conn.close()
     if not row or not row[0]:
@@ -146,8 +137,9 @@ async def premium_natal(callback: types.CallbackQuery):
     birth_date = row[0]
     birth_time = row[1] if row[1] else "неизвестно"
     birth_place = row[2] if row[2] else "не указано"
+    gender = row[3] if row[3] else "unknown"
     status_msg = await callback.message.answer("🌌 Аркадий Викторович строит вашу натальную карту...")
-    prompt = f"Составь полное описание натальной карты для человека, родившегося {birth_date} в {birth_time} в {birth_place}. Укажи основные планеты, дома, аспекты. Дай развёрнутый, содержательный прогноз (8-10 предложений)."
+    prompt = f"Составь полное описание натальной карты для человека, родившегося {birth_date} в {birth_time} в {birth_place}. Укажи основные планеты, дома, аспекты. Дай развёрнутый, содержательный прогноз (12-15 предложений). Опиши влияние каждой планеты на характер, отношения, карьеру. Дай практические советы, как использовать сильные стороны. Учти пол ({gender})."
     response = await get_yandex_gpt_response(prompt, user_id, function_name="premium_natal")
     await status_msg.delete()
     await callback.message.answer(f"🌌 *Ваша натальная карта*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
@@ -165,7 +157,7 @@ async def premium_solar(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT birth_date FROM users WHERE user_id=?", (user_id,))
+    cursor.execute("SELECT birth_date, gender FROM users WHERE user_id=?", (user_id,))
     row = cursor.fetchone()
     conn.close()
     if not row or not row[0]:
@@ -173,9 +165,10 @@ async def premium_solar(callback: types.CallbackQuery):
         await callback.answer()
         return
     birth_date = row[0]
+    gender = row[1] if row[1] else "unknown"
     zodiac = get_zodiac_sign(birth_date)
     status_msg = await callback.message.answer("☀️ Аркадий Викторович рассчитывает соляр...")
-    prompt = f"Составь прогноз соляра для человека со знаком {zodiac} на предстоящий год. Укажи ключевые события, периоды роста и возможные трудности. Дай развёрнутый ответ (7-10 предложений)."
+    prompt = f"Составь прогноз соляра для человека со знаком {zodiac} на предстоящий год. Укажи ключевые события по месяцам, периоды роста и возможные трудности. Дай развёрнутый ответ (12-15 предложений). Что важно сделать в первый месяц после дня рождения? Где ждать успеха, где осторожность. Учти пол ({gender})."
     response = await get_yandex_gpt_response(prompt, user_id, function_name="premium_solar")
     await status_msg.delete()
     await callback.message.answer(f"☀️ *Ваш соляр на год*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
@@ -193,7 +186,7 @@ async def premium_horoscope_monthly(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT birth_date, destiny_number FROM users WHERE user_id=?", (user_id,))
+    cursor.execute("SELECT birth_date, destiny_number, gender FROM users WHERE user_id=?", (user_id,))
     row = cursor.fetchone()
     conn.close()
     if not row or not row[0]:
@@ -202,6 +195,7 @@ async def premium_horoscope_monthly(callback: types.CallbackQuery):
         return
     birth_date = row[0]
     destiny = row[1] if row[1] else "?"
+    gender = row[2] if row[2] else "unknown"
     zodiac = get_zodiac_sign(birth_date)
     today = datetime.date.today()
     target_date = today.strftime("%Y-%m")
@@ -211,7 +205,7 @@ async def premium_horoscope_monthly(callback: types.CallbackQuery):
         response = cached
     else:
         month_name = today.strftime('%B').lower()
-        prompt = f"Составь астрологический гороскоп на месяц {month_name} для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. Дай развёрнутый прогноз (8-10 предложений) по сферам: любовь, деньги, здоровье. Укажи благоприятные периоды и дай общий совет."
+        prompt = f"Составь астрологический гороскоп на месяц {month_name} для человека с числом судьбы {destiny} и знаком зодиака {zodiac}. Дай развёрнутый прогноз (12-15 предложений) по сферам: любовь, деньги, здоровье, карьера. Укажи благоприятные периоды по датам, дай конкретные рекомендации на каждый период. Учти пол ({gender})."
         status_msg = await callback.message.answer("🔮 Аркадий Викторович составляет гороскоп...")
         response = await get_yandex_gpt_response(prompt, user_id, function_name="premium_horoscope_monthly")
         await status_msg.delete()
