@@ -22,7 +22,7 @@ def register_handlers(dp: Dispatcher, bot, admin_ids, bot_version):
     dp.include_router(promo_router)
     dp.include_router(common_router)
     dp.include_router(horoscope_router)
-    dp.include_router(astro_router)
+    dp.include_router(astro_router)      # <-- зарегистрирован
     dp.include_router(groups_router)
     dp.include_router(help_router)
     dp.include_router(premium_router)

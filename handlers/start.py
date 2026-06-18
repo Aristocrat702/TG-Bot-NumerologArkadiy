@@ -43,7 +43,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     log_user_visit_wrapper(user_id, source="start")
 
     args = message.text.split()
-    logging.info(f"START args: {args}")  # лог для отладки
+    logging.info(f"START args: {args}")
 
     # ===== DEEP LINK ДЛЯ СТАТЕЙ =====
     if len(args) > 1 and args[1].startswith("article_"):
@@ -69,10 +69,13 @@ async def cmd_start(message: types.Message, state: FSMContext):
                 if row:
                     title, content = row
                     await message.answer(f"📖 *{title}*\n\n{content}", parse_mode="Markdown", reply_markup=main_menu)
-                    return
+                    return  # <-- ВАЖНО: прерываем выполнение, чтобы не показывать приветствие
                 else:
                     await message.answer("Статья не найдена или ещё не опубликована.", reply_markup=main_menu)
                     return
+            else:
+                await message.answer("Неверная ссылка на статью.", reply_markup=main_menu)
+                return
         else:
             await message.answer("Неверная ссылка на статью.", reply_markup=main_menu)
             return
@@ -141,6 +144,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
     )
     await state.set_state(UserStates.waiting_full_name)
 
+# ... остальные обработчики без изменений
 @router.message(UserStates.waiting_full_name)
 async def process_full_name(message: types.Message, state: FSMContext):
     name = message.text.strip()
