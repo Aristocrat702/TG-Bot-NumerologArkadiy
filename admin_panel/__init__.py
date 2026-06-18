@@ -16,6 +16,7 @@ from .articles import register_articles_handlers
 from .prompts import register_prompts_handlers
 from .activity_export import register_activity_export_handlers
 from .group_messages import register_group_messages_handlers
+from .clear_db import register_clear_db_handlers
 
 def register_admin_handlers(dp, bot, admin_ids: list):
     register_admin_entry_handler(dp, bot, admin_ids)
@@ -36,3 +37,4 @@ def register_admin_handlers(dp, bot, admin_ids: list):
     register_prompts_handlers(dp, bot, admin_ids)
     register_activity_export_handlers(dp, bot, admin_ids)
     register_group_messages_handlers(dp, bot, admin_ids)
+    register_clear_db_handlers(dp, bot, admin_ids)
