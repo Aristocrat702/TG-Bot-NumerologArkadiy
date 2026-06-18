@@ -8,7 +8,7 @@ main_menu = ReplyKeyboardMarkup(
         [KeyboardButton(text="❤️ СОВМЕСТИМОСТЬ"), KeyboardButton(text="💬 КОНСУЛЬТАЦИЯ")],
         [KeyboardButton(text="🧠 ПСИХОЛОГИЯ"), KeyboardButton(text="🌟 АСТРОЛОГИЯ")],
         [KeyboardButton(text="💎 ЭКСКЛЮЗИВ"), KeyboardButton(text="🧠 СЕКСОЛОГИЯ")],
-        [KeyboardButton(text="👤 МОЙ ПРОФИЛЬ")]
+        [KeyboardButton(text="🌙 ТОЛКОВАНИЕ СНОВ"), KeyboardButton(text="👤 МОЙ ПРОФИЛЬ")]  # <-- НОВАЯ КНОПКА
     ],
     resize_keyboard=True
 )

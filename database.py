@@ -232,6 +232,18 @@ def init_db():
         )
     ''')
     
+    # ===== НОВАЯ ТАБЛИЦА ДЛЯ СНОВ =====
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS dreams (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            dream_text TEXT,
+            interpretation TEXT,
+            created_at TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        )
+    ''')
+    
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('system_prompt', 'Вы — Аркадий Викторович...')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('subscription_price', '249')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_free_queries_limit', '3')")
@@ -688,3 +700,20 @@ def increment_total_questions(user_id: int):
     cursor.execute("UPDATE users SET total_questions = total_questions + 1 WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()
+
+# ---------- НОВЫЕ ФУНКЦИИ ДЛЯ СНОВ ----------
+def save_dream(user_id: int, dream_text: str, interpretation: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO dreams (user_id, dream_text, interpretation, created_at) VALUES (?, ?, ?, ?)",
+                   (user_id, dream_text, interpretation, datetime.datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
+def get_user_dreams(user_id: int, limit: int = 5):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT dream_text, interpretation, created_at FROM dreams WHERE user_id = ? ORDER BY created_at DESC LIMIT ?", (user_id, limit))
+    rows = cursor.fetchall()
+    conn.close()
+    return [(row[0], row[1], row[2]) for row in rows]

@@ -96,7 +96,6 @@ def add_referral_bonus(referred_user_id: int):
     referrer_id = row[0]
     add_subscription_days(referrer_id, 7, check_referral=False, admin_id=0)
     add_xp(referrer_id, "referral_subscription")
-    # Достижение за реферала с подпиской
     grant_achievement(referrer_id, "referral_subscription")
     conn.close()
 
@@ -208,13 +207,12 @@ def grant_achievement(user_id: int, achievement: str):
                    (user_id, achievement, datetime.datetime.now().isoformat()))
     conn.commit()
     conn.close()
-    # Дополнительный XP для некоторых достижений
     if achievement == "first_calculation":
         add_xp(user_id, "first_calculation")
     elif achievement == "challenge_completed":
         add_xp(user_id, "challenge_completed")
     elif achievement == "subscription_bought":
-        pass  # уже добавляется при покупке
+        pass
     elif achievement == "referral_subscription":
         add_xp(user_id, "referral_subscription")
     elif achievement == "questions_100":
@@ -314,7 +312,10 @@ def update_last_active(user_id: int):
     cursor.execute("UPDATE users SET last_active = ? WHERE user_id = ?", (datetime.datetime.now().isoformat(), user_id))
     conn.commit()
     conn.close()
-    # Обновляем streak_days
+    # Логируем визит
+    from database import log_user_visit
+    log_user_visit(user_id, source="activity")
+    # Обновляем streak
     update_streak(user_id)
 
 def update_streak(user_id: int):
@@ -343,7 +344,6 @@ def update_streak(user_id: int):
     cursor.execute("UPDATE users SET streak_days = ? WHERE user_id = ?", (new_streak, user_id))
     conn.commit()
     conn.close()
-    # Достижение за 7 дней подряд
     if new_streak == 7:
         grant_achievement(user_id, "streak_7_days")
 
@@ -458,22 +458,28 @@ async def get_city_coords(city_name: str) -> tuple:
         print(f"Ошибка поиска города: {e}")
         return None, None
 
-# ---------- ПРОВЕРКА ПОДПИСОК ----------
-async def check_and_expire_subscriptions():
+# ---------- ПРОВЕРКА ПОДПИСОК (ДОБАВЛЕНА) ----------
+def check_and_expire_subscriptions():
+    """Проверяет и отключает истекшие подписки."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT user_id, subscription_end FROM users WHERE subscription_active=1 AND subscription_end IS NOT NULL")
     rows = cursor.fetchall()
     now = datetime.datetime.now()
+    expired = 0
     for user_id, end_str in rows:
         try:
             end_date = datetime.datetime.fromisoformat(end_str)
             if end_date < now:
                 cursor.execute("UPDATE users SET subscription_active = 0 WHERE user_id = ?", (user_id,))
+                expired += 1
         except:
             pass
-    conn.commit()
+    if expired:
+        conn.commit()
+        logging.info(f"Отключено {expired} истекших подписок")
     conn.close()
+    return expired
 
 # ---------- ЛИДЕРБОРД ----------
 def get_leaderboard(limit: int = 10, only_subscribers: bool = False) -> list:
@@ -541,7 +547,6 @@ def increment_question_counter(user_id: int):
     cursor.execute("UPDATE users SET total_questions = total_questions + 1 WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()
-    # Достижение за 100 вопросов
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT total_questions FROM users WHERE user_id = ?", (user_id,))
@@ -551,13 +556,10 @@ def increment_question_counter(user_id: int):
     conn.close()
 
 def check_all_tests_passed(user_id: int):
-    """Проверяет, пройдены ли все тесты (психотест, стресс, тип личности)."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT COUNT(DISTINCT result_text) FROM psycho_results WHERE user_id = ?", (user_id,))
     count = cursor.fetchone()[0]
     conn.close()
-    # Примерно определяем, что пользователь прошёл три разных теста
-    # Можно упростить: если есть хотя бы 3 записи в psycho_results – считаем, что все пройдены
     if count >= 3:
         grant_achievement(user_id, "all_tests_passed")

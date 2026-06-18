@@ -1,12 +1,13 @@
 import datetime
 from aiogram import Router, types, F
 from aiogram.fsm.context import FSMContext
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, BufferedInputFile
 from aiogram.enums import ChatType
 from keyboards import premium_submenu, menu_button
 from database import get_connection
 from yandex_gpt import get_yandex_gpt_response
 from utils import get_user_subscription_status, get_cached_response, save_cached_response, get_zodiac_sign, update_last_active
+from utils.pdf import generate_pdf_matrix   # <-- ДОБАВЛЕНО
 
 router = Router()
 
@@ -67,11 +68,15 @@ async def premium_matrix(callback: types.CallbackQuery):
     cache_key = f"matrix_{destiny}"
     cached = get_cached_response(user_id, cache_key)
     if cached:
-        pdf_share_menu = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📄 Скачать PDF", callback_data="download_pdf")],
-            [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
-        ])
-        await callback.message.answer(f"🔮 *Матрица судьбы*\n\n{cached}", parse_mode="Markdown", reply_markup=pdf_share_menu)
+        response = cached
+        # Генерируем PDF даже для кэшированного ответа
+        pdf_bytes = generate_pdf_matrix(user_id, name, destiny, response)
+        if pdf_bytes:
+            pdf_file = BufferedInputFile(pdf_bytes, filename=f"matrix_{user_id}.pdf")
+            await callback.message.answer_document(pdf_file, caption="🔮 Ваша матрица судьбы в PDF")
+        else:
+            await callback.message.answer("⚠️ Не удалось сгенерировать PDF, но вот текст:")
+        await callback.message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
         await callback.answer()
         return
     status_msg = await callback.message.answer("📜 Аркадий Викторович составляет вашу матрицу... Это может занять до 2 минут.")
@@ -80,11 +85,14 @@ async def premium_matrix(callback: types.CallbackQuery):
     await status_msg.delete()
     if "Ошибка" not in response and "Нейросеть" not in response and "таймаут" not in response:
         save_cached_response(user_id, cache_key, response)
-    pdf_share_menu = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📄 Скачать PDF", callback_data="download_pdf")],
-        [InlineKeyboardButton(text="🔙 Главное меню", callback_data="back_to_menu")]
-    ])
-    await callback.message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=pdf_share_menu)
+    # ГЕНЕРАЦИЯ PDF
+    pdf_bytes = generate_pdf_matrix(user_id, name, destiny, response)
+    if pdf_bytes:
+        pdf_file = BufferedInputFile(pdf_bytes, filename=f"matrix_{user_id}.pdf")
+        await callback.message.answer_document(pdf_file, caption="🔮 Ваша матрица судьбы в PDF")
+    else:
+        await callback.message.answer("⚠️ Не удалось сгенерировать PDF, но вот текст:")
+    await callback.message.answer(f"🔮 *Матрица судьбы*\n\n{response}", parse_mode="Markdown", reply_markup=menu_button)
     update_last_active(user_id)
     await callback.answer()
 

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import datetime
 import logging
 import random
@@ -21,7 +22,7 @@ from utils.notifications import (
     generate_adaptive_14_days,
     generate_subscription_reminder
 )
-from utils.misc import get_inactivity_days
+from utils.misc import get_inactivity_days, check_and_expire_subscriptions  # <-- ДОБАВЛЕНО
 
 # Импорты для статей
 from database import add_psychology_article, get_psychology_articles, add_sexology_article, get_sexology_articles, get_bot_config
@@ -328,9 +329,8 @@ async def generate_psychology_articles(bot: Bot):
         logging.info(f"Сгенерирована психологическая статья на тему: {topic}")
     logging.info("Генерация психологических статей завершена")
 
-# ---------- ПРОЧИЕ ----------
-async def check_expired_subscriptions(bot: Bot):
-    logging.info("check_expired_subscriptions выполнена (заглушка)")
+# ---------- ПРОЧИЕ (заглушки) ----------
+# Функция check_expired_subscriptions УДАЛЕНА – теперь используется check_and_expire_subscriptions из utils.misc
 
 async def weekly_leaderboard(bot: Bot, admin_id: int = None):
     logging.info("weekly_leaderboard выполнена (заглушка)")
@@ -350,7 +350,8 @@ def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     scheduler.add_job(send_subscription_reminder, CronTrigger(hour=10, minute=0), args=[bot], id="subscription_reminder")
     scheduler.add_job(generate_sexology_articles, CronTrigger(day_of_week='tue,fri', hour=12, minute=0), args=[bot], id="generate_sexology_articles")
     scheduler.add_job(generate_psychology_articles, CronTrigger(day_of_week='mon,thu', hour=12, minute=0), args=[bot], id="generate_psychology_articles")
-    scheduler.add_job(check_expired_subscriptions, CronTrigger(hour=2, minute=0), args=[bot], id="check_expired")
+    # ИСПРАВЛЕНО: теперь реальная проверка подписок
+    scheduler.add_job(check_and_expire_subscriptions, CronTrigger(hour=2, minute=0), id="check_expired")
     scheduler.add_job(backup_database, CronTrigger(hour=3, minute=0), id="backup_db")
     scheduler.add_job(weekly_leaderboard, CronTrigger(day_of_week='sun', hour=20, minute=0), args=[bot, admin_id], id="weekly_lb")
     scheduler.start()

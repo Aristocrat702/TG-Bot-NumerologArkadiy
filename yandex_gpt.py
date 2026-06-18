@@ -14,37 +14,45 @@ _failure_count = 0
 _last_failure_time = 0
 
 async def get_yandex_gpt_response(prompt: str, user_id: int, function_name: str = "default", gender: str = None) -> str:
-    """
-    Отправляет запрос к YandexGPT с учётом пола пользователя.
-    """
     global _failure_count, _last_failure_time
     if not YANDEX_API_KEY or not YANDEX_FOLDER_ID:
         return "⚠️ Ошибка: не настроен YandexGPT."
     if _failure_count >= 3 and (time.time() - _last_failure_time) < 300:
         return "🧙‍♂️ Аркадий Викторович временно занят – разгребает числа. Попробуйте через пару минут."
 
-    # Если пол не передан, пытаемся получить его из БД
-    if gender is None:
+    # ИСПРАВЛЕНО: если gender не передан, пытаемся определить, но только если user_id != 0
+    if gender is None and user_id != 0:
         user = get_user(user_id)
         if user:
-            gender = user.get("gender") if isinstance(user, dict) else user[22]  # предполагаем, что gender на позиции 22
+            # user может быть sqlite3.Row (индексный доступ) или dict
+            if isinstance(user, dict):
+                gender = user.get("gender", "unknown")
+            else:
+                # предполагаем, что поле gender на позиции 22 (см. структуру таблицы)
+                gender = user[22] if len(user) > 22 and user[22] else "unknown"
         else:
             gender = "unknown"
+    elif gender is None:
+        gender = "unknown"
 
-    # Загружаем промпты из БД
     prompts = get_prompts_for_function(function_name)
     if prompts:
         system_prompt = prompts["system"]
     else:
         system_prompt = "Ты — Аркадий Викторович, практикующий нумеролог, психолог и астролог с 20-летним стажем..."
 
-    # Добавляем пол в системный промпт (если известен)
     if gender == "male":
         system_prompt += " Обращайся к пользователю как к мужчине: используй «уважаемый», «дорогой», «мой хороший». Не используй женские обращения."
     elif gender == "female":
         system_prompt += " Обращайся к пользователю как к женщине: используй «уважаемая», «дорогая», «моя хорошая». Не используй мужские обращения."
     else:
         system_prompt += " Обращайся к пользователю нейтрально: «друг мой», «уважаемый» (универсально)."
+
+    # ===== УВЕЛИЧИВАЕМ ТОКЕНЫ ДЛЯ СТАТЕЙ =====
+    if function_name == "article_generation":
+        max_tokens = 1500
+    else:
+        max_tokens = 2000
 
     url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
     headers = {
@@ -56,7 +64,7 @@ async def get_yandex_gpt_response(prompt: str, user_id: int, function_name: str 
         "completionOptions": {
             "stream": False,
             "temperature": 0.7,
-            "maxTokens": 2000
+            "maxTokens": max_tokens
         },
         "messages": [
             {"role": "system", "text": system_prompt},

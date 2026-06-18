@@ -61,10 +61,13 @@ from .misc import (
     get_weather_by_coords,
     get_timezone_by_coords,
     get_city_coords,
-    check_and_expire_subscriptions,
+    check_and_expire_subscriptions,   # <-- ДОБАВЛЕНО
     save_mood,
-    get_user_gender,          # <-- добавлено
-    log_user_visit_wrapper,   # <-- уже должно быть, но добавим на всякий случай
+    get_user_gender,
+    log_user_visit_wrapper,
     get_leaderboard,
-    get_inactivity_days
+    get_inactivity_days,
+    get_user_stats,
+    increment_question_counter,
+    check_all_tests_passed
 )
