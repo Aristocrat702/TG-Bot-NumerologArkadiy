@@ -24,7 +24,7 @@ async def dream_menu(message: types.Message):
     await message.answer(
         "🌙 *Толкование снов*\n\n"
         "Опишите ваш сон кратко (2-3 предложения), и я дам его толкование.\n"
-        "Для бесплатных пользователей – короткий ответ с интригой.\n"
+        "Для бесплатных пользователей – короткий ответ с основной мыслью.\n"
         "По подписке – полный разбор с учётом вашего числа судьбы и знака зодиака.\n\n"
         "Также вы можете посмотреть свои предыдущие сны.",
         parse_mode="Markdown",
@@ -83,7 +83,8 @@ async def dream_process(message: types.Message, state: FSMContext):
         interpretation = await get_yandex_gpt_response(prompt, user_id, function_name="dream_interpretation", gender=gender)
         reply_markup = menu_button
     else:
-        prompt = f"Человек увидел сон: {dream_text}. Дай краткое толкование (4-5 предложений) с интригой. В конце добавь фразу: «Полное толкование с практическими рекомендациями – по подписке»."
+        # ИСПРАВЛЕНО: убрана фраза "с интригой"
+        prompt = f"Человек увидел сон: {dream_text}. Дай краткое толкование (4-5 предложений), которое затронет его глубокие переживания. В конце добавь фразу: «Полное толкование с практическими рекомендациями – по подписке»."
         interpretation = await get_yandex_gpt_response(prompt, user_id, function_name="dream_interpretation", gender=gender)
         reply_markup = get_subscription_button()
 

@@ -2,7 +2,7 @@ import datetime
 import random
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from yandex_gpt import get_yandex_gpt_response
-from utils.misc import get_cached_response, save_cached_response  # <-- ДОБАВЛЕНО
+from utils.misc import get_cached_response, save_cached_response
 
 def get_subscription_button() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -30,7 +30,8 @@ async def generate_morning_greeting(user_id: int, destiny: int, is_subscriber: b
         text, markup = await _get_cached_or_generate(user_id, cache_key, prompt, "morning_greeting", is_subscriber)
         return text, markup
     else:
-        prompt = f"Составь короткое утреннее приветствие (1-2 предложения) и тизер гороскопа на сегодня для человека с числом судьбы {destiny}. Добавь фразу: «Полный гороскоп и карта дня – по подписке»."
+        # ИСПРАВЛЕНО: убрано слово «тизер»
+        prompt = f"Составь короткое утреннее приветствие (1-2 предложения) и краткий гороскоп на сегодня для человека с числом судьбы {destiny}. Добавь фразу: «Полный гороскоп и карта дня – по подписке»."
         text, markup = await _get_cached_or_generate(user_id, cache_key, prompt, "morning_greeting", is_subscriber)
         return text, markup
 

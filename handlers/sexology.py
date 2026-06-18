@@ -111,7 +111,8 @@ async def sexology_question_handler(message: types.Message, state: FSMContext):
         await message.answer("Лимит бесплатных вопросов исчерпан. Оформите подписку.", reply_markup=kb)
         await state.clear()
         return
-    prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о сексологии: {question}. Дай короткий, но цепляющий ответ (3-4 предложения), оставь интригу. В конце добавь фразу: «Полная консультация и практические рекомендации – по подписке»."
+    # ИСПРАВЛЕНО: убраны слова «цепляющий» и «оставь интригу»
+    prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает о сексологии: {question}. Дай краткий ответ (3-4 предложения), дай полезный совет, но оставь пространство для более глубокого разбора. В конце добавь фразу: «Полная консультация и практические рекомендации – по подписке»."
     short_response = await get_yandex_gpt_response(prompt, user_id, function_name="sexology")
     increment_sexology_free_query(user_id)
     await status_msg.delete()
@@ -140,7 +141,6 @@ async def sexology_articles_list(callback: types.CallbackQuery):
         return
     text = "📚 *Статьи по сексологии*\n\n"
     for article in articles:
-        # Убрана дата
         text += f"• [{article['title']}](https://t.me/NumerologArkadiy_bot?start=article_sexology_{article['id']})\n"
     await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
     await callback.answer()

@@ -131,7 +131,7 @@ async def process_compatibility(message: types.Message, state: FSMContext):
             response = await get_yandex_gpt_response(prompt, user_id, function_name="compatibility", gender=gender)
             reply_markup = menu_button
         else:
-            prompt = f"Число судьбы пользователя {my_destiny} (знак {my_zodiac}), число партнёра {partner_destiny} (знак {partner_zodiac}). Дай краткое, но очень интригующее описание совместимости (4-5 предложений). Напиши, что их связывает, что будет сложно, и дай один совет. В конце добавь фразу: «Полный разбор по 5 сферам с рекомендациями – по подписке»."
+            prompt = f"Число судьбы пользователя {my_destiny} (знак {my_zodiac}), число партнёра {partner_destiny} (знак {partner_zodiac}). Дай краткое описание совместимости (4-5 предложений). Напиши, что их связывает, что будет сложно, и дай один совет. В конце добавь фразу: «Полный разбор по 5 сферам с рекомендациями – по подписке»."
             response = await get_yandex_gpt_response(prompt, user_id, function_name="compatibility", gender=gender)
             reply_markup = get_subscription_button()
         await status_msg.delete()
@@ -174,7 +174,7 @@ async def daily_card(message: types.Message):
         response = await get_yandex_gpt_response(prompt, user_id, function_name="daily_card", gender=gender)
         reply_markup = menu_button
     else:
-        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай цепляющий прогноз (5-6 предложений): что важно сегодня, один практический совет, вопрос, чтобы задуматься. В конце добавь фразу: «Полная карта дня с практиками и погодой – по подписке»."
+        prompt = f"Сегодняшняя карта дня для человека с числом судьбы {destiny}. Дай краткий прогноз (5-6 предложений): что важно сегодня, один практический совет, вопрос, чтобы задуматься. В конце добавь фразу: «Полная карта дня с практиками и погодой – по подписке»."
         response = await get_yandex_gpt_response(prompt, user_id, function_name="daily_card", gender=gender)
         reply_markup = get_subscription_button()
     await status_msg.delete()
@@ -265,7 +265,8 @@ async def process_consultation(message: types.Message, state: FSMContext):
         await state.clear()
         return
 
-    prompt = f"Человек с числом судьбы {destiny} спрашивает: {question}. Дай очень короткий ответ (1-2 предложения), интригующий, но не раскрывай всех деталей. В конце добавь фразу: «Полный разбор и советы – по подписке»."
+    # ИСПРАВЛЕНО: убрано слово «интригующий»
+    prompt = f"Человек с числом судьбы {destiny} спрашивает: {question}. Дай очень короткий ответ (1-2 предложения), который даст чёткое понимание, но не раскрывай всех деталей. В конце добавь фразу: «Полный разбор и советы – по подписке»."
     short_response = await get_yandex_gpt_response(prompt, user_id, function_name="consultation", gender=gender)
     increment_free_query(user_id)
     await status_msg.delete()
@@ -310,7 +311,8 @@ async def quick_topic(callback: types.CallbackQuery):
         prompt = f"Человек с числом судьбы {destiny} спрашивает про {topic}. Дай развёрнутый ответ (5-7 предложений) с практическими советами."
         response = await get_yandex_gpt_response(prompt, user_id, function_name="quick_topic", gender=gender)
     else:
-        prompt = f"Человек с числом судьбы {destiny} спрашивает про {topic}. Дай краткий, но цепляющий ответ (3-4 предложения). В конце добавь фразу: «Углублённый разбор и стратегии – по подписке»."
+        # ИСПРАВЛЕНО: убрано слово «цепляющий»
+        prompt = f"Человек с числом судьбы {destiny} спрашивает про {topic}. Дай краткий ответ (3-4 предложения) с основной сутью. В конце добавь фразу: «Углублённый разбор и стратегии – по подписке»."
         response = await get_yandex_gpt_response(prompt, user_id, function_name="quick_topic", gender=gender)
     status_msg = await callback.message.answer("🔮 Аркадий Викторович размышляет...")
     await status_msg.delete()
