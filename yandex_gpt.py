@@ -20,7 +20,6 @@ async def get_yandex_gpt_response(prompt: str, user_id: int, function_name: str 
     if _failure_count >= 3 and (time.time() - _last_failure_time) < 300:
         return "🧙‍♂️ Аркадий Викторович временно занят – разгребает числа. Попробуйте через пару минут."
 
-    # Определяем пол, если не передан
     if gender is None and user_id != 0:
         user = get_user(user_id)
         if user:
@@ -33,14 +32,12 @@ async def get_yandex_gpt_response(prompt: str, user_id: int, function_name: str 
     elif gender is None:
         gender = "unknown"
 
-    # Получаем промпты для функции
     prompts = get_prompts_for_function(function_name)
     if prompts:
         system_prompt = prompts["system"]
     else:
         system_prompt = "Ты — Аркадий Викторович, практикующий нумеролог, психолог и астролог с 20-летним стажем..."
 
-    # Добавляем обращение по полу
     if gender == "male":
         system_prompt += " Обращайся к пользователю как к мужчине: используй «уважаемый», «дорогой», «мой хороший». Не используй женские обращения."
     elif gender == "female":
@@ -48,7 +45,16 @@ async def get_yandex_gpt_response(prompt: str, user_id: int, function_name: str 
     else:
         system_prompt += " Обращайся к пользователю нейтрально: «друг мой», «уважаемый» (универсально)."
 
-    # Определяем max_tokens
+    # ⚠️ ЗАПРЕЩАЕМ ИСПОЛЬЗОВАТЬ НЕПОДДЕРЖИВАЕМЫЕ ТЕГИ
+    system_prompt += (
+        "\n\n<b>ВАЖНОЕ ТРЕБОВАНИЕ ПО ФОРМАТИРОВАНИЮ ОТВЕТОВ:</b>\n"
+        "Используй только разрешённые HTML-теги: <b>, <i>, <u>, <s>, <a>, <code>, <pre>.\n"
+        "ЗАПРЕЩЕНО использовать теги: <p>, <div>, <h1>-<h6>, <br>, <span> и любые другие блочные теги.\n"
+        "Для переноса строк используй обычный перевод строки (\\n).\n"
+        "Не используй Markdown (звёздочки, подчёркивания).\n"
+        "Форматируй ответ структурированно, с эмодзи для разделения блоков."
+    )
+
     if function_name == "article_generation":
         max_tokens = 1500
     else:
