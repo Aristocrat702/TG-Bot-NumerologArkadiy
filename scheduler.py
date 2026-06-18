@@ -23,6 +23,10 @@ from utils.notifications import (
 )
 from utils.misc import get_inactivity_days
 
+# Импорты для статей
+from database import add_psychology_article, get_psychology_articles, add_sexology_article, get_sexology_articles, get_bot_config
+from settings import PSYCHOLOGY_TOPICS, SEXOLOGY_TOPICS
+
 scheduler = AsyncIOScheduler()
 
 MSK_OFFSET = 3
@@ -68,12 +72,13 @@ async def send_group_messages(bot: Bot):
 
 async def generate_unique_message(chat_id: int, is_long: bool = False) -> str:
     topics = [
-        ("psychology", 35),
-        ("relationships", 25),
-        ("support", 25),
-        ("self_knowledge", 10),
+        ("psychology", 25),
+        ("relationships", 20),
+        ("support", 15),
+        ("self_knowledge", 5),
         ("numerology", 3),
-        ("astrology", 2)
+        ("astrology", 2),
+        ("sexology", 30)
     ]
     topics_list = [t for t, w in topics for _ in range(w)]
     for attempt in range(5):
@@ -85,7 +90,7 @@ async def generate_unique_message(chat_id: int, is_long: bool = False) -> str:
 ДЛИНА: {length_desc}
 ТРЕБОВАНИЯ:
 - Говори просто, человечно, без сложных терминов.
-- Если тема психология, отношения, поддержка – сделай сообщение тёплым, с вопросом или интригой в конце.
+- Если тема психология, отношения, поддержка или сексология – сделай сообщение тёплым, с вопросом или интригой в конце.
 - Избегай политики, религии, осуждения.
 - Не используй штампы вроде «вы должны».
 - Сообщение должно быть уникальным, не повторять предыдущие формулировки.
@@ -284,11 +289,8 @@ async def send_subscription_reminder(bot: Bot):
             logging.error(f"Ошибка отправки напоминания о подписке пользователю {user_id}: {e}")
         await asyncio.sleep(0.3)
 
-# ---------- СТАТЬИ СЕКСОЛОГИИ ----------
+# ---------- СТАТЬИ ----------
 async def generate_sexology_articles(bot: Bot):
-    from database import get_sexology_articles, add_sexology_article, get_bot_config
-    from settings import SEXOLOGY_TOPICS
-    import random
     conn = get_connection()
     cursor = conn.cursor()
     week_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
@@ -297,15 +299,34 @@ async def generate_sexology_articles(bot: Bot):
     conn.close()
     articles_per_week = int(get_bot_config("sexology_articles_per_week", "2"))
     if count >= articles_per_week:
-        logging.info("Статей за неделю достаточно, пропускаем генерацию")
+        logging.info("Статей сексологии за неделю достаточно, пропускаем генерацию")
         return
     topics = random.sample(SEXOLOGY_TOPICS, min(articles_per_week, len(SEXOLOGY_TOPICS)))
     for topic in topics:
         prompt = f"Напиши короткую полезную статью (5-7 предложений) на тему '{topic}'. Используй стиль Аркадия Викторовича: тепло, профессионально, без сложных терминов. Добавь интригу в конце."
-        content = await get_yandex_gpt_response(prompt, 0, function_name="generate_article")
+        content = await get_yandex_gpt_response(prompt, 0, function_name="article_generation")
         add_sexology_article(topic, content, topic, "pending")
-        logging.info(f"Сгенерирована статья на тему: {topic}")
-    logging.info("Генерация статей завершена")
+        logging.info(f"Сгенерирована статья сексологии на тему: {topic}")
+    logging.info("Генерация статей сексологии завершена")
+
+async def generate_psychology_articles(bot: Bot):
+    conn = get_connection()
+    cursor = conn.cursor()
+    week_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
+    cursor.execute("SELECT COUNT(*) FROM psychology_articles WHERE created_at >= ?", (week_ago,))
+    count = cursor.fetchone()[0]
+    conn.close()
+    articles_per_week = int(get_bot_config("sexology_articles_per_week", "2"))
+    if count >= articles_per_week:
+        logging.info("Психологических статей за неделю достаточно, пропускаем генерацию")
+        return
+    topics = random.sample(PSYCHOLOGY_TOPICS, min(articles_per_week, len(PSYCHOLOGY_TOPICS)))
+    for topic in topics:
+        prompt = f"Напиши короткую полезную статью (5-7 предложений) на тему '{topic}'. Используй стиль Аркадия Викторовича: тепло, профессионально, без сложных терминов. Добавь интригу в конце."
+        content = await get_yandex_gpt_response(prompt, 0, function_name="article_generation")
+        add_psychology_article(topic, content, topic, "pending")
+        logging.info(f"Сгенерирована психологическая статья на тему: {topic}")
+    logging.info("Генерация психологических статей завершена")
 
 # ---------- ПРОЧИЕ ----------
 async def check_expired_subscriptions(bot: Bot):
@@ -328,8 +349,9 @@ def start_scheduler(bot: Bot, admin_id: int, bot_version: str):
     scheduler.add_job(send_adaptive_notifications, CronTrigger(hour=20, minute=0), args=[bot], id="adaptive_push")
     scheduler.add_job(send_subscription_reminder, CronTrigger(hour=10, minute=0), args=[bot], id="subscription_reminder")
     scheduler.add_job(generate_sexology_articles, CronTrigger(day_of_week='tue,fri', hour=12, minute=0), args=[bot], id="generate_sexology_articles")
+    scheduler.add_job(generate_psychology_articles, CronTrigger(day_of_week='mon,thu', hour=12, minute=0), args=[bot], id="generate_psychology_articles")
     scheduler.add_job(check_expired_subscriptions, CronTrigger(hour=2, minute=0), args=[bot], id="check_expired")
     scheduler.add_job(backup_database, CronTrigger(hour=3, minute=0), id="backup_db")
     scheduler.add_job(weekly_leaderboard, CronTrigger(day_of_week='sun', hour=20, minute=0), args=[bot, admin_id], id="weekly_lb")
     scheduler.start()
-    logging.info(f"Планировщик запущен с задачами сексологии, версия {bot_version}")
+    logging.info(f"Планировщик запущен с задачами для статей, версия {bot_version}")
