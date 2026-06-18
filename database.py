@@ -1,6 +1,6 @@
 ﻿import sqlite3
 import datetime
-import time  # <-- добавлен для повторных попыток
+import time
 
 DB_PATH = "arkadiy_bot.db"
 
@@ -13,7 +13,6 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Таблица пользователей (с добавленным полем gender)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -41,7 +40,6 @@ def init_db():
         )
     ''')
     
-    # Миграции
     cursor.execute("PRAGMA table_info(users)")
     columns = [col[1] for col in cursor.fetchall()]
     if 'free_sexology_queries_today' not in columns:
@@ -49,7 +47,6 @@ def init_db():
     if 'gender' not in columns:
         cursor.execute("ALTER TABLE users ADD COLUMN gender TEXT DEFAULT 'unknown'")
     
-    # Таблица статей сексологии
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS sexology_articles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,7 +58,6 @@ def init_db():
         )
     ''')
     
-    # Таблица промптов
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS prompts (
             function_name TEXT PRIMARY KEY,
@@ -72,7 +68,6 @@ def init_db():
         )
     ''')
     
-    # Таблица визитов (этап 4)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_visits (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,7 +79,6 @@ def init_db():
         )
     ''')
     
-    # Таблица сообщений групп (этап 5)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS group_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -97,7 +91,6 @@ def init_db():
         )
     ''')
     
-    # Остальные таблицы
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS messages_cache (
             user_id INTEGER,
@@ -218,13 +211,11 @@ def init_db():
         )
     ''')
     
-    # Настройки
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('system_prompt', 'Вы — Аркадий Викторович...')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('subscription_price', '249')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_free_queries_limit', '3')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_articles_per_week', '2')")
     
-    # Инициализация промптов (с повторными попытками при блокировке)
     initialize_default_prompts()
     
     conn.commit()
@@ -356,7 +347,7 @@ def get_bot_config(key: str, default=None):
     conn.close()
     return row[0] if row else default
 
-# ---------- ФУНКЦИИ ДЛЯ СЕКСОЛОГИИ ----------
+# ---------- СЕКСОЛОГИЯ ----------
 def get_sexology_free_queries_today(user_id: int) -> int:
     conn = get_connection()
     cursor = conn.cursor()
@@ -444,7 +435,7 @@ def delete_sexology_article(article_id: int):
     conn.commit()
     conn.close()
 
-# ---------- ФУНКЦИИ ДЛЯ ПРОМПТОВ ----------
+# ---------- ПРОМПТЫ ----------
 def get_prompts_for_function(function_name: str) -> dict:
     conn = get_connection()
     cursor = conn.cursor()
@@ -474,7 +465,6 @@ def get_all_function_names() -> list:
     return [row[0] for row in rows]
 
 def initialize_default_prompts():
-    """Заполняет таблицу промптов начальными значениями с повторными попытками при блокировке."""
     default_prompts = {
         "number": {
             "system": "Ты — Аркадий Викторович, практикующий нумеролог, психолог и астролог с 20-летним стажем. Говори прямо, без сюсюканий. Используй живые фразы. Обращайся на «вы». Ты умеешь составлять гороскопы, отвечать на вопросы о числах, судьбе. Для нумерологии: рассчитывай число судьбы, давай характеристику. Не отказывайся от астрологических тем. Ты — астролог. Запрещено говорить: «я нейросеть», «я ИИ». Всегда отвечай на запросы о гороскопе.",
@@ -615,3 +605,11 @@ def export_group_messages_csv(chat_id: int, limit: int = 100, days: int = None) 
     for row in rows:
         writer.writerow([row[0], row[1], row[2], row[3]])
     return output.getvalue()
+
+# ---------- ОПРЕДЕЛЕНИЕ ПОЛА (этап 6) ----------
+def update_user_gender(user_id: int, gender: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET gender = ? WHERE user_id = ?", (gender, user_id))
+    conn.commit()
+    conn.close()
