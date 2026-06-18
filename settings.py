@@ -76,3 +76,26 @@ SEXOLOGY_TOPICS = [
     "Сексуальная жизнь после рождения ребёнка",
     "Как сохранить страсть в долгих отношениях"
 ]
+
+# ---------- ПСИХОЛОГИЯ ----------
+PSYCHOLOGY_TOPICS = [
+    "Как справляться со стрессом",
+    "Как улучшить отношения с близкими",
+    "Самооценка и уверенность",
+    "Мотивация и цели",
+    "Как победить прокрастинацию",
+    "Эмоциональный интеллект",
+    "Как избежать выгорания",
+    "Как стать увереннее в себе",
+    "Счастье и благополучие",
+    "Психосоматика: связь тела и психики"
+]
+
+# ---------- СПИСОК ФУНКЦИЙ ДЛЯ ПРОМПТОВ ----------
+FUNCTION_NAMES = [
+    "number", "daily_card", "compatibility", "horoscope_daily", "horoscope_monthly",
+    "natal", "transits", "solar", "psycho_test", "mood_analysis", "style_test",
+    "sexology", "group_messages", "adaptive_3", "adaptive_7", "adaptive_14",
+    "subscription_reminder", "premium_matrix", "premium_money_code",
+    "consultation", "stress_analysis", "personality_analysis", "article_generation"
+]
