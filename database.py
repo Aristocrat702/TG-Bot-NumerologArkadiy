@@ -5,7 +5,6 @@ import time
 DB_PATH = "arkadiy_bot.db"
 
 def get_connection():
-    """Возвращает соединение с БД с таймаутом 20 секунд."""
     conn = sqlite3.connect(DB_PATH, timeout=20)
     conn.row_factory = sqlite3.Row
     return conn
@@ -18,12 +17,11 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Если таблица users уже существует, пропускаем создание (чтобы избежать блокировок)
     if table_exists(cursor, "users"):
         conn.close()
         return
     
-    # Создание таблиц
+    # Создание таблиц (без промптов – их добавим отдельно)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -69,6 +67,7 @@ def init_db():
         )
     ''')
     
+    # Создаём таблицу prompts, но не заполняем её сразу
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS prompts (
             function_name TEXT PRIMARY KEY,
@@ -226,8 +225,6 @@ def init_db():
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('subscription_price', '249')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_free_queries_limit', '3')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_articles_per_week', '2')")
-    
-    initialize_default_prompts()
     
     conn.commit()
     conn.close()
@@ -446,7 +443,7 @@ def delete_sexology_article(article_id: int):
     conn.commit()
     conn.close()
 
-# ---------- ПРОМПТЫ ----------
+# ---------- ПРОМПТЫ (безопасная инициализация) ----------
 def get_prompts_for_function(function_name: str) -> dict:
     conn = get_connection()
     cursor = conn.cursor()
@@ -467,15 +464,17 @@ def set_prompts_for_function(function_name: str, system_prompt: str, free_prompt
     conn.commit()
     conn.close()
 
-def get_all_function_names() -> list:
+def initialize_default_prompts():
+    """Безопасно заполняет промпты, только если таблица пуста."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT function_name FROM prompts")
-    rows = cursor.fetchall()
+    # Проверяем, есть ли уже записи
+    cursor.execute("SELECT COUNT(*) FROM prompts")
+    count = cursor.fetchone()[0]
     conn.close()
-    return [row[0] for row in rows]
+    if count > 0:
+        return  # уже есть промпты – ничего не делаем
 
-def initialize_default_prompts():
     default_prompts = {
         "number": {
             "system": "Ты — Аркадий Викторович, практикующий нумеролог, психолог и астролог с 20-летним стажем. Говори прямо, без сюсюканий. Используй живые фразы. Обращайся на «вы». Ты умеешь составлять гороскопы, отвечать на вопросы о числах, судьбе. Для нумерологии: рассчитывай число судьбы, давай характеристику. Не отказывайся от астрологических тем. Ты — астролог. Запрещено говорить: «я нейросеть», «я ИИ». Всегда отвечай на запросы о гороскопе.",
@@ -504,17 +503,16 @@ def initialize_default_prompts():
         },
     }
     for func, prompts in default_prompts.items():
-        if not get_prompts_for_function(func):
-            for attempt in range(5):
-                try:
-                    set_prompts_for_function(func, prompts["system"], prompts["free"], prompts["paid"])
-                    break
-                except sqlite3.OperationalError as e:
-                    if "database is locked" in str(e) and attempt < 4:
-                        time.sleep(1)
-                        continue
-                    else:
-                        raise
+        for attempt in range(5):
+            try:
+                set_prompts_for_function(func, prompts["system"], prompts["free"], prompts["paid"])
+                break
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e) and attempt < 4:
+                    time.sleep(1)
+                    continue
+                else:
+                    raise
 
 # ---------- АНАЛИТИКА (этап 4) ----------
 def log_user_visit(user_id: int, source: str = "unknown"):
