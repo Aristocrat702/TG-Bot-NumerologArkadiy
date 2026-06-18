@@ -6,6 +6,7 @@ DB_PATH = "arkadiy_bot.db"
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH, timeout=20)
+    conn.execute("PRAGMA journal_mode=DELETE")  # отключаем WAL
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -21,7 +22,6 @@ def init_db():
         conn.close()
         return
     
-    # Создание таблиц (без промптов – их добавим отдельно)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -67,7 +67,6 @@ def init_db():
         )
     ''')
     
-    # Создаём таблицу prompts, но не заполняем её сразу
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS prompts (
             function_name TEXT PRIMARY KEY,
@@ -225,6 +224,8 @@ def init_db():
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('subscription_price', '249')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_free_queries_limit', '3')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_articles_per_week', '2')")
+    
+    initialize_default_prompts()
     
     conn.commit()
     conn.close()
@@ -443,7 +444,7 @@ def delete_sexology_article(article_id: int):
     conn.commit()
     conn.close()
 
-# ---------- ПРОМПТЫ (безопасная инициализация) ----------
+# ---------- ПРОМПТЫ ----------
 def get_prompts_for_function(function_name: str) -> dict:
     conn = get_connection()
     cursor = conn.cursor()
@@ -464,16 +465,23 @@ def set_prompts_for_function(function_name: str, system_prompt: str, free_prompt
     conn.commit()
     conn.close()
 
+def get_all_function_names() -> list:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT function_name FROM prompts")
+    rows = cursor.fetchall()
+    conn.close()
+    return [row[0] for row in rows]
+
 def initialize_default_prompts():
     """Безопасно заполняет промпты, только если таблица пуста."""
     conn = get_connection()
     cursor = conn.cursor()
-    # Проверяем, есть ли уже записи
     cursor.execute("SELECT COUNT(*) FROM prompts")
     count = cursor.fetchone()[0]
     conn.close()
     if count > 0:
-        return  # уже есть промпты – ничего не делаем
+        return
 
     default_prompts = {
         "number": {
