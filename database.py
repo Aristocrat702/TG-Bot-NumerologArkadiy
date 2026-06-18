@@ -10,12 +10,18 @@ def get_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def table_exists(cursor, table_name):
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+    return cursor.fetchone() is not None
+
 def init_db():
     conn = get_connection()
-    conn.execute("BEGIN IMMEDIATE")  # блокировка БД до завершения
     cursor = conn.cursor()
     
-    # Создание таблиц
+    if table_exists(cursor, "users"):
+        conn.close()
+        return
+    
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -39,7 +45,9 @@ def init_db():
             timezone TEXT,
             birth_time TEXT,
             birth_place TEXT,
-            gender TEXT DEFAULT 'unknown'
+            gender TEXT DEFAULT 'unknown',
+            total_questions INTEGER DEFAULT 0,
+            streak_days INTEGER DEFAULT 0
         )
     ''')
     
@@ -49,9 +57,24 @@ def init_db():
         cursor.execute("ALTER TABLE users ADD COLUMN free_sexology_queries_today INTEGER DEFAULT 0")
     if 'gender' not in columns:
         cursor.execute("ALTER TABLE users ADD COLUMN gender TEXT DEFAULT 'unknown'")
+    if 'total_questions' not in columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN total_questions INTEGER DEFAULT 0")
+    if 'streak_days' not in columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN streak_days INTEGER DEFAULT 0")
     
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS sexology_articles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT,
+            status TEXT DEFAULT 'pending',
+            topic TEXT
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS psychology_articles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             content TEXT NOT NULL,
@@ -219,7 +242,6 @@ def init_db():
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_free_queries_limit', '3')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_articles_per_week', '2')")
     
-    # Инициализация промптов
     init_prompts(cursor)
     
     conn.commit()
@@ -256,6 +278,11 @@ def init_prompts(cursor):
             "free": "Дай короткий, но цепляющий ответ (3-4 предложения) на вопрос пользователя. Не раскрывай всех деталей, оставь интригу. В конце добавь фразу: «Полная консультация и практические рекомендации – по подписке».",
             "paid": "Ответь развёрнуто (8-10 предложений) как психолог и сексолог, дай практические советы, будь деликатен. Учти число судьбы, если это уместно."
         },
+        "consultation": {
+            "system": "Ты — Аркадий Викторович, практикующий нумеролог, психолог, астролог и сексолог с 20-летним стажем. Ты даёшь развёрнутые, профессиональные консультации по любым вопросам из этих областей. Говори прямо, без сюсюканий. Используй живые фразы. Обращайся на «вы». Если вопрос не относится к этим темам, вежливо скажи об этом и предложи задать вопрос по теме.",
+            "free": "Ответь на вопрос пользователя кратко (3-4 предложения), но дай полезный совет. В конце добавь фразу: «Полная консультация с развёрнутыми рекомендациями – по подписке».",
+            "paid": "Ответь на вопрос развёрнуто (8-10 предложений) с учётом числа судьбы, если оно известно. Дай практические советы и рекомендации. Будь тёплым и профессиональным."
+        }
     }
     
     for func, prompts in default_prompts.items():
@@ -264,7 +291,7 @@ def init_prompts(cursor):
             VALUES (?, ?, ?, ?, ?)
         ''', (func, prompts["system"], prompts["free"], prompts["paid"], datetime.datetime.now().isoformat()))
 
-# ---------- ОСТАЛЬНЫЕ ФУНКЦИИ (те же, что и в предыдущей версии) ----------
+# ---------- ФУНКЦИИ РАБОТЫ С ПОЛЬЗОВАТЕЛЯМИ ----------
 def get_user(user_id: int):
     conn = get_connection()
     cursor = conn.cursor()
@@ -294,7 +321,7 @@ def create_user(user_id: int, name: str = None, birth_date: str = None, **kwargs
                                "reg_date", "last_active", "free_queries_today", "free_sexology_queries_today",
                                "send_daily", "is_sleeping", "referred_by", "phone",
                                "bot_version", "xp", "level", "city", "timezone",
-                               "birth_time", "birth_place", "gender"):
+                               "birth_time", "birth_place", "gender", "total_questions", "streak_days"):
                         fields.append(f"{key} = ?")
                         values.append(val)
             if fields:
@@ -303,10 +330,11 @@ def create_user(user_id: int, name: str = None, birth_date: str = None, **kwargs
                 cursor.execute(query, values)
         else:
             cursor.execute('''
-                INSERT INTO users (user_id, name, birth_date, destiny_number, reg_date, last_active, gender)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO users (user_id, name, birth_date, destiny_number, reg_date, last_active, gender, total_questions, streak_days)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (user_id, name, birth_date, kwargs.get('destiny_number', 0),
-                  datetime.datetime.now().isoformat(), datetime.datetime.now().isoformat(), kwargs.get('gender', 'unknown')))
+                  datetime.datetime.now().isoformat(), datetime.datetime.now().isoformat(),
+                  kwargs.get('gender', 'unknown'), kwargs.get('total_questions', 0), kwargs.get('streak_days', 0)))
         conn.commit()
         conn.close()
         return True
@@ -329,7 +357,7 @@ def update_user(user_id: int, **kwargs):
                        "subscription_end", "reg_date", "last_active", "free_queries_today",
                        "free_sexology_queries_today", "send_daily", "is_sleeping", "referred_by",
                        "phone", "bot_version", "xp", "level", "city", "timezone",
-                       "birth_time", "birth_place", "gender"):
+                       "birth_time", "birth_place", "gender", "total_questions", "streak_days"):
                 fields.append(f"{key} = ?")
                 values.append(val)
         if not fields:
@@ -478,6 +506,48 @@ def delete_sexology_article(article_id: int):
     conn.commit()
     conn.close()
 
+# ---------- ПСИХОЛОГИЧЕСКИЕ СТАТЬИ ----------
+def add_psychology_article(title: str, content: str, topic: str = "", status: str = "pending") -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO psychology_articles (title, content, created_at, status, topic) VALUES (?, ?, ?, ?, ?)",
+                   (title, content, datetime.datetime.now().isoformat(), status, topic))
+    conn.commit()
+    article_id = cursor.lastrowid
+    conn.close()
+    return article_id
+
+def get_psychology_articles(status: str = None, limit: int = None):
+    conn = get_connection()
+    cursor = conn.cursor()
+    query = "SELECT id, title, content, created_at, status, topic FROM psychology_articles"
+    params = []
+    if status:
+        query += " WHERE status = ?"
+        params.append(status)
+    query += " ORDER BY created_at DESC"
+    if limit:
+        query += " LIMIT ?"
+        params.append(limit)
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def update_psychology_article_status(article_id: int, status: str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE psychology_articles SET status = ? WHERE id = ?", (status, article_id))
+    conn.commit()
+    conn.close()
+
+def delete_psychology_article(article_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM psychology_articles WHERE id = ?", (article_id,))
+    conn.commit()
+    conn.close()
+
 # ---------- ПРОМПТЫ ----------
 def get_prompts_for_function(function_name: str) -> dict:
     conn = get_connection()
@@ -507,7 +577,7 @@ def get_all_function_names() -> list:
     conn.close()
     return [row[0] for row in rows]
 
-# ---------- АНАЛИТИКА (этап 4) ----------
+# ---------- АНАЛИТИКА ----------
 def log_user_visit(user_id: int, source: str = "unknown"):
     conn = get_connection()
     cursor = conn.cursor()
@@ -556,7 +626,7 @@ def export_user_visits_csv(user_id: int = None, days: int = 30) -> str:
         writer.writerow([row[0], row[1], row[2], row[3]])
     return output.getvalue()
 
-# ---------- ГРУППОВЫЕ СООБЩЕНИЯ (этап 5) ----------
+# ---------- ГРУППОВЫЕ СООБЩЕНИЯ ----------
 def save_group_message(chat_id: int, user_id: int, message_text: str, is_from_bot: bool = False):
     conn = get_connection()
     cursor = conn.cursor()
@@ -608,10 +678,18 @@ def export_group_messages_csv(chat_id: int, limit: int = 100, days: int = None) 
         writer.writerow([row[0], row[1], row[2], row[3]])
     return output.getvalue()
 
-# ---------- ОПРЕДЕЛЕНИЕ ПОЛА (этап 6) ----------
+# ---------- ОПРЕДЕЛЕНИЕ ПОЛА ----------
 def update_user_gender(user_id: int, gender: str):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET gender = ? WHERE user_id = ?", (gender, user_id))
+    conn.commit()
+    conn.close()
+
+# ---------- СТАТИСТИКА ВОПРОСОВ ----------
+def increment_total_questions(user_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET total_questions = total_questions + 1 WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()
