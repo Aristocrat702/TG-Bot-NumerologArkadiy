@@ -10,17 +10,10 @@ def get_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-def table_exists(cursor, table_name):
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
-    return cursor.fetchone() is not None
-
 def init_db():
     conn = get_connection()
+    conn.execute("BEGIN IMMEDIATE")  # блокировка БД до завершения
     cursor = conn.cursor()
-    
-    if table_exists(cursor, "users"):
-        conn.close()
-        return
     
     # Создание таблиц
     cursor.execute('''
@@ -226,17 +219,16 @@ def init_db():
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_free_queries_limit', '3')")
     cursor.execute("INSERT OR IGNORE INTO bot_config (key, value) VALUES ('sexology_articles_per_week', '2')")
     
-    # Инициализация промптов (внутри этой же транзакции)
-    initialize_prompts(cursor)
+    # Инициализация промптов
+    init_prompts(cursor)
     
     conn.commit()
     conn.close()
 
-def initialize_prompts(cursor):
-    """Инициализирует таблицу prompts, если она пуста."""
+def init_prompts(cursor):
     cursor.execute("SELECT COUNT(*) FROM prompts")
     if cursor.fetchone()[0] > 0:
-        return  # уже есть данные
+        return
     
     default_prompts = {
         "number": {
@@ -267,22 +259,12 @@ def initialize_prompts(cursor):
     }
     
     for func, prompts in default_prompts.items():
-        # Вставляем по одной с повторными попытками (на случай блокировки)
-        for attempt in range(5):
-            try:
-                cursor.execute('''
-                    INSERT OR REPLACE INTO prompts (function_name, system_prompt, free_prompt, paid_prompt, updated_at)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (func, prompts["system"], prompts["free"], prompts["paid"], datetime.datetime.now().isoformat()))
-                break
-            except sqlite3.OperationalError as e:
-                if "database is locked" in str(e) and attempt < 4:
-                    time.sleep(0.5)
-                    continue
-                else:
-                    raise
+        cursor.execute('''
+            INSERT OR IGNORE INTO prompts (function_name, system_prompt, free_prompt, paid_prompt, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (func, prompts["system"], prompts["free"], prompts["paid"], datetime.datetime.now().isoformat()))
 
-# ---------- ОСТАЛЬНЫЕ ФУНКЦИИ (без изменений, скопированы из предыдущей версии) ----------
+# ---------- ОСТАЛЬНЫЕ ФУНКЦИИ (те же, что и в предыдущей версии) ----------
 def get_user(user_id: int):
     conn = get_connection()
     cursor = conn.cursor()
@@ -496,7 +478,7 @@ def delete_sexology_article(article_id: int):
     conn.commit()
     conn.close()
 
-# ---------- ПРОМПТЫ (дополнительные функции) ----------
+# ---------- ПРОМПТЫ ----------
 def get_prompts_for_function(function_name: str) -> dict:
     conn = get_connection()
     cursor = conn.cursor()
