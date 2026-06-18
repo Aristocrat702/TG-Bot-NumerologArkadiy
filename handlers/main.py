@@ -21,9 +21,9 @@ from utils import (
     get_city_coords,
     get_weather_by_coords,
     get_dialog_history,
-    get_zodiac_sign
+    get_zodiac_sign,
+    get_user_gender
 )
-from utils.misc import get_user_gender
 from utils.notifications import get_subscription_button
 
 router = Router()
@@ -75,7 +75,7 @@ async def show_my_number(message: types.Message):
     await message.answer(f"🔢 Ваше число судьбы: {destiny}\n\n{response}",
                          reply_markup=reply_markup or quick_topics_menu, parse_mode=None)
 
-# ---------- СКАЧАТЬ PDF (если он генерировался через матрицу, но мы её убрали, оставим только для обратной совместимости) ----------
+# ---------- СКАЧАТЬ PDF (оставлен для совместимости) ----------
 @router.callback_query(F.data == "download_pdf")
 async def download_pdf(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -181,36 +181,41 @@ async def daily_card(message: types.Message):
     last_answer[user_id] = response
     await message.answer(f"🎁 *Карта дня*\n\n{response}{weather_str}", parse_mode="Markdown", reply_markup=reply_markup)
 
-# ---------- ЗАДАТЬ ВОПРОС ----------
-@router.message(F.text == "💬 ЗАДАТЬ ВОПРОС")
-async def ask_question(message: types.Message, state: FSMContext):
+# ---------- КОНСУЛЬТАЦИЯ (бывшая "ЗАДАТЬ ВОПРОС") ----------
+@router.message(F.text == "💬 КОНСУЛЬТАЦИЯ")
+async def ask_consultation(message: types.Message, state: FSMContext):
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
         await message.answer("Эта функция доступна только в личном чате.")
         return
     user_id = message.from_user.id
-    if get_user_subscription_status(user_id):
-        await message.answer(
-            "Напишите ваш вопрос (по нумерологии или психологии). Я отвечу максимально честно.",
-            reply_markup=cancel_button()
-        )
-        await state.set_state(MainStates.waiting_question)
-        return
-
-    remaining = get_free_questions_remaining(user_id)
-    if remaining > 0:
-        await message.answer(
-            f"У вас осталось *{remaining}* бесплатных вопросов на сегодня. Напишите вопрос, я дам короткий ответ. А в подписке – полная информация и развёрнутые консультации.\n\nВаш вопрос:",
-            parse_mode="Markdown",
-            reply_markup=cancel_button()
-        )
-        await state.set_state(MainStates.waiting_question)
+    is_subscriber = get_user_subscription_status(user_id)
+    
+    # Описание консультации
+    text = (
+        "💬 *Консультация с Аркадием Викторовичем*\n\n"
+        "Вы можете задать вопрос по следующим темам:\n"
+        "• 🔢 Нумерология – числа судьбы, матрица, совместимость\n"
+        "• 🧠 Психология – отношения, самооценка, мотивация, стресс\n"
+        "• 🌟 Астрология – гороскопы, натальная карта, транзиты\n"
+        "• 🧠 Сексология – интимная жизнь, совместимость, желания\n\n"
+        "Опишите вашу ситуацию максимально подробно – и я дам развёрнутый ответ.\n\n"
+    )
+    if is_subscriber:
+        text += "💎 Вы подписчик – вопросы безлимитны. Можете задавать сколько угодно."
+        reply_markup = cancel_button()
     else:
-        await message.answer("Вы исчерпали лимит бесплатных вопросов на сегодня. Оформите подписку в профиле – и получите безлимитные консультации, полную матрицу и прогнозы.", reply_markup=menu_button)
+        remaining = get_free_questions_remaining(user_id)
+        text += f"🎁 У вас осталось *{remaining}* бесплатных вопросов на сегодня.\n"
+        text += "Оформите подписку (249 ₽/мес) для безлимитных консультаций."
+        reply_markup = cancel_button()
+    
+    await message.answer(text, parse_mode="Markdown", reply_markup=reply_markup)
+    await state.set_state(MainStates.waiting_question)
 
 @router.message(MainStates.waiting_question)
-async def process_question(message: types.Message, state: FSMContext):
+async def process_consultation(message: types.Message, state: FSMContext):
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
-        await message.answer("Эта функция доступна только в личном чате.")
+        await message.answer("Доступно только в личном чате.")
         await state.clear()
         return
     user_id = message.from_user.id
@@ -225,12 +230,27 @@ async def process_question(message: types.Message, state: FSMContext):
     name = row[1] if row else "друг"
 
     is_subscriber = get_user_subscription_status(user_id)
-    status_msg = await message.answer("🧐 Изучаю вопрос...")
+    
+    # Проверка на нецелевой вопрос (не по темам бота)
+    allowed_keywords = ["число", "судьба", "матрица", "совместимость", "гороскоп", "натальный", "транзит", "соляр",
+                        "психолог", "отношения", "самооценка", "мотивация", "стресс", "тревога", "депрессия",
+                        "астролог", "знак зодиака", "планета", "секс", "интим", "влюбленность", "брак", "дружба",
+                        "денежный код", "удача", "успех", "карьера", "финансы"]
+    # Если вопрос слишком короткий или не содержит ключевых слов – мягко отклоняем
+    if len(question) < 5 or not any(word in question.lower() for word in allowed_keywords):
+        await message.answer(
+            "🧐 Друг мой, я специализируюсь на нумерологии, психологии, астрологии и сексологии. "
+            "Похоже, ваш вопрос не относится к этим темам. Пожалуйста, уточните, что вас интересует в рамках этих направлений.",
+            reply_markup=menu_button
+        )
+        await state.clear()
+        return
+
+    status_msg = await message.answer("🧐 Изучаю ваш вопрос...")
     if is_subscriber:
-        prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает: {question}. Ответь развёрнуто, как психолог и нумеролог, с советами."
-        response = await get_yandex_gpt_response(prompt, user_id, function_name="ask_question", gender=gender)
+        prompt = f"Человек с числом судьбы {destiny} по имени {name} спрашивает: {question}. Ответь развёрнуто, как психолог, нумеролог, астролог и сексолог (если уместно), с практическими советами. Используй стиль Аркадия Викторовича."
+        response = await get_yandex_gpt_response(prompt, user_id, function_name="consultation", gender=gender)
         await status_msg.delete()
-        last_answer[user_id] = response
         add_xp(user_id, "ask_question")
         await message.answer(response, parse_mode=None, reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="❓ Ещё вопрос", callback_data="ask_another_question")]
@@ -246,7 +266,7 @@ async def process_question(message: types.Message, state: FSMContext):
         return
 
     prompt = f"Человек с числом судьбы {destiny} спрашивает: {question}. Дай очень короткий ответ (1-2 предложения), интригующий, но не раскрывай всех деталей. В конце добавь фразу: «Полный разбор и советы – по подписке»."
-    short_response = await get_yandex_gpt_response(prompt, user_id, function_name="ask_question", gender=gender)
+    short_response = await get_yandex_gpt_response(prompt, user_id, function_name="consultation", gender=gender)
     increment_free_query(user_id)
     await status_msg.delete()
     await message.answer(
@@ -265,11 +285,8 @@ async def ask_another_question(callback: types.CallbackQuery, state: FSMContext)
         await callback.message.answer("Доступно только в личном чате.")
         await callback.answer()
         return
-    await callback.message.answer(
-        "Напишите ваш следующий вопрос (по нумерологии или психологии).",
-        reply_markup=cancel_button()
-    )
-    await state.set_state(MainStates.waiting_question)
+    # Вызываем ту же логику, что и при нажатии на консультацию
+    await ask_consultation(callback.message, state)
     await callback.answer()
 
 # ---------- БЫСТРЫЕ ТЕМЫ ----------
