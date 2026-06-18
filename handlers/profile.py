@@ -13,7 +13,8 @@ from utils import (
     get_achievements, add_subscription_days, update_last_active,
     get_user_subscription_status, calculate_level,
     get_city_coords, get_timezone_by_coords, translate_timezone,
-    format_subscription_remaining, get_bot_config, set_bot_config
+    format_subscription_remaining, get_bot_config, set_bot_config,
+    get_user_gender
 )
 from settings import LEVELS, PAYMENTS_TOKEN
 
@@ -51,7 +52,7 @@ class UserStates(StatesGroup):
     waiting_birth_time = State()
     waiting_birth_place = State()
 
-# ---------- ПРОФИЛЬ ----------
+# ==================== ОСНОВНОЙ ПРОФИЛЬ ====================
 @router.message(F.text == "👤 МОЙ ПРОФИЛЬ")
 async def show_profile(message: types.Message):
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -105,7 +106,7 @@ async def show_profile(message: types.Message):
             f"└─────────────────────┘")
     await message.answer(text, parse_mode="Markdown", reply_markup=profile_main_menu)
 
-# ---------- ВОЗВРАТ В ПРОФИЛЬ ----------
+# ==================== ВОЗВРАТ В ПРОФИЛЬ ====================
 @router.callback_query(F.data == "back_to_profile")
 async def back_to_profile(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -115,7 +116,7 @@ async def back_to_profile(callback: types.CallbackQuery):
     await callback.message.edit_text("👤 *Мой профиль*", parse_mode="Markdown", reply_markup=profile_main_menu)
     await callback.answer()
 
-# ---------- НАСТРОЙКИ (ПОДМЕНЮ) ----------
+# ==================== НАСТРОЙКИ ====================
 @router.callback_query(F.data == "settings")
 async def settings_menu(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -129,7 +130,7 @@ async def settings_menu(callback: types.CallbackQuery):
     )
     await callback.answer()
 
-# ---------- СМЕНА ИМЕНИ ----------
+# ==================== СМЕНА ИМЕНИ ====================
 @router.callback_query(F.data == "change_name")
 async def change_name_start(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -159,7 +160,7 @@ async def change_name_save(message: types.Message, state: FSMContext):
     await message.answer(f"Имя изменено на {new_name}.", reply_markup=main_menu)
     await state.clear()
 
-# ---------- РЕФЕРАЛЫ ----------
+# ==================== РЕФЕРАЛЫ ====================
 @router.callback_query(F.data == "referral_info")
 async def referral_info(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -180,7 +181,17 @@ async def referral_info(callback: types.CallbackQuery):
     await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
     await callback.answer()
 
-# ---------- ДОСТИЖЕНИЯ ----------
+# ==================== ДОСТИЖЕНИЯ (с переводом) ====================
+ACHIEVEMENTS_TRANSLATE = {
+    "first_calculation": "Первый расчёт числа судьбы",
+    "challenge_completed": "Челлендж 7 дней пройден",
+    "subscription_bought": "Подписка куплена",
+    "referral_subscription": "Реферал привёл подписку",
+    "questions_100": "Задано 100 вопросов",
+    "streak_7_days": "7 дней подряд в боте",
+    "all_tests_passed": "Прошёл все тесты"
+}
+
 @router.callback_query(F.data == "achievements")
 async def show_achievements(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -190,15 +201,16 @@ async def show_achievements(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     achievements = get_achievements(user_id)
     if not achievements:
-        text = "Пока нет достижений. Начните с расчёта числа судьбы!"
+        text = "🏆 Пока нет достижений. Начните с расчёта числа судьбы!"
     else:
-        text = "🏆 Ваши достижения:\n"
+        text = "🏆 *Ваши достижения:*\n\n"
         for ach, date in achievements:
-            text += f"• {ach} ({date[:10]})\n"
-    await callback.message.answer(text, reply_markup=menu_button)
+            name = ACHIEVEMENTS_TRANSLATE.get(ach, ach)
+            text += f"• {name} — {date[:10]}\n"
+    await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
     await callback.answer()
 
-# ---------- ТЕЛЕФОН ----------
+# ==================== ТЕЛЕФОН ====================
 @router.callback_query(F.data == "add_phone")
 async def add_phone_start(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -242,7 +254,7 @@ async def save_phone(message: types.Message, state: FSMContext):
     await message.answer("Спасибо! Номер телефона сохранён (или обновлён).", reply_markup=main_menu)
     await state.clear()
 
-# ---------- ГОРОД ----------
+# ==================== ГОРОД ====================
 @router.callback_query(F.data == "add_city")
 async def add_city_start(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -288,7 +300,7 @@ async def process_city(message: types.Message, state: FSMContext):
         await status_msg.edit_text("❌ Не удалось определить город. Попробуйте написать его на русском или английском языке более точно.")
     await state.clear()
 
-# ---------- ВРЕМЯ РОЖДЕНИЯ ----------
+# ==================== ВРЕМЯ РОЖДЕНИЯ ====================
 @router.callback_query(F.data == "add_birth_time")
 async def add_birth_time_start(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -314,7 +326,7 @@ async def save_birth_time(message: types.Message, state: FSMContext):
     await message.answer(f"✅ Время рождения сохранено: {time_str}", reply_markup=main_menu)
     await state.clear()
 
-# ---------- МЕСТО РОЖДЕНИЯ ----------
+# ==================== МЕСТО РОЖДЕНИЯ ====================
 @router.callback_query(F.data == "add_birth_place")
 async def add_birth_place_start(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -340,7 +352,7 @@ async def save_birth_place(message: types.Message, state: FSMContext):
     await message.answer(f"✅ Место рождения сохранено: {place}", reply_markup=main_menu)
     await state.clear()
 
-# ---------- ИСТОРИЯ ----------
+# ==================== ИСТОРИЯ ====================
 @router.callback_query(F.data == "history")
 async def show_history(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -360,7 +372,7 @@ async def show_history(callback: types.CallbackQuery):
     await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
     await callback.answer()
 
-# ---------- ДОБАВИТЬ В ГРУППУ ----------
+# ==================== ДОБАВИТЬ В ГРУППУ ====================
 @router.callback_query(F.data == "add_to_group")
 async def add_to_group_info(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -382,7 +394,7 @@ async def add_to_group_info(callback: types.CallbackQuery):
     await callback.message.answer(text, parse_mode="Markdown", disable_web_page_preview=True)
     await callback.answer()
 
-# ---------- О БОТЕ ----------
+# ==================== О БОТЕ ====================
 @router.callback_query(F.data == "help")
 async def show_help(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -391,26 +403,22 @@ async def show_help(callback: types.CallbackQuery):
         return
     text = (
         "ℹ️ *О боте «Аркадий Викторович»*\n\n"
-        "Я — ваш личный нумеролог, психолог и астролог. Вот что я умею:\n\n"
+        "Я — ваш личный нумеролог, психолог, астролог и сексолог. Вот что я умею:\n\n"
         "🧠 *Бесплатные возможности:*\n"
         "• 🔢 Ваше число судьбы и его характеристика\n"
         "• ❤️ Совместимость с партнёром\n"
         "• 🎁 Карта дня с прогнозом и погодой\n"
-        "• 💬 5 бесплатных вопросов в день\n"
-        "• 🧠 Психотест и дневник настроения\n"
+        "• 💬 Консультация – 5 бесплатных вопросов в день\n"
+        "• 🧠 Психотест, дневник настроения, самодиагностика стресса, тип личности\n"
         "• 🌟 Гороскоп на день\n\n"
         "💎 *Подписка (всего 249 ₽/мес) — это ваш ключ к полному доступу:*\n"
         "• 🔮 Полная матрица судьбы (22 аркана) с PDF-отчётом\n"
-        "• 💬 Безлимитные вопросы с развёрнутыми ответами\n"
+        "• 💬 Безлимитные консультации\n"
         "• 📅 Гороскоп на месяц и ежедневные прогнозы\n"
         "• 🌌 Натальная карта, транзиты и соляр\n"
+        "• 💸 Денежный код – персональная стратегия увеличения дохода\n"
         "• 📊 Персональные психологические рекомендации\n"
-        "• 🔔 Ежедневные мотивирующие фразы и аффирмации\n"
-        "• 🎁 Приоритетная поддержка\n\n"
-        "💰 *Почему это выгодно?*\n"
-        "• Всего 249 ₽ — цена одной чашки кофе, но вы получаете целый месяц профессиональных консультаций.\n"
-        "• Вы экономите время и деньги на походах к психологам и астрологам.\n"
-        "• Каждый день — новые инсайты и практики для улучшения жизни.\n\n"
+        "• 🔔 Ежедневные мотивирующие фразы и аффирмации\n\n"
         "👥 *Для групповых чатов:*\n"
         "• Активация: /startarkadiy\n"
         "• Деактивация: /stoparkadiy\n"
@@ -422,7 +430,7 @@ async def show_help(callback: types.CallbackQuery):
     await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
     await callback.answer()
 
-# ---------- КУПИТЬ ПОДПИСКУ ----------
+# ==================== КУПИТЬ ПОДПИСКУ ====================
 @router.callback_query(F.data == "buy_subscription")
 async def buy_subscription(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -443,7 +451,7 @@ async def buy_subscription(callback: types.CallbackQuery):
     )
     await callback.answer()
 
-# ---------- ПОДАРОК ПОДПИСКИ ----------
+# ==================== ПОДАРОК ПОДПИСКИ ====================
 @router.callback_query(F.data == "gift_subscription")
 async def gift_start(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -485,7 +493,7 @@ async def gift_process(message: types.Message, state: FSMContext):
 async def renew_subscription(callback: types.CallbackQuery):
     await buy_subscription(callback)
 
-# ---------- ОПЛАТА ----------
+# ==================== ОПЛАТА ====================
 @router.pre_checkout_query()
 async def pre_checkout(query: PreCheckoutQuery):
     await query.answer(ok=True)
@@ -502,7 +510,57 @@ async def successful_payment(message: types.Message):
         add_subscription_days(message.from_user.id, 30, check_referral=False, admin_id=0)
         await message.answer("✅ Подписка активирована на 30 дней! Теперь вам доступны матрица судьбы, безлимитные вопросы и все премиум-функции. Спасибо, что с нами!")
 
-# ---------- КОМАНДЫ ДЛЯ ПОДПИСКИ НА РАССЫЛКУ ----------
+# ==================== МОЯ СТАТИСТИКА ====================
+@router.callback_query(F.data == "my_stats")
+async def my_stats(callback: types.CallbackQuery):
+    if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+        await callback.message.answer("Доступно только в личном чате.")
+        await callback.answer()
+        return
+    user_id = callback.from_user.id
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Подсчёт вопросов (из dialog_history)
+    cursor.execute("SELECT COUNT(*) FROM dialog_history WHERE user_id = ? AND role = 'user'", (user_id,))
+    total_questions = cursor.fetchone()[0]
+    # Количество пройденных тестов (psycho_results)
+    cursor.execute("SELECT COUNT(*) FROM psycho_results WHERE user_id = ?", (user_id,))
+    total_tests = cursor.fetchone()[0]
+    # Количество записей настроения
+    cursor.execute("SELECT COUNT(*) FROM mood_log WHERE user_id = ?", (user_id,))
+    total_moods = cursor.fetchone()[0]
+    # Дней подряд (streak) – вычисляем через last_active
+    cursor.execute("SELECT last_active FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    streak = 0
+    if row and row[0]:
+        try:
+            last_active = datetime.datetime.fromisoformat(row[0])
+            now = datetime.datetime.now()
+            diff = now - last_active
+            if diff.days == 0:
+                streak = 1  # сегодня заходил
+                # Проверим, был ли вчера (можно добавить более сложную логику, но пока так)
+                # Для простоты оставим 1, если сегодня был активен
+            # В будущем можно добавить более точный расчёт streak
+        except:
+            pass
+    level, xp, next_xp = calculate_level(user_id)
+    level_name = LEVELS.get(level, {}).get("name", "Новичок")
+    text = (
+        f"📊 *Моя статистика*\n\n"
+        f"💬 Задано вопросов: {total_questions}\n"
+        f"🧠 Пройдено тестов: {total_tests}\n"
+        f"😊 Записей настроения: {total_moods}\n"
+        f"🔥 Дней подряд в боте: {streak}\n"
+        f"🏆 Уровень: {level} «{level_name}»\n"
+        f"⭐ XP: {xp} / {next_xp}"
+    )
+    await callback.message.answer(text, parse_mode="Markdown", reply_markup=menu_button)
+    await callback.answer()
+
+# ==================== КОМАНДЫ ДЛЯ ПОДПИСКИ НА РАССЫЛКУ ====================
 @router.message(Command("unsubscribe_daily"))
 async def unsubscribe_daily(message: types.Message):
     user_id = message.from_user.id
@@ -523,7 +581,7 @@ async def subscribe_daily(message: types.Message):
     conn.close()
     await message.answer("Вы подписались на ежедневную рассылку карты дня и гороскопа.", reply_markup=menu_button)
 
-# ---------- ЛИДЕРБОРД ----------
+# ==================== ЛИДЕРБОРД ====================
 @router.callback_query(F.data == "leaderboard")
 async def show_leaderboard(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
