@@ -1,5 +1,5 @@
 import datetime
-from aiogram import Bot, Dispatcher, types, F, Router
+from aiogram import Router, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -16,9 +16,9 @@ from utils import (
     add_xp,
     get_zodiac_sign,
     save_mood,
-    get_user_subscription_status
+    get_user_subscription_status,
+    get_user_gender
 )
-from utils.misc import get_user_gender
 from utils.notifications import get_subscription_button
 
 router = Router()
@@ -27,8 +27,10 @@ class PsychoStates(StatesGroup):
     waiting_psycho_question = State()
     waiting_mood_value = State()
     waiting_mood_comment = State()
-    waiting_style_answer = State()
+    waiting_stress_answer = State()
+    waiting_personality_answer = State()
 
+# ==================== ВОПРОСЫ ДЛЯ ТЕСТОВ ====================
 PSYCHO_QUESTIONS = [
     {
         "text": "Как вы обычно реагируете на стресс?",
@@ -52,37 +54,54 @@ PSYCHO_QUESTIONS = [
     }
 ]
 
-STYLE_QUESTIONS = [
-    {
-        "text": "Какой стиль одежды вам ближе?",
-        "options": ["Классический", "Спортивный", "Романтичный", "Креативный/авангардный"]
-    },
-    {
-        "text": "Какой цвет вас привлекает больше всего?",
-        "options": ["Чёрный/белый", "Красный/оранжевый", "Синий/зелёный", "Розовый/фиолетовый"]
-    },
-    {
-        "text": "Какую атмосферу вы предпочитаете?",
-        "options": ["Деловая, строгая", "Активная, динамичная", "Спокойная, уютная", "Творческая, свободная"]
-    },
-    {
-        "text": "Что для вас важнее при выборе вещи?",
-        "options": ["Качество и статус", "Удобство и практичность", "Эстетика и красота", "Оригинальность"]
-    },
-    {
-        "text": "Ваше отношение к брендам?",
-        "options": ["Люблю известные бренды", "Средний сегмент", "Масс-маркет", "Уникальные вещи"]
-    }
+STRESS_QUESTIONS = [
+    "Как часто вы чувствуете напряжение в течение дня?",
+    "Сложно ли вам расслабиться после работы?",
+    "Часто ли вы испытываете беспокойство без видимой причины?",
+    "Как часто вы чувствуете усталость даже после сна?",
+    "Сложно ли вам сосредоточиться на задачах?",
+    "Как часто вы чувствуете раздражение на окружающих?",
+    "Бывает ли у вас бессонница из-за переживаний?",
+    "Чувствуете ли вы, что не справляетесь с нагрузкой?",
+    "Как часто вы испытываете физический дискомфорт из-за стресса (головные боли, давление)?",
+    "Как часто вы чувствуете эмоциональное истощение?"
 ]
+STRESS_OPTIONS = ["Никогда / Почти никогда", "Иногда", "Часто", "Почти всегда"]
 
-# ---------- ОБРАБОТЧИКИ ----------
+PERSONALITY_QUESTIONS = [
+    "Я предпочитаю работать в команде, а не в одиночку.",
+    "Я часто переживаю о том, что обо мне думают другие.",
+    "Я люблю порядок и планирование.",
+    "Мне легко знакомиться с новыми людьми.",
+    "Я часто чувствую тревогу перед важными событиями.",
+    "Я предпочитаю импровизировать, а не следовать плану.",
+    "Мне важно помогать другим людям.",
+    "Я легко адаптируюсь к изменениям.",
+    "Я часто задумываюсь о смысле жизни и своих целях.",
+    "Мне сложно выражать свои эмоции.",
+    "Я предпочитаю стабильность и предсказуемость.",
+    "Я часто нахожусь в творческом поиске."
+]
+PERSONALITY_OPTIONS = ["Полностью не согласен", "Скорее не согласен", "Нейтрально", "Скорее согласен", "Полностью согласен"]
+
+# ==================== ОБРАБОТЧИКИ ====================
 @router.message(F.text == "🧠 ПСИХОЛОГИЯ")
 async def psychology_menu(message: types.Message):
     if message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
         await message.answer("Эта функция доступна только в личном чате.")
         return
-    await message.answer("🧠 *Психологический раздел*\n\nВыберите, что вас интересует:", parse_mode="Markdown", reply_markup=psycho_submenu)
+    await message.answer(
+        "🧠 *Психологический раздел*\n\n"
+        "Выберите, что вас интересует:\n"
+        "• Психотест – 5 вопросов, результат с рекомендациями.\n"
+        "• Дневник настроения – запись и анализ за неделю.\n"
+        "• Самодиагностика стресса – 10 вопросов, уровень стресса и советы.\n"
+        "• Тип личности – 12 вопросов, полное описание вашего типа.",
+        parse_mode="Markdown",
+        reply_markup=psycho_submenu
+    )
 
+# ---------- ПСИХОТЕСТ (5 вопросов) ----------
 @router.callback_query(F.data == "psycho_test")
 async def start_psycho_test(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -144,68 +163,123 @@ async def process_psycho_answer(callback: types.CallbackQuery, state: FSMContext
         await state.clear()
     await callback.answer()
 
-@router.callback_query(F.data == "style_test")
-async def start_style_test(callback: types.CallbackQuery, state: FSMContext):
+# ---------- САМОДИАГНОСТИКА СТРЕССА ----------
+@router.callback_query(F.data == "stress_test")
+async def start_stress_test(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
         await callback.message.answer("Доступно только в личном чате.")
         await callback.answer()
         return
-    await state.update_data(style_step=0, style_answers=[])
-    q = STYLE_QUESTIONS[0]
+    await state.update_data(stress_step=0, stress_answers=[])
+    q = STRESS_QUESTIONS[0]
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=opt, callback_data=f"style_ans_{i}")] for i, opt in enumerate(q["options"])
+        [InlineKeyboardButton(text=opt, callback_data=f"stress_ans_{i}")] for i, opt in enumerate(STRESS_OPTIONS)
     ])
-    await callback.message.answer(f"🎨 *Тест: Стиль и удача*\n\nВопрос 1 из {len(STYLE_QUESTIONS)}:\n\n{q['text']}", reply_markup=kb, parse_mode="Markdown")
-    await state.set_state(PsychoStates.waiting_style_answer)
+    await callback.message.answer(f"🧠 *Самодиагностика стресса*\n\nВопрос 1 из {len(STRESS_QUESTIONS)}:\n\n{q}", reply_markup=kb, parse_mode="Markdown")
+    await state.set_state(PsychoStates.waiting_stress_answer)
     await callback.answer()
 
-@router.callback_query(PsychoStates.waiting_style_answer, F.data.startswith("style_ans_"))
-async def process_style_answer(callback: types.CallbackQuery, state: FSMContext):
+@router.callback_query(PsychoStates.waiting_stress_answer, F.data.startswith("stress_ans_"))
+async def process_stress_answer(callback: types.CallbackQuery, state: FSMContext):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
         await callback.message.answer("Доступно только в личном чате.")
         await callback.answer()
         return
     data = await state.get_data()
-    step = data.get("style_step", 0)
-    answers = data.get("style_answers", [])
+    step = data.get("stress_step", 0)
+    answers = data.get("stress_answers", [])
     ans_index = int(callback.data.split("_")[-1])
-    answers.append(ans_index)
+    answers.append(ans_index)  # 0-3
     step += 1
-    if step < len(STYLE_QUESTIONS):
-        await state.update_data(style_step=step, style_answers=answers)
-        q = STYLE_QUESTIONS[step]
+    if step < len(STRESS_QUESTIONS):
+        await state.update_data(stress_step=step, stress_answers=answers)
+        q = STRESS_QUESTIONS[step]
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=opt, callback_data=f"style_ans_{i}")] for i, opt in enumerate(q["options"])
+            [InlineKeyboardButton(text=opt, callback_data=f"stress_ans_{i}")] for i, opt in enumerate(STRESS_OPTIONS)
         ])
-        await callback.message.answer(f"Вопрос {step+1} из {len(STYLE_QUESTIONS)}:\n\n{q['text']}", reply_markup=kb)
+        await callback.message.answer(f"Вопрос {step+1} из {len(STRESS_QUESTIONS)}:\n\n{q}", reply_markup=kb)
     else:
         user_id = callback.from_user.id
-        is_subscriber = get_user_subscription_status(user_id)
         gender = get_user_gender(user_id)
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT destiny_number, name, birth_date FROM users WHERE user_id=?", (user_id,))
-        row = cursor.fetchone()
-        conn.close()
-        destiny = row[0] if row else "неизвестно"
-        name = row[1] if row else "пользователь"
-        birth_date = row[2] if row else ""
-        zodiac = get_zodiac_sign(birth_date) if birth_date else "не определён"
-        status_msg = await callback.message.answer("🔮 Аркадий анализирует ваш стиль...")
-        if is_subscriber:
-            prompt = f"Пользователь {name} с числом судьбы {destiny} и знаком зодиака {zodiac} ответил на вопросы о стиле: {answers}. На основе нумерологии, психологии и астрологии дай развёрнутые рекомендации (6-8 предложений): какие цвета ему подходят, какие бренды (стиль одежды, техника, аксессуары), какой стиль в интерьере, какие профессии или хобби. Ответ должен быть полезным, практичным, без выдумок."
-            response = await get_yandex_gpt_response(prompt, user_id, function_name="style_test", gender=gender)
-            reply_markup = None
+        total_score = sum(answers)  # max 30 (0-3 каждый)
+        # Интерпретация
+        if total_score <= 10:
+            level = "низкий"
+            recommendation = "Ваш уровень стресса низкий. Продолжайте заботиться о себе и поддерживать баланс."
+        elif total_score <= 20:
+            level = "средний"
+            recommendation = "У вас средний уровень стресса. Рекомендуется уделять больше времени отдыху и релаксации. Попробуйте дыхательные практики или короткие медитации."
         else:
-            prompt = f"Пользователь {name} с числом судьбы {destiny} и знаком зодиака {zodiac} ответил на вопросы о стиле: {answers}. Дай краткие рекомендации (3-4 предложения) по стилю. В конце добавь фразу: «Полный разбор с брендами, цветами и профессиями – по подписке»."
-            response = await get_yandex_gpt_response(prompt, user_id, function_name="style_test", gender=gender)
-            reply_markup = get_subscription_button()
+            level = "высокий"
+            recommendation = "У вас высокий уровень стресса. Важно найти способы снижения нагрузки: обратитесь к специалисту, начните практиковать осознанность, больше отдыхайте."
+        # Дополнительный совет через YandexGPT
+        status_msg = await callback.message.answer("🧠 Аркадий Викторович анализирует ваш уровень стресса...")
+        prompt = f"Уровень стресса пользователя: {level} (сумма баллов {total_score}). Дай развёрнутый совет (5-7 предложений) с практическими рекомендациями по управлению стрессом. Будь тёплым и поддерживающим."
+        response = await get_yandex_gpt_response(prompt, user_id, function_name="stress_analysis", gender=gender)
         await status_msg.delete()
-        save_psycho_result(user_id, f"[СТИЛЬ] {response}")
-        await callback.message.answer(f"🎨 *Ваш персональный стиль*\n\n{response}", parse_mode="Markdown", reply_markup=reply_markup or main_menu)
+        # Сохраняем результат
+        result_text = f"Уровень стресса: {level} (баллы: {total_score})\n\nРекомендации:\n{recommendation}\n\n{response}"
+        save_psycho_result(user_id, result_text)
+        await callback.message.answer(f"🧠 *Результат диагностики стресса*\n\n{result_text}", parse_mode="Markdown", reply_markup=main_menu)
         await state.clear()
     await callback.answer()
 
+# ---------- ТИП ЛИЧНОСТИ ----------
+@router.callback_query(F.data == "personality_test")
+async def start_personality_test(callback: types.CallbackQuery, state: FSMContext):
+    if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+        await callback.message.answer("Доступно только в личном чате.")
+        await callback.answer()
+        return
+    await state.update_data(personality_step=0, personality_answers=[])
+    q = PERSONALITY_QUESTIONS[0]
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=opt, callback_data=f"person_ans_{i}")] for i, opt in enumerate(PERSONALITY_OPTIONS)
+    ])
+    await callback.message.answer(f"🧠 *Тип личности*\n\nВопрос 1 из {len(PERSONALITY_QUESTIONS)}:\n\n{q}\n\nОцените, насколько вы согласны с утверждением:", reply_markup=kb, parse_mode="Markdown")
+    await state.set_state(PsychoStates.waiting_personality_answer)
+    await callback.answer()
+
+@router.callback_query(PsychoStates.waiting_personality_answer, F.data.startswith("person_ans_"))
+async def process_personality_answer(callback: types.CallbackQuery, state: FSMContext):
+    if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
+        await callback.message.answer("Доступно только в личном чате.")
+        await callback.answer()
+        return
+    data = await state.get_data()
+    step = data.get("personality_step", 0)
+    answers = data.get("personality_answers", [])
+    ans_index = int(callback.data.split("_")[-1])  # 0-4
+    answers.append(ans_index)
+    step += 1
+    if step < len(PERSONALITY_QUESTIONS):
+        await state.update_data(personality_step=step, personality_answers=answers)
+        q = PERSONALITY_QUESTIONS[step]
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=opt, callback_data=f"person_ans_{i}")] for i, opt in enumerate(PERSONALITY_OPTIONS)
+        ])
+        await callback.message.answer(f"Вопрос {step+1} из {len(PERSONALITY_QUESTIONS)}:\n\n{q}", reply_markup=kb)
+    else:
+        user_id = callback.from_user.id
+        gender = get_user_gender(user_id)
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM users WHERE user_id=?", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        name = row[0] if row else "пользователь"
+        status_msg = await callback.message.answer("🧠 Аркадий Викторович анализирует ваш тип личности...")
+        # Преобразуем ответы в текстовое описание для YandexGPT
+        answers_text = ", ".join([f"вопрос {i+1}: {PERSONALITY_OPTIONS[a]}" for i, a in enumerate(answers)])
+        prompt = f"Пользователь {name} ответил на 12 вопросов по модели «Большая пятёрка». Ответы: {answers_text}. Составь развёрнутое описание типа личности (8-10 предложений): укажи ключевые черты, сильные стороны, зоны роста, рекомендации по саморазвитию и взаимодействию с людьми. Будь тёплым, профессиональным, используй стиль Аркадия Викторовича."
+        response = await get_yandex_gpt_response(prompt, user_id, function_name="personality_analysis", gender=gender)
+        await status_msg.delete()
+        save_psycho_result(user_id, response)
+        await callback.message.answer(f"🧠 *Ваш тип личности*\n\n{response}", parse_mode="Markdown", reply_markup=main_menu)
+        await state.clear()
+    await callback.answer()
+
+# ---------- ДНЕВНИК НАСТРОЕНИЯ ----------
 @router.callback_query(F.data == "mood_diary")
 async def mood_diary_menu(callback: types.CallbackQuery):
     if callback.message.chat.type in (ChatType.GROUP, ChatType.SUPERGROUP):
@@ -310,9 +384,9 @@ async def show_my_psycho_result(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     result, created_at = get_psycho_result(user_id)
     if result:
-        await callback.message.answer(f"📘 *Ваш последний результат психотеста* (от {created_at[:10]}):\n\n{result}", parse_mode="Markdown")
+        await callback.message.answer(f"📘 *Ваш последний результат* (от {created_at[:10]}):\n\n{result}", parse_mode="Markdown")
     else:
-        await callback.message.answer("Вы ещё не проходили психотест или тест «Стиль и удача». Пройдите их, чтобы получить результат.")
+        await callback.message.answer("Вы ещё не проходили тесты. Пройдите их, чтобы получить результат.")
     await callback.answer()
 
 @router.callback_query(F.data == "psycho_back")
