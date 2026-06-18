@@ -62,5 +62,9 @@ from .misc import (
     get_timezone_by_coords,
     get_city_coords,
     check_and_expire_subscriptions,
-    save_mood
+    save_mood,
+    get_user_gender,          # <-- добавлено
+    log_user_visit_wrapper,   # <-- уже должно быть, но добавим на всякий случай
+    get_leaderboard,
+    get_inactivity_days
 )
