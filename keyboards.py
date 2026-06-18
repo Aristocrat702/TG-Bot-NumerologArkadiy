@@ -5,7 +5,7 @@ from aiogram import Bot
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="🔢 МОЁ ЧИСЛО"), KeyboardButton(text="🎁 КАРТА ДНЯ")],
-        [KeyboardButton(text="❤️ СОВМЕСТИМОСТЬ"), KeyboardButton(text="💬 ЗАДАТЬ ВОПРОС")],
+        [KeyboardButton(text="❤️ СОВМЕСТИМОСТЬ"), KeyboardButton(text="💬 КОНСУЛЬТАЦИЯ")],   # переименовано
         [KeyboardButton(text="🧠 ПСИХОЛОГИЯ"), KeyboardButton(text="🌟 АСТРОЛОГИЯ")],
         [KeyboardButton(text="💎 ЭКСКЛЮЗИВ"), KeyboardButton(text="🧠 СЕКСОЛОГИЯ")],
         [KeyboardButton(text="👤 МОЙ ПРОФИЛЬ")]
@@ -13,11 +13,12 @@ main_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# ========== ПОДМЕНЮ ПСИХОЛОГИИ ==========
+# ========== ПОДМЕНЮ ПСИХОЛОГИИ (обновлённое) ==========
 psycho_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🧠 ПСИХОТЕСТ", callback_data="psycho_test")],
     [InlineKeyboardButton(text="😊 ДНЕВНИК НАСТРОЕНИЯ", callback_data="mood_diary")],
-    [InlineKeyboardButton(text="🎨 СТИЛЬ И УДАЧА", callback_data="style_test")],
+    [InlineKeyboardButton(text="🧠 САМОДИАГНОСТИКА СТРЕССА", callback_data="stress_test")],   # новая
+    [InlineKeyboardButton(text="🧠 ТИП ЛИЧНОСТИ", callback_data="personality_test")],         # новая
     [InlineKeyboardButton(text="📘 МОИ РЕЗУЛЬТАТЫ", callback_data="my_psycho_result")],
     [InlineKeyboardButton(text="🔙 НАЗАД", callback_data="psycho_back")]
 ])
@@ -49,16 +50,17 @@ sexology_submenu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ========== ПРОФИЛЬ (основное меню) ==========
+# ========== ПРОФИЛЬ (основное меню, без денежного кода) ==========
 profile_main_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="⚙️ НАСТРОЙКИ", callback_data="settings")],
     [InlineKeyboardButton(text="⭐ КУПИТЬ ПОДПИСКУ", callback_data="buy_subscription"),
      InlineKeyboardButton(text="🎁 ПОДАРИТЬ ПОДПИСКУ", callback_data="gift_subscription")],
-    [InlineKeyboardButton(text="💸 ДЕНЕЖНЫЙ КОД", callback_data="money_code")],
+    # денежный код удалён
     [InlineKeyboardButton(text="🎁 РЕФЕРАЛЫ", callback_data="referral_info"),
      InlineKeyboardButton(text="🏆 ДОСТИЖЕНИЯ", callback_data="achievements")],
     [InlineKeyboardButton(text="🏆 РЕЙТИНГ", callback_data="leaderboard"),
      InlineKeyboardButton(text="📜 ИСТОРИЯ ЗАПРОСОВ", callback_data="history")],
+    [InlineKeyboardButton(text="📊 МОЯ СТАТИСТИКА", callback_data="my_stats")],   # новая
     [InlineKeyboardButton(text="🎟️ ВВЕСТИ ПРОМОКОД", callback_data="enter_promo"),
      InlineKeyboardButton(text="👥 ДОБАВИТЬ В ГРУППУ", callback_data="add_to_group")],
     [InlineKeyboardButton(text="ℹ️ О БОТЕ", callback_data="help"),
@@ -97,7 +99,7 @@ challenge_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")]
 ])
 
-# ========== АДМИН-МЕНЮ (обновлённое) ==========
+# ========== АДМИН-МЕНЮ (добавлена очистка БД) ==========
 admin_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="📊 СТАТИСТИКА АКТИВНОСТИ")],
@@ -112,6 +114,7 @@ admin_menu = ReplyKeyboardMarkup(
         [KeyboardButton(text="👥 УПРАВЛЕНИЕ ГРУППАМИ"), KeyboardButton(text="📤 ТЕСТ ГРУППЫ")],
         [KeyboardButton(text="🔧 УПРАВЛЕНИЕ ПРОМПТАМИ")],
         [KeyboardButton(text="📰 СТАТЬИ СЕКСОЛОГИИ")],
+        [KeyboardButton(text="🗑️ ОЧИСТКА БД")],   # новая кнопка
         [KeyboardButton(text="⬅️ ВЫЙТИ ИЗ АДМИНКИ")]
     ],
     resize_keyboard=True
